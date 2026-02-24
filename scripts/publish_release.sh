@@ -12,6 +12,7 @@ RELEASE_NOTES_FILE=""
 SKIP_CHECKS="false"
 SKIP_RELEASE="false"
 SKIP_UPLOAD="false"
+DRY_RUN="false"
 COMMIT_MESSAGE=""
 VERSION_OVERRIDE=""
 
@@ -23,6 +24,7 @@ RELEASE_ID=""
 RELEASE_HTML_URL=""
 ASSET_DOWNLOAD_URL=""
 AUTH_ARGS=()
+PUBLISH_STAGE_PATHS=()
 
 log() {
   echo "[INFO] $*"
@@ -58,6 +60,7 @@ Options:
   --skip-checks           Pass --skip-checks to scripts/release_build.sh
   --skip-release          Skip GitHub Release create/update and asset upload
   --skip-upload           Create/update release but skip asset upload
+  --dry-run               Validate and build only; skip commit/push/tag/release
   -h, --help              Show help
 
 Examples:
@@ -105,6 +108,10 @@ parse_args() {
         ;;
       --skip-upload)
         SKIP_UPLOAD="true"
+        shift
+        ;;
+      --dry-run)
+        DRY_RUN="true"
         shift
         ;;
       -h|--help)
@@ -172,11 +179,115 @@ build_release_zip() {
   [[ -f "${ZIP_PATH}" ]] || die "Release zip not found: ${ZIP_PATH}"
 }
 
+is_blocked_publish_path() {
+  local path="$1"
+  case "${path}" in
+    internal/*|dist/*|.DS_Store|*/.DS_Store|SESSION_SUMMARY_v1.2.2.md|*.pem|*.key|.env|.env.*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+is_allowed_publish_path() {
+  local path="$1"
+  case "${path}" in
+    VERSION|CHANGELOG.md|README.md|README.zh-CN.md|README.en.md|LICENSE|.gitignore|scripts/*|src/CloverSec-CTF-Build-Dockerizer/*|docs/assets/readme/*|Build_test/*|.github/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+print_path_group() {
+  local title="$1"
+  shift
+  local item
+  echo "${title}"
+  for item in "$@"; do
+    echo "  - ${item}"
+  done
+}
+
+collect_publish_stage_paths() {
+  local entry
+  local status
+  local payload
+  local extra_path
+  local path
+  local -a changed_paths=()
+  local -a blocked_paths=()
+  local -a unexpected_paths=()
+  local -a allowed_paths=()
+
+  # Use NUL-delimited porcelain output to keep spaces/special chars intact.
+  while IFS= read -r -d '' entry; do
+    [[ -n "${entry}" ]] || continue
+    status="${entry:0:2}"
+    payload="${entry:3}"
+    changed_paths+=("${payload}")
+
+    if [[ "${status:0:1}" == "R" || "${status:1:1}" == "R" || "${status:0:1}" == "C" || "${status:1:1}" == "C" ]]; then
+      IFS= read -r -d '' extra_path || die "Failed to parse rename/copy path from git status"
+      changed_paths+=("${extra_path}")
+    fi
+  done < <(git -C "${ROOT_DIR}" status --porcelain -z)
+
+  if [[ ${#changed_paths[@]} -eq 0 ]]; then
+    PUBLISH_STAGE_PATHS=()
+    return 0
+  fi
+
+  for path in "${changed_paths[@]}"; do
+    if is_blocked_publish_path "${path}"; then
+      blocked_paths+=("${path}")
+      continue
+    fi
+    if ! is_allowed_publish_path "${path}"; then
+      unexpected_paths+=("${path}")
+      continue
+    fi
+    allowed_paths+=("${path}")
+  done
+
+  if [[ ${#blocked_paths[@]} -gt 0 ]]; then
+    print_path_group "[ERROR] 检测到阻断路径（不允许发布脚本自动提交）:" "${blocked_paths[@]}" >&2
+    die "发布已中止，请先清理阻断路径。"
+  fi
+
+  if [[ ${#unexpected_paths[@]} -gt 0 ]]; then
+    print_path_group "[ERROR] 检测到白名单外变更（请手动审查并提交）:" "${unexpected_paths[@]}" >&2
+    die "发布已中止，请先处理白名单外变更。"
+  fi
+
+  PUBLISH_STAGE_PATHS=("${allowed_paths[@]}")
+}
+
 commit_and_push() {
-  git -C "${ROOT_DIR}" add -A
+  collect_publish_stage_paths
+
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    if [[ ${#PUBLISH_STAGE_PATHS[@]} -eq 0 ]]; then
+      log "Dry-run: no changes to commit"
+    else
+      print_path_group "[INFO] Dry-run: 白名单内可提交路径:" "${PUBLISH_STAGE_PATHS[@]}"
+    fi
+    log "Dry-run: skip commit and push"
+    return 0
+  fi
+
+  if [[ ${#PUBLISH_STAGE_PATHS[@]} -eq 0 ]]; then
+    log "No changes to commit"
+  else
+    git -C "${ROOT_DIR}" add -- "${PUBLISH_STAGE_PATHS[@]}"
+  fi
 
   if git -C "${ROOT_DIR}" diff --cached --quiet; then
-    log "No changes to commit"
+    log "No staged changes to commit"
   else
     if [[ -z "${COMMIT_MESSAGE}" ]]; then
       COMMIT_MESSAGE="release: ${VERSION}"
@@ -192,6 +303,11 @@ ensure_version_tag() {
   local head_commit
   local local_tag_commit
   local remote_tag_commit
+
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    log "Dry-run: skip tag checks and pushes"
+    return 0
+  fi
 
   head_commit="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
 
@@ -463,6 +579,11 @@ main() {
   build_release_zip
   commit_and_push
   ensure_version_tag
+
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    log "Done (dry-run)"
+    exit 0
+  fi
 
   if [[ "${SKIP_RELEASE}" == "true" ]]; then
     log "Done (release steps skipped by --skip-release)"
