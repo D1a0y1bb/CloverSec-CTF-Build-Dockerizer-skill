@@ -118,6 +118,7 @@ Prompt 驱动入口：
 ```bash
 # Node 例子
 cd "Build_test/CTF-NodeJs RCE-Test1"
+npm ci
 bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
 
 # Python 例子
@@ -130,6 +131,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 ```bash
 # Node
 cd "Build_test/CTF-NodeJs RCE-Test1"
+npm ci
 docker build -t ctf-node-rce:latest .
 docker run -d -p 13000:3000 ctf-node-rce:latest /start.sh
 
@@ -142,7 +144,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 <details>
 <summary><b>Build_test 提交策略说明</b></summary>
 
-`Build_test` 保留业务可复现所需文件（含题目源码与构建产物描述），但会移除阻塞协作的元数据（例如嵌套 `.git` 与 `.DS_Store`）。这样既保留复现价值，也避免破坏主仓库的版本管理边界。
+`Build_test` 保留业务可复现所需文件（含题目源码与构建产物描述），但会移除阻塞协作的元数据（例如嵌套 `.git` 与 `.DS_Store`）。为控制仓库体积与评审噪音，`Build_test/**/node_modules/` 不再跟踪；需要本地运行 Node 样例时请先执行 `npm ci` 恢复依赖。
 
 </details>
 

@@ -120,6 +120,7 @@ Validation commands:
 ```bash
 # Node example
 cd "Build_test/CTF-NodeJs RCE-Test1"
+npm ci
 bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
 
 # Python example
@@ -132,6 +133,7 @@ Build and run:
 ```bash
 # Node
 cd "Build_test/CTF-NodeJs RCE-Test1"
+npm ci
 docker build -t ctf-node-rce:latest .
 docker run -d -p 13000:3000 ctf-node-rce:latest /start.sh
 
@@ -144,7 +146,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 <details>
 <summary><b>Build_test commit boundary</b></summary>
 
-`Build_test` keeps reproducibility-critical business files (challenge code and delivery configs) while removing metadata that can break repository operations (nested `.git`, `.DS_Store`). This keeps collaboration stable without losing real examples.
+`Build_test` keeps reproducibility-critical business files (challenge code and delivery configs) while removing metadata that can break repository operations (nested `.git`, `.DS_Store`). To control repository size and review noise, `Build_test/**/node_modules/` is not tracked; restore Node dependencies with `npm ci` when needed.
 
 </details>
 

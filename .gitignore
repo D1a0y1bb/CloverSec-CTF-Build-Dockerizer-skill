@@ -4,6 +4,7 @@ __pycache__/
 .ruff_cache/
 .DS_Store
 iShot_*.png
+Build_test/**/node_modules/
 .venv/
 venv/
 env/
