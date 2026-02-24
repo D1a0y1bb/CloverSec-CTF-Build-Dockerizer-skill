@@ -1,0 +1,519 @@
+#!/usr/bin/env python3
+"""根据项目目录自动推断 challenge 配置提案（AI 编排模式使用）。"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+SKILL_ROOT = SCRIPT_DIR.parent
+DATA_DIR = SKILL_ROOT / "data"
+
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from utils import (  # noqa: E402
+    ConfigError,
+    detect_stack,
+    ensure_dict,
+    infer_from_patterns,
+    load_patterns,
+    load_stack_defs,
+    normalize_ports,
+)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="推导 challenge 配置提案（JSON/YAML）")
+    parser.add_argument("--project-dir", default=".", help="项目目录，默认当前目录")
+    parser.add_argument("--format", choices=["json", "yaml"], default="json", help="输出格式")
+    parser.add_argument("--output", default="-", help="输出文件路径，默认 stdout")
+    parser.add_argument("--pretty", action="store_true", help="JSON 输出格式化")
+    return parser.parse_args()
+
+
+def _as_list(value: Any) -> List[str]:
+    if isinstance(value, list):
+        return [str(v) for v in value if str(v).strip()]
+    return []
+
+
+def _find_first_existing(scan_dir: Path, candidates: List[str]) -> Optional[str]:
+    for c in candidates:
+        if (scan_dir / c).exists():
+            return c
+    return None
+
+
+def _read_package_start(scan_dir: Path) -> Optional[str]:
+    pkg = scan_dir / "package.json"
+    if not pkg.is_file():
+        return None
+
+    try:
+        raw = json.loads(pkg.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    scripts = raw.get("scripts") if isinstance(raw, dict) else None
+    if not isinstance(scripts, dict):
+        return None
+
+    start_cmd = scripts.get("start")
+    if isinstance(start_cmd, str) and start_cmd.strip():
+        return "npm run start"
+    return None
+
+
+def _requirements_contains(scan_dir: Path, needle: str) -> bool:
+    req = scan_dir / "requirements.txt"
+    if not req.is_file():
+        return False
+    try:
+        content = req.read_text(encoding="utf-8", errors="ignore").lower()
+    except Exception:
+        return False
+    return needle.lower() in content
+
+
+def _extract_xinetd_port(scan_dir: Path) -> Optional[Tuple[str, str]]:
+    """从 xinetd 配置中提取端口。"""
+    candidates = ["ctf.xinetd", "xinetd.conf", "etc/xinetd.d/ctf"]
+    port_re = re.compile(r"\bport\s*=\s*([0-9]{1,5})\b")
+
+    for rel in candidates:
+        path = scan_dir / rel
+        if not path.is_file():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        for line in content.splitlines():
+            clean = line.split("#", 1)[0]
+            m = port_re.search(clean)
+            if not m:
+                continue
+            value = m.group(1)
+            if value.isdigit() and 1 <= int(value) <= 65535:
+                return value, rel
+    return None
+
+
+def _unique_candidates(items: List[Dict[str, Any]], limit: int = 3) -> List[Dict[str, Any]]:
+    seen = set()
+    out: List[Dict[str, Any]] = []
+    for item in items:
+        cmd = str(item.get("cmd", "")).strip()
+        if not cmd or cmd in seen:
+            continue
+        seen.add(cmd)
+        out.append(
+            {
+                "cmd": cmd,
+                "rationale": str(item.get("rationale", "")),
+                "evidence": [str(x) for x in item.get("evidence", []) if str(x).strip()],
+            }
+        )
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _build_start_candidates(
+    scan_dir: Path,
+    stack_id: str,
+    defaults: Dict[str, Any],
+    infer_info: Dict[str, Any],
+    ports: List[str],
+) -> Tuple[List[Dict[str, Any]], List[str]]:
+    candidates: List[Dict[str, Any]] = []
+    notes: List[str] = []
+
+    inferred_cmd = str(infer_info.get("start_cmd") or "").strip()
+    if inferred_cmd:
+        candidates.append(
+            {
+                "cmd": inferred_cmd,
+                "rationale": "按 patterns 规则推断",
+                "evidence": [
+                    f"start_source={infer_info.get('start_source', 'unknown')}",
+                    str(infer_info.get("start_reason", "")).strip(),
+                ],
+            }
+        )
+
+    default_cmd = str(defaults.get("start_cmd") or "").strip()
+
+    if stack_id == "node":
+        pkg_cmd = _read_package_start(scan_dir)
+        if pkg_cmd:
+            candidates.append(
+                {
+                    "cmd": pkg_cmd,
+                    "rationale": "检测到 package.json scripts.start",
+                    "evidence": ["命中文件: package.json"],
+                }
+            )
+
+        entry = _find_first_existing(scan_dir, ["server.js", "app.js", "index.js"])
+        if entry:
+            candidates.append(
+                {
+                    "cmd": f"node {entry}",
+                    "rationale": "命中 Node 常见入口文件",
+                    "evidence": [f"命中文件: {entry}"],
+                }
+            )
+        else:
+            notes.append("未命中 server.js/app.js/index.js，Q4 请手动确认启动命令。")
+
+    elif stack_id == "python":
+        if (scan_dir / "manage.py").is_file():
+            django_port = ports[0] if ports else "8000"
+            candidates.append(
+                {
+                    "cmd": f"python manage.py runserver 0.0.0.0:{django_port}",
+                    "rationale": "命中 Django manage.py",
+                    "evidence": ["命中文件: manage.py"],
+                }
+            )
+
+        for entry in ["app.py", "wsgi.py", "main.py"]:
+            if (scan_dir / entry).is_file():
+                candidates.append(
+                    {
+                        "cmd": f"python {entry}",
+                        "rationale": "命中 Python 常见入口文件",
+                        "evidence": [f"命中文件: {entry}"],
+                    }
+                )
+                break
+
+        if _requirements_contains(scan_dir, "gunicorn"):
+            py_port = ports[0] if ports else "5000"
+            candidates.append(
+                {
+                    "cmd": f"gunicorn -b 0.0.0.0:{py_port} app:app",
+                    "rationale": "requirements.txt 检测到 gunicorn",
+                    "evidence": ["命中文件: requirements.txt"],
+                }
+            )
+
+    elif stack_id == "java":
+        if (scan_dir / "app.jar").is_file():
+            candidates.append(
+                {
+                    "cmd": "java -jar app.jar",
+                    "rationale": "命中可运行 JAR",
+                    "evidence": ["命中文件: app.jar"],
+                }
+            )
+        if (scan_dir / "target" / "app.jar").is_file():
+            candidates.append(
+                {
+                    "cmd": "java -jar target/app.jar",
+                    "rationale": "命中 target 目录 JAR",
+                    "evidence": ["命中文件: target/app.jar"],
+                }
+            )
+        if not (scan_dir / "app.jar").is_file() and not (scan_dir / "target" / "app.jar").is_file():
+            notes.append("未检测到 app.jar/target/app.jar，Q4 请确认启动命令和制品路径。")
+
+    elif stack_id == "tomcat":
+        if (scan_dir / "ROOT.war").is_file():
+            candidates.append(
+                {
+                    "cmd": "catalina.sh run",
+                    "rationale": "命中 ROOT.war，Tomcat 前台启动",
+                    "evidence": ["命中文件: ROOT.war"],
+                }
+            )
+        else:
+            candidates.append(
+                {
+                    "cmd": "catalina.sh run",
+                    "rationale": "Tomcat 默认前台启动",
+                    "evidence": ["来源: stacks.yaml defaults"],
+                }
+            )
+            notes.append("未检测到 ROOT.war，Q5 请确认 app_src/app_dst。")
+
+    elif stack_id == "php":
+        candidates.append(
+            {
+                "cmd": "apache2-foreground",
+                "rationale": "PHP Apache 镜像默认前台命令",
+                "evidence": ["来源: stacks.yaml defaults"],
+            }
+        )
+
+    elif stack_id == "lamp":
+        candidates.append(
+            {
+                "cmd": "apache2ctl -D FOREGROUND",
+                "rationale": "LAMP 主服务前台命令",
+                "evidence": ["来源: stacks.yaml defaults"],
+            }
+        )
+
+    elif stack_id == "pwn":
+        xport = _extract_xinetd_port(scan_dir)
+        if xport:
+            candidates.append(
+                {
+                    "cmd": "/usr/sbin/xinetd -dontfork",
+                    "rationale": "命中 xinetd 配置，采用 xinetd 前台启动",
+                    "evidence": [f"命中文件: {xport[1]}", f"配置端口: {xport[0]}"],
+                }
+            )
+        if (scan_dir / "bin" / "chall").is_file() or (scan_dir / "chall").is_file():
+            candidates.append(
+                {
+                    "cmd": "/usr/sbin/xinetd -dontfork",
+                    "rationale": "命中 Pwn 常见制品，推荐 xinetd 前台运行",
+                    "evidence": ["命中文件: bin/chall 或 chall"],
+                }
+            )
+        notes.append("Pwn 默认按 xinetd 前台模式交付，需确认挑战程序与 ctf.xinetd 路径一致。")
+
+    elif stack_id == "ai":
+        ai_port = ports[0] if ports else "5000"
+        candidates.append(
+            {
+                "cmd": f"gunicorn -w 1 --threads 1 -b 0.0.0.0:{ai_port} app:app",
+                "rationale": "AI 服务默认推荐 gunicorn 单进程单线程前台",
+                "evidence": ["来源: AI 默认策略", "高核心环境建议收紧线程"],
+            }
+        )
+
+        for entry in ["app.py", "wsgi.py", "main.py"]:
+            if (scan_dir / entry).is_file():
+                candidates.append(
+                    {
+                        "cmd": f"python {entry}",
+                        "rationale": "命中 AI 常见入口文件",
+                        "evidence": [f"命中文件: {entry}"],
+                    }
+                )
+                break
+
+        if _requirements_contains(scan_dir, "transformers"):
+            candidates.append(
+                {
+                    "cmd": f"gunicorn -w 1 --threads 1 -b 0.0.0.0:{ai_port} app:app",
+                    "rationale": "requirements 检测到 transformers，建议限制并发",
+                    "evidence": ["命中文件: requirements.txt", "命中关键字: transformers"],
+                }
+            )
+        notes.append("AI 栈建议设置 OPENBLAS/OMP/MKL 线程限制，避免高核心宿主机线程创建失败。")
+
+    if default_cmd:
+        candidates.append(
+            {
+                "cmd": default_cmd,
+                "rationale": "栈默认启动命令",
+                "evidence": ["来源: stacks.yaml defaults.start_cmd"],
+            }
+        )
+
+    unique = _unique_candidates(candidates, limit=3)
+    if not unique:
+        notes.append("未生成可用启动命令候选，Q4 必须手动输入 start_cmd。")
+
+    return unique, notes
+
+
+def _guess_app_paths(scan_dir: Path, stack_id: str, workdir: str) -> Tuple[str, str, List[str]]:
+    evidence: List[str] = []
+    app_src = "."
+    app_dst = workdir
+
+    if stack_id == "tomcat":
+        if (scan_dir / "ROOT.war").is_file():
+            app_src = "ROOT.war"
+            app_dst = "/usr/local/tomcat/webapps/ROOT.war"
+            evidence.append("命中文件: ROOT.war")
+        elif (scan_dir / "webapps" / "ROOT.war").is_file():
+            app_src = "webapps/ROOT.war"
+            app_dst = "/usr/local/tomcat/webapps/ROOT.war"
+            evidence.append("命中文件: webapps/ROOT.war")
+        else:
+            evidence.append("未命中 WAR，回退 app_src='.' -> app_dst=WORKDIR")
+    elif stack_id == "pwn":
+        if (scan_dir / "bin").is_dir():
+            app_src = "."
+            app_dst = "/home/ctf"
+            evidence.append("命中目录: bin，Pwn 默认复制到 /home/ctf")
+        else:
+            evidence.append("未命中 bin 目录，回退 app_src='.' -> app_dst=WORKDIR")
+    else:
+        evidence.append("按通用约定 app_src='.' -> app_dst=WORKDIR")
+
+    return app_src, app_dst, evidence
+
+
+def derive(project_dir: Path) -> Dict[str, Any]:
+    stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
+    patterns = load_patterns(DATA_DIR / "patterns.yaml")
+
+    best_id, best_conf, details = detect_stack(project_dir, stacks)
+    if best_id:
+        stack_id = best_id
+    elif details:
+        stack_id = str(details[0]["id"])
+        best_conf = float(details[0]["confidence"])
+    else:
+        stack_id = "node"
+        best_conf = 0.0
+
+    stack_detail = next((d for d in details if d["id"] == stack_id), None)
+    stack_info = ensure_dict(stacks.get(stack_id), f"stacks[{stack_id}]")
+    defaults = ensure_dict(stack_info.get("defaults"), f"stacks[{stack_id}].defaults")
+
+    infer_info = infer_from_patterns(project_dir, stack_id, patterns)
+
+    guessed_ports = normalize_ports(infer_info.get("ports"))
+    port_evidence: List[str] = []
+    xinetd_port = _extract_xinetd_port(project_dir) if stack_id == "pwn" else None
+    if xinetd_port:
+        guessed_ports = [xinetd_port[0]]
+        port_evidence.append("来源: xinetd 配置解析")
+        port_evidence.append(f"命中文件: {xinetd_port[1]}（port={xinetd_port[0]}）")
+
+    if guessed_ports:
+        if not xinetd_port:
+            port_evidence.append(f"来源: {infer_info.get('ports_source', 'rule')}")
+            reason = str(infer_info.get("ports_reason", "")).strip()
+            if reason:
+                port_evidence.append(reason)
+    else:
+        guessed_ports = normalize_ports(defaults.get("expose_ports"))
+        port_evidence.append("回退: stacks.yaml defaults.expose_ports")
+
+    workdir = str(defaults.get("workdir") or "/app")
+    workdir_evidence = ["来源: stacks.yaml defaults.workdir"]
+
+    candidates, candidate_notes = _build_start_candidates(project_dir, stack_id, defaults, infer_info, guessed_ports)
+
+    app_src, app_dst, app_path_evidence = _guess_app_paths(project_dir, stack_id, workdir)
+
+    notes: List[str] = [
+        "确保服务监听 0.0.0.0，避免容器内可达但外部不可达。",
+        "单服务启动命令必须以前台 exec 方式运行。",
+    ]
+    notes.extend(candidate_notes)
+
+    if best_conf < 0.6:
+        notes.append(f"栈侦测置信度较低（{best_conf:.2f}），Q1 请重点确认技术栈。")
+
+    if not guessed_ports:
+        guessed_ports = normalize_ports(defaults.get("expose_ports"))
+        notes.append("未推断出端口，已回退默认端口，请在 Q2 确认。")
+
+    if not candidates:
+        notes.append("未找到启动命令候选，Q4 必须手动输入 start_cmd。")
+
+    stack_evidence: List[str] = []
+    if stack_detail:
+        file_hits = _as_list(stack_detail.get("file_hits"))
+        dir_hits = _as_list(stack_detail.get("dir_hits"))
+        if file_hits:
+            stack_evidence.append("命中文件: " + ", ".join(file_hits))
+        if dir_hits:
+            stack_evidence.append("命中目录: " + ", ".join(dir_hits))
+        stack_evidence.append(
+            "score={}/{}".format(stack_detail.get("score", 0), stack_detail.get("max_score", 1))
+        )
+    else:
+        stack_evidence.append("未命中明确特征，使用默认栈回退")
+
+    proposal: Dict[str, Any] = {
+        "stack_guess": {
+            "id": stack_id,
+            "confidence": round(best_conf, 4),
+            "evidence": stack_evidence,
+        },
+        "port_guess": {
+            "ports": guessed_ports,
+            "evidence": port_evidence,
+        },
+        "workdir_guess": {
+            "workdir": workdir,
+            "evidence": workdir_evidence,
+        },
+        "start_cmd_candidates": candidates,
+        "app_paths": {
+            "app_src": app_src,
+            "app_dst": app_dst,
+            "evidence": app_path_evidence,
+        },
+        "notes": notes,
+        # 供 AI 直接渲染 Step 1 的 CONFIG PROPOSAL 块
+        "config_proposal": {
+            "stack": stack_id,
+            "base_image": str(defaults.get("base_image") or ""),
+            "workdir": workdir,
+            "app_src": app_src,
+            "app_dst": app_dst,
+            "expose_ports": guessed_ports,
+            "start": {
+                "mode": "cmd",
+                "cmd": candidates[0]["cmd"] if candidates else "",
+            },
+            "platform": {
+                "entrypoint": "/start.sh",
+                "require_bash": True,
+            },
+            "flag": {
+                "path": "/flag",
+                "permission": "444",
+            },
+        },
+    }
+
+    return proposal
+
+
+def write_output(data: Dict[str, Any], fmt: str, output: str, pretty: bool) -> None:
+    if fmt == "yaml":
+        try:
+            import yaml
+        except ModuleNotFoundError as exc:
+            raise ConfigError("输出 YAML 需要 PyYAML，请先安装 requirements.txt") from exc
+        rendered = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
+    else:
+        rendered = json.dumps(data, ensure_ascii=False, indent=2 if pretty or output == "-" else None)
+        if pretty or output == "-":
+            rendered += "\n"
+
+    if output == "-":
+        sys.stdout.write(rendered)
+        return
+
+    out_path = Path(output).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(rendered, encoding="utf-8")
+
+
+def main() -> int:
+    args = parse_args()
+    project_dir = Path(args.project_dir).resolve()
+
+    try:
+        proposal = derive(project_dir)
+        write_output(proposal, args.format, args.output, args.pretty)
+        return 0
+    except ConfigError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

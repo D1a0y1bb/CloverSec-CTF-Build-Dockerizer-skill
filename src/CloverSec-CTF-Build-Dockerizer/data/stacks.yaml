@@ -1,0 +1,164 @@
+version: 1
+stacks:
+  - id: node
+    display_name: Node.js
+    detect:
+      any_of_files:
+        - package.json
+        - pnpm-lock.yaml
+        - yarn.lock
+      any_of_dirs:
+        - node_modules
+    defaults:
+      base_image: "node:20-alpine"
+      workdir: "/app"
+      expose_ports:
+        - "3000"
+      start_cmd: "node server.js"
+      healthcheck_cmd: "wget -qO- http://127.0.0.1:3000/ || exit 1"
+    notes: >
+      适用于 Node 原生 http、Express、Koa、Fastify 单服务场景。默认 alpine 更轻量，
+      若依赖原生模块并出现兼容问题可切换 node:20-slim。
+
+  - id: php
+    display_name: PHP (Apache)
+    detect:
+      any_of_files:
+        - composer.json
+        - index.php
+        - artisan
+      any_of_dirs:
+        - vendor
+    defaults:
+      base_image: "php:8.2-apache"
+      workdir: "/var/www/html"
+      expose_ports:
+        - "80"
+      start_cmd: "apache2-foreground"
+      healthcheck_cmd: "curl -fsS http://127.0.0.1/ || exit 1"
+    notes: >
+      默认 Apache 分支，适合 PHP 单服务题目。若需要 php-fpm，请在 challenge.yaml 覆盖镜像与启动命令。
+
+  - id: python
+    display_name: Python
+    detect:
+      any_of_files:
+        - requirements.txt
+        - pyproject.toml
+        - Pipfile
+        - app.py
+      any_of_dirs:
+        - .venv
+        - venv
+    defaults:
+      base_image: "python:3.11-slim"
+      workdir: "/app"
+      expose_ports:
+        - "5000"
+      start_cmd: "python app.py"
+      healthcheck_cmd: "curl -fsS http://127.0.0.1:5000/ || exit 1"
+    notes: >
+      适用于 Flask/FastAPI/Django 或自定义 HTTP 服务。slim 镜像兼顾体积与依赖兼容性。
+
+  - id: java
+    display_name: Java (JAR)
+    detect:
+      any_of_files:
+        - pom.xml
+        - build.gradle
+        - build.gradle.kts
+        - app.jar
+      any_of_dirs:
+        - src
+        - target
+    defaults:
+      base_image: "eclipse-temurin:17-jre-jammy"
+      workdir: "/app"
+      expose_ports:
+        - "8080"
+      start_cmd: "java -jar app.jar"
+      healthcheck_cmd: "curl -fsS http://127.0.0.1:8080/ || exit 1"
+    notes: >
+      面向已产出 JAR 的运行场景。若需要容器内编译，建议使用多阶段构建并在 challenge.yaml 增加构建步骤。
+
+  - id: tomcat
+    display_name: Tomcat (WAR)
+    detect:
+      any_of_files:
+        - ROOT.war
+        - web.xml
+        - context.xml
+      any_of_dirs:
+        - webapps
+        - src/main/webapp
+    defaults:
+      base_image: "tomcat:9.0-jre17-temurin-jammy"
+      workdir: "/usr/local/tomcat"
+      expose_ports:
+        - "8080"
+      start_cmd: "catalina.sh run"
+      healthcheck_cmd: "curl -fsS http://127.0.0.1:8080/ || exit 1"
+    notes: >
+      使用官方 Tomcat 镜像，部署 WAR 时建议目标路径为 /usr/local/tomcat/webapps/ROOT.war。
+
+  - id: lamp
+    display_name: LAMP
+    detect:
+      any_of_files:
+        - index.php
+        - mysql.sql
+        - init.sql
+      any_of_dirs:
+        - htdocs
+        - www
+    defaults:
+      base_image: "debian:bookworm-slim"
+      workdir: "/var/www/html"
+      expose_ports:
+        - "80"
+      start_cmd: "apache2ctl -D FOREGROUND"
+      healthcheck_cmd: "curl -fsS http://127.0.0.1/ || exit 1"
+    notes: >
+      多服务最小策略为 MariaDB 后台 + Apache 前台。默认不暴露 3306，需要时可在 expose_ports 中追加。
+
+  - id: pwn
+    display_name: Pwn (xinetd)
+    detect:
+      any_of_files:
+        - ctf.xinetd
+        - xinetd.conf
+        - libc.so.6
+      any_of_dirs:
+        - bin
+        - lib
+    defaults:
+      base_image: "debian:bookworm-slim"
+      workdir: "/home/ctf"
+      expose_ports:
+        - "10000"
+      start_cmd: "/usr/sbin/xinetd -dontfork"
+      healthcheck_cmd: "ss -lnt | grep -q ':10000' || exit 1"
+    notes: >
+      适用于 Jeopardy 模式 Pwn 题目，默认以 xinetd 前台方式启动。
+      当前不覆盖 AWD/AWDP 赛制编排与批量攻防场景。
+
+  - id: ai
+    display_name: AI (CPU Inference)
+    detect:
+      any_of_files:
+        - requirements.txt
+        - app.py
+        - wsgi.py
+      any_of_dirs:
+        - model
+        - models
+    defaults:
+      base_image: "python:3.11-slim"
+      workdir: "/app"
+      expose_ports:
+        - "5000"
+      start_cmd: "gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app"
+      healthcheck_cmd: "curl -fsS http://127.0.0.1:5000/ || exit 1"
+    notes: >
+      适用于 AI Web 题目（CPU 推理默认路径），建议收紧 OpenBLAS/OMP/MKL 线程数。
+      当前不覆盖 AWD/AWDP 赛制编排。

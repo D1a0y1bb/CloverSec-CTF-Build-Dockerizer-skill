@@ -1,0 +1,24 @@
+challenge:
+  name: pwn-basic
+  stack: pwn
+  base_image: debian:bookworm-slim
+  workdir: /home/ctf
+  app_src: .
+  app_dst: /home/ctf
+  expose_ports:
+    - "10000"
+  start:
+    mode: cmd
+    cmd: /usr/sbin/xinetd -dontfork
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: /flag
+    permission: "444"
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+  extra:
+    env: {}
+    copy: []
+    user: ""

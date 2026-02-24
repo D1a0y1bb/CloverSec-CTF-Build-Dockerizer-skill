@@ -1,0 +1,25 @@
+challenge:
+  name: "tomcat-war-basic"
+  stack: "tomcat"
+  base_image: "tomcat:9.0-jre17-temurin-jammy"
+  workdir: "/usr/local/tomcat"
+  app_src: "ROOT.war"
+  app_dst: "/usr/local/tomcat/webapps/ROOT.war"
+  expose_ports:
+    - "8080"
+  start:
+    mode: "cmd"
+    cmd: "catalina.sh run"
+    service_name: ""
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  extra:
+    env: {}
+    copy: []
+    user: ""

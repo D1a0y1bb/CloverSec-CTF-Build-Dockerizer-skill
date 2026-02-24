@@ -1,0 +1,108 @@
+version: 1
+rules:
+  - id: apt-clean-required
+    level: ERROR
+    scope: Dockerfile
+    expect: present
+    when: "apt-get[[:space:]]+install"
+    pattern: "rm[[:space:]]+-rf[[:space:]]+/var/lib/apt/lists/\\*"
+    message: "检测到 apt-get install 但未清理 apt 列表。修复：安装后追加 `rm -rf /var/lib/apt/lists/*`。"
+
+  - id: apk-no-cache-required
+    level: ERROR
+    scope: Dockerfile
+    expect: present
+    when: "apk[[:space:]]+add"
+    pattern: "apk[[:space:]]+add.*--no-cache"
+    message: "检测到 apk add 未使用 --no-cache。修复：改为 `apk add --no-cache <pkg>`。"
+
+  - id: pip-no-cache-dir
+    level: WARN
+    scope: Dockerfile
+    expect: present
+    when: "(^|[[:space:]])pip[[:space:]]+install([[:space:]]|$)"
+    pattern: "pip[[:space:]]+install.*--no-cache-dir"
+    message: "pip install 建议加 --no-cache-dir，避免镜像体积增加。"
+
+  - id: npm-ci-recommended
+    level: WARN
+    scope: Dockerfile
+    expect: present
+    when: "(^|[;&|[:space:]])npm[[:space:]]+install([[:space:]]|$)"
+    pattern: "(^|[;&|[:space:]])npm[[:space:]]+ci([[:space:]]|$)"
+    message: "建议优先使用 npm ci，提升依赖可复现性。"
+
+  - id: npm-cache-clean-recommended
+    level: WARN
+    scope: Dockerfile
+    expect: present
+    when: "(^|[;&|[:space:]])npm[[:space:]]+install([[:space:]]|$)"
+    pattern: "npm[[:space:]]+cache[[:space:]]+clean"
+    message: "建议在 npm install 后执行 npm cache clean，减少镜像冗余。"
+
+  - id: expose-required
+    level: ERROR
+    scope: Dockerfile
+    expect: present
+    pattern: "^[[:space:]]*EXPOSE[[:space:]]+"
+    message: "Dockerfile 必须声明 EXPOSE 端口。修复：添加 `EXPOSE <port>`。"
+
+  - id: no-standalone-semicolon-line
+    level: ERROR
+    scope: Dockerfile
+    expect: absent
+    pattern: "^[[:space:]]*;[[:space:]]*(\\\\)?[[:space:]]*$"
+    message: "检测到独立分号行，常见于模板 include 拼接错误。修复：检查 `{{> snippets/... }}` 与 `; \\` 是否被拆行。"
+
+  - id: pwn-xinetd-foreground-required
+    level: ERROR
+    scope: start.sh
+    expect: present
+    when: "xinetd|ctf\\.xinetd"
+    pattern: "exec[[:space:]]+.*xinetd[[:space:]]+.*-dontfork"
+    message: "Pwn 场景必须以前台方式启动 xinetd。修复：使用 `exec /usr/sbin/xinetd -dontfork`。"
+
+  - id: pwn-port-expose-required
+    level: ERROR
+    scope: Dockerfile
+    expect: present
+    when: "xinetd|ctf\\.xinetd"
+    pattern: "^[[:space:]]*EXPOSE[[:space:]]+[0-9]"
+    message: "Pwn 场景必须显式暴露服务端口。修复：添加 `EXPOSE <pwn_port>`。"
+
+  - id: ai-thread-limit-recommended
+    level: WARN
+    scope: Dockerfile
+    expect: present
+    when: "gunicorn|transformers|OPENBLAS|app\\.py|wsgi\\.py"
+    pattern: "OPENBLAS_NUM_THREADS|OMP_NUM_THREADS|MKL_NUM_THREADS|NUMEXPR_NUM_THREADS|GOTO_NUM_THREADS"
+    message: "AI 场景建议设置线程限制环境变量，避免高核心宿主机线程创建失败。"
+
+  - id: ai-gunicorn-recommended
+    level: WARN
+    scope: start.sh
+    expect: present
+    when: "app\\.py|wsgi\\.py|gunicorn|transformers"
+    pattern: "gunicorn[[:space:]]+.*-b[[:space:]]+0\\.0\\.0\\.0"
+    message: "AI Web 服务建议使用 gunicorn 前台并监听 0.0.0.0。"
+
+  - id: no-sleep-infinity
+    level: ERROR
+    scope: start.sh
+    expect: absent
+    pattern: "sleep[[:space:]]+infinity"
+    message: "禁止 sleep infinity 空转。修复：改为真实服务前台运行。"
+
+  - id: no-while-true-sleep
+    level: ERROR
+    scope: start.sh
+    expect: absent
+    pattern: "while[[:space:]]+true[[:space:]]*;?[[:space:]]*do[[:space:]]+sleep"
+    message: "禁止 while true + sleep 空转循环。修复：改为主服务前台进程。"
+
+  - id: no-forkbomb
+    level: ERROR
+    scope: start.sh
+    expect: absent
+    pattern: ":\\(\\)[[:space:]]*\\{[[:space:]]*:\\|:&[[:space:]]*;[[:space:]]*\\}[[:space:]]*;[[:space:]]*:"
+    message: "检测到恶意 fork bomb 语法，必须移除。"

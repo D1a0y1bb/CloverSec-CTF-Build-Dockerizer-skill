@@ -1,0 +1,26 @@
+challenge:
+  name: "python-basic"
+  stack: "python"
+  base_image: "python:3.11-slim"
+  workdir: "/app"
+  app_src: "."
+  app_dst: "/app"
+  expose_ports:
+    - "5000"
+  start:
+    mode: "cmd"
+    cmd: "python app.py"
+    service_name: ""
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  extra:
+    env:
+      PYTHONUNBUFFERED: "1"
+    copy: []
+    user: ""

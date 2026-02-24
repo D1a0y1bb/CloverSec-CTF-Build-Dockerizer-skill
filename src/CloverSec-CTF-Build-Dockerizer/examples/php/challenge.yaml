@@ -1,0 +1,25 @@
+challenge:
+  name: "php-legacy"
+  stack: "php"
+  base_image: "php:8.2-apache"
+  workdir: "/var/www/html"
+  app_src: "."
+  app_dst: "/var/www/html"
+  expose_ports:
+    - "80"
+  start:
+    mode: "cmd"
+    cmd: "apache2-foreground"
+    service_name: ""
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  extra:
+    env: {}
+    copy: []
+    user: ""

@@ -1,0 +1,14 @@
+service ctf
+{
+    disable = no
+    type = UNLISTED
+    socket_type = stream
+    protocol = tcp
+    wait = no
+    user = root
+    port = 10000
+    bind = 0.0.0.0
+    server = /bin/sh
+    server_args = /home/ctf/bin/chall
+    per_source = 20
+}

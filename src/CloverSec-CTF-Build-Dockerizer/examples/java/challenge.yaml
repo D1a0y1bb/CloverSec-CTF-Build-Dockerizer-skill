@@ -1,0 +1,26 @@
+challenge:
+  name: "java-legacy"
+  stack: "java"
+  base_image: "eclipse-temurin:17-jre-jammy"
+  workdir: "/app"
+  app_src: "."
+  app_dst: "/app"
+  expose_ports:
+    - "8080"
+  start:
+    mode: "cmd"
+    cmd: "java -jar app.jar"
+    service_name: ""
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  extra:
+    env:
+      JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF-8"
+    copy: []
+    user: ""

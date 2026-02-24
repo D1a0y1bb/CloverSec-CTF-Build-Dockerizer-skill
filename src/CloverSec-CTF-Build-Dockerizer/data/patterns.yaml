@@ -1,0 +1,196 @@
+version: 1
+stacks:
+  node:
+    entry_files:
+      - server.js
+      - app.js
+      - index.js
+    defaults:
+      expose_ports:
+        - "3000"
+      start_cmd: "node server.js"
+      start_cmd_template: "node {entry_file}"
+      start_reason: "Node 规则未命中，回退默认启动命令"
+      ports_reason: "Node 规则未命中，回退默认端口"
+    rules:
+      - id: nextjs
+        any_of_files:
+          - next.config.js
+          - next.config.mjs
+        infer:
+          expose_ports:
+            - "3000"
+          start_cmd: "npm run start"
+          reason: "命中 Next.js 配置文件"
+      - id: node-common-entry
+        any_of_files:
+          - server.js
+          - app.js
+          - index.js
+        infer:
+          expose_ports:
+            - "3000"
+          start_cmd: "node {entry_file}"
+          reason: "命中 Node 常见入口文件"
+
+  php:
+    entry_files:
+      - index.php
+      - public/index.php
+    defaults:
+      expose_ports:
+        - "80"
+      start_cmd: "apache2-foreground"
+      start_reason: "PHP 规则未命中，回退 Apache 前台启动"
+      ports_reason: "PHP 规则未命中，回退默认端口"
+    rules:
+      - id: laravel
+        any_of_files:
+          - artisan
+        infer:
+          expose_ports:
+            - "80"
+          start_cmd: "apache2-foreground"
+          reason: "命中 Laravel 项目标识 artisan"
+
+  python:
+    entry_files:
+      - app.py
+      - wsgi.py
+      - main.py
+      - manage.py
+    defaults:
+      expose_ports:
+        - "5000"
+      start_cmd: "python app.py"
+      start_cmd_template: "python {entry_file}"
+      start_reason: "Python 规则未命中，回退默认启动命令"
+      ports_reason: "Python 规则未命中，回退默认端口"
+    rules:
+      - id: django
+        any_of_files:
+          - manage.py
+        infer:
+          expose_ports:
+            - "8000"
+          start_cmd: "python manage.py runserver 0.0.0.0:8000"
+          reason: "命中 Django manage.py"
+      - id: flask-like
+        any_of_files:
+          - app.py
+          - wsgi.py
+        infer:
+          expose_ports:
+            - "5000"
+          start_cmd: "python {entry_file}"
+          reason: "命中 Flask/FastAPI 常见入口文件"
+
+  java:
+    entry_files:
+      - app.jar
+      - target/app.jar
+    defaults:
+      expose_ports:
+        - "8080"
+      start_cmd: "java -jar app.jar"
+      start_reason: "Java 规则未命中，回退默认 JAR 启动"
+      ports_reason: "Java 规则未命中，回退默认端口"
+    rules:
+      - id: built-jar
+        any_of_globs:
+          - "target/*.jar"
+          - "build/libs/*.jar"
+        infer:
+          expose_ports:
+            - "8080"
+          start_cmd: "java -jar app.jar"
+          reason: "命中 Java 构建产物目录"
+
+  tomcat:
+    entry_files:
+      - ROOT.war
+      - webapps/ROOT.war
+    defaults:
+      expose_ports:
+        - "8080"
+      start_cmd: "catalina.sh run"
+      start_reason: "Tomcat 规则未命中，回退 catalina.sh run"
+      ports_reason: "Tomcat 规则未命中，回退默认端口"
+    rules:
+      - id: tomcat-war
+        any_of_files:
+          - ROOT.war
+          - web.xml
+        infer:
+          expose_ports:
+            - "8080"
+          start_cmd: "catalina.sh run"
+          reason: "命中 WAR 或 Tomcat 配置文件"
+
+  lamp:
+    entry_files:
+      - index.php
+      - public/index.php
+    defaults:
+      expose_ports:
+        - "80"
+      start_cmd: "apache2ctl -D FOREGROUND"
+      start_reason: "LAMP 规则未命中，回退 Apache 前台启动"
+      ports_reason: "LAMP 规则未命中，回退默认端口"
+    rules:
+      - id: lamp-common
+        any_of_files:
+          - index.php
+          - init.sql
+          - mysql.sql
+        infer:
+          expose_ports:
+            - "80"
+          start_cmd: "apache2ctl -D FOREGROUND"
+          reason: "命中 LAMP 常见文件"
+
+  pwn:
+    entry_files:
+      - ctf.xinetd
+      - xinetd.conf
+      - bin/chall
+      - chall
+    defaults:
+      expose_ports:
+        - "10000"
+      start_cmd: "/usr/sbin/xinetd -dontfork"
+      start_reason: "Pwn 规则未命中，回退 xinetd 前台启动"
+      ports_reason: "Pwn 规则未命中，回退默认端口"
+    rules:
+      - id: pwn-xinetd
+        any_of_files:
+          - ctf.xinetd
+          - xinetd.conf
+        infer:
+          expose_ports:
+            - "10000"
+          start_cmd: "/usr/sbin/xinetd -dontfork"
+          reason: "命中 xinetd 配置文件"
+
+  ai:
+    entry_files:
+      - app.py
+      - wsgi.py
+      - main.py
+    defaults:
+      expose_ports:
+        - "5000"
+      start_cmd: "gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app"
+      start_reason: "AI 规则未命中，回退 gunicorn 单进程单线程"
+      ports_reason: "AI 规则未命中，回退默认端口"
+    rules:
+      - id: ai-gunicorn-requirements
+        any_of_files:
+          - requirements.txt
+          - app.py
+          - wsgi.py
+        infer:
+          expose_ports:
+            - "5000"
+          start_cmd: "gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app"
+          reason: "命中 AI 常见入口/依赖文件"

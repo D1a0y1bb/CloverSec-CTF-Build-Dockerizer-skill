@@ -1,0 +1,21 @@
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+.venv/
+venv/
+env/
+dist/
+build/
+*.pyc
+*.pyo
+*.pyd
+codegen/
+codegen-output/
+generated/
+*.egg-info/
+
+# safety
+internal/
+SESSION_SUMMARY_v1.2.2.md
