@@ -1,0 +1,230 @@
+# CloverSec-CTF-Build-Dockerizer
+
+[English](README.md)
+
+[![Version](https://img.shields.io/badge/version-v1.2.4-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
+[![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
+[![Stacks](https://img.shields.io/badge/stacks-8-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
+[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.2.4)
+
+![CloverSec Overview](docs/assets/readme/hero-overview.png)
+
+四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF Jeopardy（Web / Pwn / AI）场景。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
+
+## What's New in v1.2.4
+
+`v1.2.4` 是该项目首次对外发布版本，目标不是简单堆功能，而是把“可用”提升为“可复现、可校验、可发布”。这次更新重点补齐了 Pwn 与 AI 两类题目的构建路径，使 Web / Pwn / AI 三大方向在同一流程内完成自动探测、模板生成与规则验收，避免分散脚本造成的维护断层。
+
+在工程稳定性方面，本版本集中修复了历史模板中的报错点，包括渲染阶段变量处理不一致、校验阶段报错提示不够可定位、部分脚本链路在边界输入下的退出行为不稳定等问题。配合发布脚本，当前流程可以从构建、检查到打包形成闭环，作为首次公开版已经具备团队协作和外部复用的基础稳定性。
+
+<details>
+<summary><b>v1.2.4 技术修复与增强清单</b></summary>
+
+本次发布完成了三项底层收敛：其一，模板输出统一回归到 `Dockerfile` / `start.sh` / `flag` 三件套，降低跨题型差异；其二，平台契约检查围绕 `/start.sh`、`/flag`、`/bin/bash`、`EXPOSE` 固化为标准校验项；其三，发布链路通过 `release_build.sh` 与 `publish_release.sh` 打通，减少手工发版步骤导致的遗漏风险。
+
+</details>
+
+## 核心能力矩阵
+
+| 能力 | 入口脚本 | 作用 | 输出/结果 |
+|---|---|---|---|
+| 自动探测 | `derive_config.py` | 识别栈、端口、启动命令候选 | `CONFIG PROPOSAL` 输入依据 |
+| 配置解析 | `parse_config_block.py` | 把确认块转为 `challenge.yaml` | 标准化配置 |
+| 渲染生成 | `render.py` | 生成 Docker 交付文件 | `Dockerfile` / `start.sh` / `flag` |
+| 静态校验 | `validate.sh` | 校验平台硬约束与规则 | ERROR/WARN/INFO |
+| 样例回归 | `validate_examples.sh` | 批量验证示例目录 | 回归通过/失败清单 |
+| 打包发布 | `release_build.sh` | 生成版本目录和 zip | `dist/...-vX.Y.Z.zip` |
+| 一键发布 | `publish_release.sh` | commit/tag/release/上传资产 | GitHub Release 可下载包 |
+
+## 一键安装
+
+推荐使用 Codex 或 Trae 一键化安装，安装后即可在题目目录中调用该 Skill 执行自动探测与构建。
+
+![Install with Codex or Trae](docs/assets/readme/install-codex-trae.png)
+
+```bash
+npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --skill cloversec-ctf-build-dockerizer --agent codex -y
+```
+
+如果需要先确认仓库可安装能力，可先执行：
+
+```bash
+npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --list
+```
+
+## 快速开始
+
+### Agent 快速编排
+
+```text
+标准 Prompt：请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。先自动探测并输出 CONFIG PROPOSAL；我确认 OK 后，再生成 Dockerfile/start.sh/flag 并运行 validate。
+```
+
+这个流程的价值在于先确认配置、再生成产物，避免 AI 直接跳过关键约束。你也可以使用更短的业务表达式触发同样流程，例如：
+
+```text
+省事 Prompt：当前项目下 src 目录是我设计的一道关于 node.js 的 CTF 题目，请帮我构建为一个完整的 docker 镜像。
+```
+
+### 手动命令链
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+```
+
+## 自动化流程实录（本地化截图）
+
+Prompt 驱动入口：
+
+![workflow-01](docs/assets/readme/workflow-01-quick-prompt.png)
+
+落地构建前的关键确认：
+
+![workflow-02](docs/assets/readme/workflow-02-prebuild-decision.png)
+
+发现异常后的闭环处理：
+
+![workflow-03](docs/assets/readme/workflow-03-error-closure.png)
+
+生成交付文件并进入构建：
+
+![workflow-04](docs/assets/readme/workflow-04-auto-build.png)
+
+自动验收测试执行：
+
+![workflow-05](docs/assets/readme/workflow-05-auto-validation.png)
+
+强制验收检查：
+
+![workflow-06](docs/assets/readme/workflow-06-hard-check.png)
+
+验收后交付清单：
+
+![workflow-07](docs/assets/readme/workflow-07-delivery-checklist.png)
+
+## Build_test 真实样例
+
+`Build_test` 目录包含 2 个由本 Skill 生成与校验的题目案例，可直接用于复现实战构建流程。
+
+| Case Name | Stack | Exposed Port | Start Command | Core Files |
+|---|---|---:|---|---|
+| `CTF-NodeJs RCE-Test1` | `node` | `3000` | `node app.js` | `challenge.yaml` / `Dockerfile` / `start.sh` / `app.js` |
+| `CTF-Python沙箱逃逸-Test2` | `python` | `5000` | `python app.py` | `challenge.yaml` / `Dockerfile` / `start.sh` / `题目源码 app.py` |
+
+示例验证命令：
+
+```bash
+# Node 例子
+cd "Build_test/CTF-NodeJs RCE-Test1"
+bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+
+# Python 例子
+cd "../CTF-Python沙箱逃逸-Test2"
+bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+```
+
+示例构建与运行：
+
+```bash
+# Node
+cd "Build_test/CTF-NodeJs RCE-Test1"
+docker build -t ctf-node-rce:latest .
+docker run -d -p 13000:3000 ctf-node-rce:latest /start.sh
+
+# Python
+cd "../CTF-Python沙箱逃逸-Test2"
+docker build -t ctf-python-sandbox:latest .
+docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
+```
+
+<details>
+<summary><b>Build_test 提交策略说明</b></summary>
+
+`Build_test` 保留业务可复现所需文件（含题目源码与构建产物描述），但会移除阻塞协作的元数据（例如嵌套 `.git` 与 `.DS_Store`）。这样既保留复现价值，也避免破坏主仓库的版本管理边界。
+
+</details>
+
+## 平台硬约束
+
+交付镜像必须满足以下平台契约：平台固定通过 `/start.sh` 启动容器；镜像根目录必须存在可读 `/flag`；镜像内必须可用 `/bin/bash`；`Dockerfile` 必须声明 `EXPOSE`；并且禁止使用 `sleep infinity` 这类空转保活方式。单服务场景下，入口进程应使用前台 `exec` 启动，确保信号接管和退出语义稳定。
+
+详细契约文档见：[platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
+
+## 支持栈矩阵
+
+| Stack | 默认端口 | 启动示例 |
+|---|---:|---|
+| node | 3000 | `exec node server.js` |
+| php | 80 | `exec apache2-foreground` |
+| python | 5000 | `exec python app.py` / `exec gunicorn ...` |
+| java | 8080 | `exec java -jar app.jar` |
+| tomcat | 8080 | `exec catalina.sh run` |
+| lamp | 80 | 数据库后台 + Apache 前台 |
+| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
+| ai | 5000 | `exec gunicorn ...` |
+
+## 仓库结构
+
+```text
+.
+├── Build_test/
+│   ├── CTF-NodeJs RCE-Test1/
+│   └── CTF-Python沙箱逃逸-Test2/
+├── docs/assets/readme/
+├── src/CloverSec-CTF-Build-Dockerizer/
+│   ├── SKILL.md
+│   ├── data/
+│   ├── templates/
+│   ├── scripts/
+│   ├── examples/
+│   └── docs/
+├── scripts/
+│   ├── sync.sh
+│   ├── doc_guard.sh
+│   ├── release_build.sh
+│   └── publish_release.sh
+├── CHANGELOG.md
+└── VERSION
+```
+
+## 发布流程
+
+```bash
+# 标准打包
+bash scripts/release_build.sh
+
+# 一键发布（commit/tag/release/asset）
+bash scripts/publish_release.sh --version v1.2.4
+```
+
+## 更新记录
+
+版本迭代与变更细节见：[CHANGELOG.md](CHANGELOG.md)
+
+## FAQ
+
+### Q1：`Build_test` 的用途是什么？
+`Build_test` 用于展示 Skill 的真实生成结果与可复现验收链路，便于团队在 PR 或交付前快速做回归验证。
+
+### Q2：`npx skills add` 是否依赖 GitHub Release 附件？
+不依赖。`npx skills add` 主要读取仓库内容，Release 附件用于版本归档与离线分发。
+
+### Q3：为什么 `/start.sh`、`/flag`、`/bin/bash` 是硬性要求？
+这些是平台运行契约的一部分，缺失任意一项都可能导致启动失败或动态 flag 注入失效。
+
+## 维护与贡献
+
+建议在 PR / 合并前至少执行如下检查，确保文档、技能识别和发布产物链路没有回归：
+
+```bash
+npx -y skills add . --list
+bash scripts/release_build.sh --skip-checks
+```
+
+维护团队：四叶草安全-网络安全人才培养与创新研究中心。
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).

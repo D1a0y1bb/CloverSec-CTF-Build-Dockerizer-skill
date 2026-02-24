@@ -1,90 +1,90 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project are documented in this file.
+本项目的重要变更都会记录在本文件中。
 
 ## v1.2.4 - 2026-02-24
 
-### Added
+### 新增
 
-- Added standalone English documentation file: `README.en.md`.
-- Added language switch links at the top of both README files.
-- Added complete bilingual documentation layout with separate Chinese and English files.
+- 新增独立中文文档：`README.zh-CN.md`。
+- 新增 `README.en.md` 英文兼容入口页，用于承接历史外链。
+- 新增 README 静态资源目录 `docs/assets/readme/`，并将流程截图全部本地化。
 
-### Changed
+### 变更
 
-- Rewrote `README.md` into an official Simplified Chinese primary document with standardized release-grade structure.
-- Updated release guidance to center around `scripts/publish_release.sh` for one-command publishing.
+- 将 `README.md` 切换为英文默认首页，并与中文文档保持信息等价。
+- 在中文文档中重写 `What's New in v1.2.4`，补充首次公开发布的技术范围、Pwn/AI 适配与工程稳定性说明。
+- 统一 README 中 License 指向为仓库内本地文件 `LICENSE`。
 
-### Security / Repo Hygiene
+### 修复
 
-- Archived `internal/` to a local desktop archive path and removed `internal/` from the working repository.
-- Removed legacy local workspace directory and symlink alias, retaining one canonical workspace path.
-- Confirmed `SESSION_SUMMARY_v1.2.2.md` is removed from the repository workspace.
+- 修复历史模板链路中的报错描述与执行稳定性问题，覆盖渲染、校验与发布环节的关键路径。
+- 修复 README 中本机绝对路径图片引用与外链图片依赖，改为仓库内相对路径资源。
 
-### Release
+### 安全 / 仓库治理
 
-- Bumped version to `v1.2.4`.
-- Generated release artifacts as `dist/CloverSec-CTF-Build-Dockerizer-v1.2.4/` and `dist/CloverSec-CTF-Build-Dockerizer-v1.2.4.zip`.
-- Published GitHub release `v1.2.4` with downloadable zip asset.
+- 保持 `Build_test` 的业务可复现文件，同时移除会破坏仓库边界的元数据策略（嵌套 `.git`、`.DS_Store`）。
+- 继续维持单一主工作目录与公开仓库边界，不回流敏感内部文件。
+
+### 发布
+
+- 版本号保持 `v1.2.4`。
+- `publish_release.sh` 持续作为完整发布入口（commit/tag/release/资产上传）。
 
 ## v1.2.3 - 2026-02-24
 
-### Added
+### 新增
 
-- Added a bilingual README layout: Chinese main documentation + English brief summary.
-- Added `CHANGELOG.md` as a stable release-history entry point.
-- Added explicit link to GitHub Releases in `README.md`.
+- 新增双语 README 布局（中文主文 + 英文文档）。
+- 新增 `CHANGELOG.md` 作为稳定的版本变更入口。
+- 新增 GitHub Releases 的文档入口链接。
 
-### Changed
+### 变更
 
-- Rewrote `README.md` into a formal public-release format:
-  - clear scope and non-scope
-  - standardized install and usage guidance
-  - structured platform constraints and stack matrix
-  - concise, repository-facing documentation index
+- 将 README 改写为面向公开发布的标准化结构：范围清晰、安装路径清晰、平台约束清晰。
 
-### Notes
+### 说明
 
-- This version focuses on documentation and release presentation.
-- Core rendering/validation pipeline behavior remains unchanged.
+- 本版本主要聚焦文档与发布展示层改造。
+- 核心渲染与校验行为保持不变。
 
 ## v1.2.2 - 2026-02-24
 
-### Added
+### 新增
 
-- Added documentation quality gate script: `scripts/doc_guard.sh`.
-- Added auditable phase timeline section in root README.
+- 新增文档治理脚本：`scripts/doc_guard.sh`。
+- 新增可审计的阶段性回填内容。
 
-### Changed
+### 变更
 
-- Integrated `doc_guard.sh` into `scripts/release_build.sh`.
-- Strengthened release-time document validation.
+- 将 `doc_guard.sh` 集成到 `scripts/release_build.sh`。
+- 强化发布前文档校验约束。
 
-### Fixed
+### 修复
 
-- Removed stale references and missing-path document links.
-- Unified naming strategy for public documentation.
+- 清理失效文档引用与缺失路径链接。
+- 统一公开文档命名策略。
 
 ## v1.2.1 - 2026-02-24
 
-### Changed
+### 变更
 
-- Upgraded `SKILL.md` frontmatter description to better reflect Jeopardy (Web/Pwn/AI) scope.
-- Expanded `argument-hint` to cover all 8 supported stacks.
+- 更新 `SKILL.md` 前置信息描述，使其更准确覆盖 Jeopardy（Web/Pwn/AI）范围。
+- 扩展 `argument-hint`，覆盖 8 种受支持栈。
 
 ## v1.2.0 - 2026-02-24
 
-### Added
+### 新增
 
-- Completed project rename to `CloverSec-CTF-Build-Dockerizer`.
-- Added `pwn` and `ai` stack support (templates/rules/examples/regression).
-- Enforced versioned release artifact naming based on root `VERSION`.
+- 完成项目重命名为 `CloverSec-CTF-Build-Dockerizer`。
+- 新增 `pwn` 与 `ai` 栈支持（模板、规则、示例、回归）。
+- 强制发布产物命名与根目录 `VERSION` 对齐。
 
-### Changed
+### 变更
 
-- Release packaging changed to single-directory zip layout.
-- Dist naming and release structure normalized for traceability.
+- 发布打包结构统一为单目录 zip 形态。
+- `dist` 命名与发布结构标准化，提升可追溯性。
 
-### Notes
+### 说明
 
-- Scope remains Jeopardy-only. AWD/AWDP are out of scope.
+- 作用域仍为 Jeopardy 题型；AWD/AWDP 不在本项目范围内。

@@ -3,6 +3,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .DS_Store
+iShot_*.png
 .venv/
 venv/
 env/
