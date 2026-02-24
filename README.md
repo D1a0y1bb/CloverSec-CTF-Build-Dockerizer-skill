@@ -1,48 +1,57 @@
 # CloverSec-CTF-Build-Dockerizer
 
-[![Version](https://img.shields.io/badge/version-v1.2.3-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
-[![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
+[English](README.en.md)
 
-面向 CTF Jeopardy（Web / Pwn / AI）的题目容器构建 Skill。
+[![Version](https://img.shields.io/badge/version-v1.2.4-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
+[![CTF Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
 
-该项目用于将题目目录标准化为平台可交付容器产物，并自动执行规则校验，固定产物为：
+面向 CTF Jeopardy（Web / Pwn / AI）的题目容器交付构建 Skill。
+
+本项目将题目目录标准化为平台可交付容器产物，并在生成阶段执行规则校验。默认产物为：
 
 - `Dockerfile`
 - `start.sh`
 - `flag`
 
-## 中文说明（主文）
+## 1. 项目简介与定位
 
-### 1. 项目简介
+`CloverSec-CTF-Build-Dockerizer` 的目标是让 CTF 题目容器交付流程可重复、可追溯、可审计。
 
-`CloverSec-CTF-Build-Dockerizer` 聚焦于题目容器交付标准化。
-目标是在不牺牲可维护性的前提下，降低手工编排错误，保证题目镜像满足平台运行契约。
+核心价值：
 
-### 2. 适用范围
+- 降低人工编排导致的运行失败与平台不兼容风险
+- 将输入配置、模板渲染、规则校验收敛到统一流程
+- 支持多栈题目在同一标准下生成交付件
 
-适用：
+## 2. 适用范围与非适用范围
+
+适用范围：
 
 - CTF Jeopardy 题目容器化交付
-- 技术栈：`node` / `php` / `python` / `java` / `tomcat` / `lamp` / `pwn` / `ai`
+- 栈类型：`node` / `php` / `python` / `java` / `tomcat` / `lamp` / `pwn` / `ai`
 
-不适用：
+非适用范围：
 
 - AWD / AWDP 赛制编排
-- 生产级微服务治理与编排（K8s Mesh、灰度策略等）
+- 生产环境微服务治理（灰度、网格、自动扩缩容）
 
-### 3. 一键安装（Codex）
+## 3. 一键安装
+
+Codex 安装命令：
 
 ```bash
 npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --skill cloversec-ctf-build-dockerizer --agent codex -y
 ```
 
-查看仓库内可安装 Skill：
+查看可安装 Skill：
 
 ```bash
 npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --list
 ```
 
-### 4. 使用方式
+## 4. 快速开始
+
+### 4.1 AI 编排流程（推荐）
 
 触发示例：
 
@@ -51,14 +60,14 @@ npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-ski
 先自动探测并输出 CONFIG PROPOSAL；我确认 OK 后，再生成 Dockerfile/start.sh/flag 并运行 validate。
 ```
 
-默认工作流：
+流程说明：
 
-1. `derive_config.py` 自动探测并生成提案
-2. 输出 `CONFIG PROPOSAL` 供确认
+1. 自动探测项目栈与启动信息（`derive_config.py`）
+2. 生成 `CONFIG PROPOSAL` 供确认
 3. 用户回复 `OK` 或修改 YAML
-4. `parse_config_block.py -> render.py -> validate.sh`
+4. 执行 `parse_config_block.py -> render.py -> validate.sh`
 
-手动命令链：
+### 4.2 手动命令链
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
@@ -68,22 +77,22 @@ docker build -t ctf-demo:latest .
 docker run -d -p 8080:80 ctf-demo:latest /start.sh
 ```
 
-### 5. 平台交付约束
+## 5. 平台硬约束
 
 交付前必须满足：
 
-1. 平台固定以 `/start.sh` 启动容器
-2. 镜像根目录必须包含 `/flag` 且可读
+1. 平台固定以 `/start.sh` 启动
+2. 镜像根目录必须存在 `/flag` 且可读
 3. 镜像必须包含 `/bin/bash`
 4. Dockerfile 必须包含 `EXPOSE`
-5. 禁止空转保活（例如 `sleep infinity`）
+5. 禁止空转保活（如 `sleep infinity`）
 6. 单服务需以前台 `exec` 方式运行
 
-详见：[platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
+详细规则见：[platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
 
-### 6. 支持栈
+## 6. 支持栈矩阵
 
-| Stack | 默认端口 | 启动模式（示例） |
+| Stack | 默认端口 | 启动示例 |
 |---|---:|---|
 | node | 3000 | `exec node server.js` |
 | php | 80 | `exec apache2-foreground` |
@@ -94,7 +103,7 @@ docker run -d -p 8080:80 ctf-demo:latest /start.sh
 | pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
 | ai | 5000 | `exec gunicorn ...` |
 
-### 7. 仓库结构
+## 7. 仓库结构
 
 ```text
 .
@@ -114,82 +123,78 @@ docker run -d -p 8080:80 ctf-demo:latest /start.sh
 └── VERSION
 ```
 
-### 8. 文档索引
+文档入口：
 
 - 使用协议：[SKILL.md](src/CloverSec-CTF-Build-Dockerizer/SKILL.md)
 - 新手指南：[beginner_guide.md](src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md)
 - 栈手册：[stack_cookbook.md](src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md)
 - 故障排查：[troubleshooting.md](src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md)
 
-### 9. 发布自动化
+## 8. 发布流程
 
-当你需要把“同步源码 + 打包 + 提交 + 推送 + tag + Release 附件上传”串成一条命令时，可使用：
-
-```bash
-bash scripts/publish_release.sh --source-dir /path/to/CloverSec-CTF-Build-Dockerizer
-```
-
-常用参数：
-
-- `--skip-checks`：跳过 `release_build.sh` 的发布前检查
-- `--notes-file <path>`：指定 Release 说明文本
-- `--version vX.Y.Z`：本次发布直接覆盖 `VERSION`
-
-### 10. 更新记录
-
-详细记录见：[CHANGELOG.md](CHANGELOG.md)
-
-最近版本：
-
-- `v1.2.3`（2026-02-24）：README 正式化重构，新增中英双语说明，新增 `CHANGELOG.md`，补齐 GitHub Release 入口。
-- `v1.2.2`（2026-02-24）：文档治理强化，接入 `doc_guard.sh` 发布闸门。
-- `v1.2.1`（2026-02-24）：`SKILL.md` frontmatter 与 argument-hint 规范升级。
-- `v1.2.0`（2026-02-24）：统一命名为 `CloverSec-CTF-Build-Dockerizer`，扩展 `pwn` 与 `ai` 栈。
-
-Release 页面：
-
-- <https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases>
-
-### 11. 安全与边界
-
-- 公开仓库不包含 `internal/` 私有资料。
-- 禁止提交真实生产密钥、业务敏感数据或比赛敏感附件。
-- 示例中的 `flag` 仅用于流程验证。
-
-### 12. 维护团队
-
-四叶草安全-创研中心
-
----
-
-## English Summary (Brief)
-
-`CloverSec-CTF-Build-Dockerizer` is a delivery-focused skill for CTF Jeopardy challenges (Web/Pwn/AI).
-It converts challenge projects into platform-compliant container deliverables (`Dockerfile`, `start.sh`, `flag`) and validates them against strict rules.
-
-### Install (Codex)
+### 8.1 标准检查与打包
 
 ```bash
-npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --skill cloversec-ctf-build-dockerizer --agent codex -y
+bash scripts/release_build.sh
 ```
 
-### Typical Flow
+执行后产物：
 
-1. Auto-detect project stack and runtime hints
-2. Generate `CONFIG PROPOSAL`
-3. Confirm with `OK` (or edit YAML)
-4. Render and validate deliverables
+- `dist/CloverSec-CTF-Build-Dockerizer-vX.Y.Z/`
+- `dist/CloverSec-CTF-Build-Dockerizer-vX.Y.Z.zip`
 
-### Supported Stacks
+### 8.2 一键发布（推荐）
 
-`node`, `php`, `python`, `java`, `tomcat`, `lamp`, `pwn`, `ai`
+```bash
+bash scripts/publish_release.sh --version v1.2.4
+```
 
-### Important Constraints
+如需从私有源码目录同步后发布：
 
-- Container must start via `/start.sh`
-- `/flag` must exist and be readable
-- `/bin/bash` must be available
-- `EXPOSE` is required
-- No idle-keepalive patterns (e.g., `sleep infinity`)
+```bash
+bash scripts/publish_release.sh --source-dir /path/to/CloverSec-CTF-Build-Dockerizer --version v1.2.4
+```
 
-For full details, see [SKILL.md](src/CloverSec-CTF-Build-Dockerizer/SKILL.md) and [CHANGELOG.md](CHANGELOG.md).
+## 9. 版本与更新记录
+
+- 当前版本：`v1.2.4`
+- 变更历史见：[CHANGELOG.md](CHANGELOG.md)
+- Release 页面：<https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases>
+
+## 10. 安全边界与敏感数据策略
+
+- 仓库不包含 `internal/` 私有资料
+- 禁止提交真实生产密钥与业务敏感数据
+- 示例 `flag` 仅用于流程验证
+- 发布前应运行文档与规则检查，避免泄漏路径与隐私信息
+
+## 11. FAQ
+
+### Q1: `npx skills add` 是否依赖 GitHub Release 附件？
+不依赖。`npx skills add` 默认从仓库内容安装，Release 附件用于版本化下载与归档。
+
+### Q2: 为什么要求 `/start.sh`、`/flag`、`/bin/bash`？
+这是平台运行契约，缺失会导致启动失败或动态 flag 注入失败。
+
+### Q3: 我只改了文档，需要发版吗？
+建议发版。文档与安装说明变更同样影响外部使用者，应保持版本可追溯。
+
+### Q4: `internal` 目录为什么不保留在仓库中？
+`internal` 常包含内部资料或敏感样本，不适合公开仓库，应做本地归档。
+
+## 12. 维护与贡献说明
+
+建议 PR 提交前执行：
+
+```bash
+bash scripts/release_build.sh
+npx -y skills add . --list
+```
+
+推荐提交范围：
+
+- 模板与规则改进
+- 示例补全与文档纠错
+- 发布流程和可靠性增强
+
+维护团队：四叶草安全-创研中心

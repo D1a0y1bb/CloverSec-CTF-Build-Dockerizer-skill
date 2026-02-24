@@ -2,20 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
-## Unreleased
+## v1.2.4 - 2026-02-24
 
 ### Added
 
-- Added `scripts/publish_release.sh` to automate end-to-end publishing:
-  - optional source sync (excluding `internal/`)
-  - release package build
-  - commit/push/tag
-  - GitHub Release create/update
-  - release asset upload (`CloverSec-CTF-Build-Dockerizer-<VERSION>.zip`)
+- Added standalone English documentation file: `README.en.md`.
+- Added language switch links at the top of both README files.
+- Added complete bilingual documentation layout with separate Chinese and English files.
 
 ### Changed
 
-- Updated `README.md` with a dedicated release automation section and usage examples.
+- Rewrote `README.md` into an official Simplified Chinese primary document with standardized release-grade structure.
+- Updated release guidance to center around `scripts/publish_release.sh` for one-command publishing.
+
+### Security / Repo Hygiene
+
+- Archived `internal/` to a local desktop archive path and removed `internal/` from the working repository.
+- Removed legacy local workspace directory and symlink alias, retaining one canonical workspace path.
+- Confirmed `SESSION_SUMMARY_v1.2.2.md` is removed from the repository workspace.
+
+### Release
+
+- Bumped version to `v1.2.4`.
+- Generated release artifacts as `dist/CloverSec-CTF-Build-Dockerizer-v1.2.4/` and `dist/CloverSec-CTF-Build-Dockerizer-v1.2.4.zip`.
+- Published GitHub release `v1.2.4` with downloadable zip asset.
 
 ## v1.2.3 - 2026-02-24
 
