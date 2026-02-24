@@ -1,0 +1,17 @@
+challenge:
+  name: "python-sandbox-escape"
+  stack: "python"
+  base_image: "python:3.9-slim"
+  workdir: "/app"
+  app_src: "src"
+  app_dst: "/app"
+  expose_ports: ["5000"]
+  start:
+    mode: "cmd"
+    cmd: "python app.py"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  flag:
+    path: "/flag"
+    permission: "400"

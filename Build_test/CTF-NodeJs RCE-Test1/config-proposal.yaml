@@ -1,0 +1,16 @@
+CONFIG PROPOSAL:
+  stack: node
+  base_image: node:20-alpine
+  workdir: /app
+  app_src: .
+  app_dst: /app
+  expose_ports: [3000]
+  start:
+    mode: cmd
+    cmd: "node app.js"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  flag:
+    path: "/flag"
+    permission: "444"

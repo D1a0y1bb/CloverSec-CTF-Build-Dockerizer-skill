@@ -1,0 +1,285 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Py Runner</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        nav {
+            text-align: center;
+            margin: 20px 0 30px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+        
+        nav a {
+            color: #3498db;
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 1.1rem;
+            transition: color 0.3s;
+        }
+        
+        nav a:hover {
+            color: #2980b9;
+            text-decoration: underline;
+        }
+        
+        nav a.active {
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        
+        .intro {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        .code-input-section {
+            margin-bottom: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+        }
+        
+        .button-group {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:active {
+            background-color: #2471a3;
+        }
+        
+        .results {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        
+        .result-section {
+            margin-bottom: 20px;
+        }
+        
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-size: 1.1rem;
+        }
+        
+        .result-content {
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        
+        .stdout {
+            background-color: #f8f8f8;
+            border: 1px solid #eee;
+        }
+        
+        .stderr, .error {
+            background-color: #fdf2f2;
+            border: 1px solid #fce8e6;
+            color: #b02a37;
+        }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #777;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 15px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Py Runner</h1>
+            <p class="intro">自由的运行你的 Python 程序！不过 Hacker out！</p>
+        </header>
+        
+        <nav>
+            <a href="/" class="active">首页</a>
+            <a href="/?file=pages/about.html">关于</a>
+        </nav>
+        
+        <div class="code-input-section">
+            <textarea id="codeInput" placeholder="请输入Python代码，例如：
+print('Hello, World!')
+a = 10
+b = 20
+print(f'a + b = {a + b}')"></textarea>
+        </div>
+        
+        <div class="button-group">
+            <button id="runBtn">运行代码</button>
+        </div>
+        
+        <div id="results" class="results"></div>
+        
+        <footer>
+            <p>Py Runner &copy; 2025</p>
+        </footer>
+    </div>
+
+    <script>
+        const codeInput = document.getElementById('codeInput');
+        const runBtn = document.getElementById('runBtn');
+        const resultsDiv = document.getElementById('results');
+        
+        runBtn.addEventListener('click', async () => {
+            const code = codeInput.value.trim();
+            resultsDiv.innerHTML = '';
+            
+            if (!code) {
+                showError('请输入Python代码后再运行');
+                return;
+            }
+            
+            try {
+                resultsDiv.innerHTML = '<div class="result-title">正在执行...</div>';
+                
+                const response = await fetch('/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code: code })
+                });
+                
+                const result = await response.json();
+                
+                resultsDiv.innerHTML = '';
+                
+                if (result.error) {
+                    showError(result.error);
+                } else {
+                    if (result.stdout) {
+                        showResult('输出结果', result.stdout, 'stdout');
+                    }
+                    
+                    if (result.stderr) {
+                        showResult('错误信息', result.stderr, 'stderr');
+                    }
+                    
+                    if (!result.stdout && !result.stderr) {
+                        showResult('输出结果', '代码执行成功，但没有输出内容', 'stdout');
+                    }
+                }
+            } catch (error) {
+                showError(`请求失败: ${error.message}`);
+            }
+        });
+        
+        function showResult(title, content, className) {
+            const section = document.createElement('div');
+            section.className = 'result-section';
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'result-title';
+            titleDiv.textContent = title;
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = `result-content ${className}`;
+            contentDiv.textContent = content;
+            
+            section.appendChild(titleDiv);
+            section.appendChild(contentDiv);
+            resultsDiv.appendChild(section);
+        }
+        
+        function showError(message) {
+            showResult('错误', message, 'error');
+        }
+        
+        codeInput.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'Enter') {
+                runBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>

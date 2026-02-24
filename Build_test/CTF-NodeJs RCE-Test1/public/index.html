@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compute Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #070b14;
+            --bg-soft: #0e1625;
+            --panel: rgba(15, 23, 38, 0.86);
+            --line: rgba(148, 163, 184, 0.22);
+            --line-strong: rgba(148, 163, 184, 0.4);
+            --text: #e5edf8;
+            --muted: #8fa2bf;
+            --accent: #38bdf8;
+            --success: #22c55e;
+            --danger: #f87171;
+            --shadow: 0 20px 48px rgba(2, 6, 23, 0.56);
+            --radius-lg: 16px;
+            --radius-md: 12px;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            width: 100%;
+        }
+
+        body {
+            font-family: "Manrope", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at 15% -10%, rgba(56, 189, 248, 0.2), transparent 42%),
+                radial-gradient(circle at 100% 100%, rgba(14, 116, 144, 0.24), transparent 36%),
+                linear-gradient(160deg, var(--bg), var(--bg-soft));
+            padding: 24px 14px;
+        }
+
+        .container {
+            width: min(1080px, 100%);
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 18px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--line);
+            background: rgba(8, 13, 22, 0.72);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(8px);
+        }
+
+        .title {
+            margin: 0;
+            font-size: clamp(1rem, 1.5vw, 1.2rem);
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .subtitle {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 0.82rem;
+            letter-spacing: 0.06em;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .badge {
+            min-height: 32px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 0.75rem;
+            color: var(--muted);
+            background: rgba(2, 6, 23, 0.5);
+            letter-spacing: 0.04em;
+        }
+
+        .badge b { color: var(--text); }
+
+        .layout {
+            margin-top: 14px;
+            display: grid;
+            grid-template-columns: 0.95fr 1.35fr;
+            gap: 14px;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: var(--radius-lg);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            padding: 18px;
+            min-height: 0;
+        }
+
+        .card h2 {
+            margin: 0;
+            font-size: 0.92rem;
+            color: #cbe3fb;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .desc {
+            margin: 10px 0 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .meta-list {
+            margin-top: 14px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .meta-item {
+            border-radius: var(--radius-md);
+            border: 1px solid var(--line);
+            background: rgba(2, 6, 23, 0.35);
+            padding: 11px 12px;
+        }
+
+        .meta-item p {
+            margin: 0;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .meta-item strong {
+            display: block;
+            margin-top: 6px;
+            font-size: 0.92rem;
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .terminal {
+            display: flex;
+            flex-direction: column;
+            min-height: 560px;
+        }
+
+        .input-wrap {
+            margin-top: 12px;
+            border: 1px solid var(--line-strong);
+            border-radius: var(--radius-md);
+            padding: 10px;
+            background: rgba(2, 6, 23, 0.4);
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: rgba(2, 6, 23, 0.54);
+            padding: 10px 12px;
+        }
+
+        .prefix {
+            font-family: "JetBrains Mono", monospace;
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+
+        #expr {
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--text);
+            font-family: "JetBrains Mono", monospace;
+            font-size: 0.98rem;
+            outline: none;
+        }
+
+        #expr::placeholder { color: #6e819d; }
+
+        .helper {
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 0.76rem;
+        }
+
+        .kbd {
+            border: 1px solid var(--line-strong);
+            border-bottom-width: 2px;
+            border-radius: 6px;
+            padding: 1px 6px;
+            font-family: "JetBrains Mono", monospace;
+            color: #c7d9ee;
+        }
+
+        .pad {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        button {
+            font: inherit;
+            border: none;
+            background: none;
+            color: inherit;
+        }
+
+        .btn {
+            min-height: 44px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: rgba(15, 23, 38, 0.74);
+            color: #d7e6f7;
+            font-family: "JetBrains Mono", monospace;
+            cursor: pointer;
+            transition: border-color 180ms ease, background-color 180ms ease;
+        }
+
+        .btn:hover {
+            border-color: rgba(56, 189, 248, 0.55);
+            background: rgba(15, 23, 38, 0.95);
+        }
+
+        .btn:active { filter: brightness(1.08); }
+
+        .btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .btn.primary {
+            grid-column: span 2;
+            border-color: rgba(56, 189, 248, 0.65);
+            color: #d7f0ff;
+            background: linear-gradient(120deg, rgba(14, 116, 144, 0.35), rgba(30, 41, 59, 0.8));
+            font-weight: 700;
+        }
+
+        .btn.muted {
+            color: #f5c2c7;
+            border-color: rgba(248, 113, 113, 0.5);
+        }
+
+        .console {
+            margin-top: 12px;
+            flex: 1;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-md);
+            background: rgba(2, 6, 23, 0.64);
+            padding: 12px;
+            overflow: auto;
+            font-family: "JetBrains Mono", monospace;
+        }
+
+        .line {
+            margin: 0;
+            line-height: 1.65;
+            font-size: 0.82rem;
+            color: var(--muted);
+            word-break: break-word;
+        }
+
+        .line.sys { color: #7dd3fc; }
+        .line.ok { color: #86efac; }
+        .line.err { color: #fda4af; }
+
+        :focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .terminal { min-height: auto; }
+        }
+
+        @media (max-width: 640px) {
+            body { padding: 14px 10px; }
+            .header, .card { padding: 14px; }
+            .pad { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .btn.primary { grid-column: span 2; }
+            .header-meta { justify-content: flex-start; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header" aria-label="System header">
+            <div>
+                <h1 class="title">Compute Console</h1>
+                <p class="subtitle">Expression relay endpoint: <code>/calc</code></p>
+            </div>
+            <div class="header-meta">
+                <span class="badge">Signal <b>Stable</b></span>
+                <span class="badge">Sector <b id="sector-id">ALPHA-9</b></span>
+                <span class="badge">UTC <b id="clock">--:--:--</b></span>
+            </div>
+        </header>
+
+        <main class="layout">
+            <section class="card" aria-labelledby="overview-title">
+                <h2 id="overview-title">Overview</h2>
+                <p class="desc">A lightweight expression console for challenge testing. Input is sent to the backend filter and result engine in real time.</p>
+
+                <div class="meta-list">
+                    <div class="meta-item">
+                        <p>Allowed characters</p>
+                        <strong>0-7, 9, ! . - + * / ( ) [ ]</strong>
+                    </div>
+                    <div class="meta-item">
+                        <p>Transmission state</p>
+                        <strong id="mode-indicator">Idle</strong>
+                    </div>
+                    <div class="meta-item">
+                        <p>Current action</p>
+                        <strong id="send-state">Ready</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card terminal" aria-labelledby="terminal-title">
+                <h2 id="terminal-title">Terminal</h2>
+
+                <div class="input-wrap">
+                    <label for="expr" class="desc" style="margin:0 0 8px; display:block; font-size:0.82rem;">Expression</label>
+                    <div class="input-row">
+                        <span class="prefix">&gt;&gt;</span>
+                        <input id="expr" type="text" autocomplete="off" placeholder="Type expression">
+                    </div>
+                    <div class="helper">
+                        <span>Press <span class="kbd">Enter</span> to send</span>
+                        <span>JSON: <code>{"expr":"..."}</code></span>
+                    </div>
+                </div>
+
+                <div class="pad" aria-label="input keypad">
+                    <button class="btn" data-char="(">(</button>
+                    <button class="btn" data-char=")">)</button>
+                    <button class="btn" data-char="[">[</button>
+                    <button class="btn" data-char="]">]</button>
+                    <button class="btn" data-char="!">!</button>
+                    <button class="btn" data-char="+">+</button>
+                    <button class="btn" data-char="-">-</button>
+                    <button class="btn" data-char="*">*</button>
+                    <button class="btn" data-char="/">/</button>
+                    <button class="btn" data-char=".">.</button>
+                    <button class="btn" data-char="9">9</button>
+                    <button class="btn" data-char="0">0</button>
+                    <button class="btn" data-char="1">1</button>
+                    <button class="btn" data-char="2">2</button>
+                    <button class="btn" data-char="3">3</button>
+                    <button class="btn" data-char="4">4</button>
+                    <button class="btn" data-char="5">5</button>
+                    <button class="btn" data-char="6">6</button>
+                    <button class="btn" data-char="7">7</button>
+                    <button class="btn muted" id="backspace">DEL</button>
+                    <button class="btn muted" id="clear">CLR</button>
+                    <button class="btn primary" id="engage">SEND</button>
+                </div>
+
+                <div class="console" id="console" role="log" aria-live="polite">
+                    <p class="line sys">[BOOT] Console online.</p>
+                    <p class="line">[INFO] Waiting for input.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const exprInput = document.getElementById("expr");
+        const consoleEl = document.getElementById("console");
+        const engageBtn = document.getElementById("engage");
+        const clearBtn = document.getElementById("clear");
+        const backspaceBtn = document.getElementById("backspace");
+        const sendState = document.getElementById("send-state");
+        const modeIndicator = document.getElementById("mode-indicator");
+        const clockEl = document.getElementById("clock");
+        const sectorEl = document.getElementById("sector-id");
+
+        function stamp() {
+            return new Date().toISOString().slice(11, 19);
+        }
+
+        function appendLog(message, type = "") {
+            const row = document.createElement("p");
+            row.className = `line${type ? " " + type : ""}`;
+            row.textContent = `[${stamp()}] ${message}`;
+            consoleEl.appendChild(row);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function updateClock() {
+            clockEl.textContent = new Date().toISOString().slice(11, 19);
+        }
+
+        function rotateSector() {
+            const sectors = ["ALPHA-9", "TAU-3", "DELTA-7", "SIGMA-2", "EPSILON-5"];
+            sectorEl.textContent = sectors[Math.floor(Math.random() * sectors.length)];
+        }
+
+        document.querySelectorAll("[data-char]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                exprInput.value += btn.dataset.char;
+                exprInput.focus();
+            });
+        });
+
+        clearBtn.addEventListener("click", () => {
+            exprInput.value = "";
+            exprInput.focus();
+            appendLog("Input cleared.", "sys");
+        });
+
+        backspaceBtn.addEventListener("click", () => {
+            exprInput.value = exprInput.value.slice(0, -1);
+            exprInput.focus();
+        });
+
+        async function engage() {
+            const expr = exprInput.value.trim();
+            if (!expr) {
+                appendLog("Empty input ignored.", "err");
+                return;
+            }
+
+            engageBtn.disabled = true;
+            sendState.textContent = "Sending";
+            modeIndicator.textContent = "In progress";
+            appendLog("Sending payload...", "sys");
+
+            try {
+                const response = await fetch("/calc", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ expr })
+                });
+
+                const data = await response.json();
+                if (data.result === "WAF") {
+                    appendLog("Request blocked by WAF.", "err");
+                } else if (data.result === "ERROR") {
+                    appendLog("Expression error.", "err");
+                } else {
+                    appendLog("Execution successful.", "ok");
+                    appendLog(String(data.result), "ok");
+                }
+            } catch (err) {
+                appendLog(`Request failed: ${err.message}`, "err");
+            } finally {
+                engageBtn.disabled = false;
+                sendState.textContent = "Ready";
+                modeIndicator.textContent = "Idle";
+            }
+        }
+
+        engageBtn.addEventListener("click", engage);
+        exprInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                engage();
+            }
+        });
+
+        setInterval(updateClock, 1000);
+        setInterval(rotateSector, 15000);
+        updateClock();
+    </script>
+
+    <!-- subtle system note: protocol telemetry is not wired into the UI -->
+    <!-- explorers sometimes start from /robots.txt when scanning surfaces. -->
+</body>
+</html>
+

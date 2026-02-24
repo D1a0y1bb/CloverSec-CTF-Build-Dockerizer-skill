@@ -1,0 +1,24 @@
+challenge:
+  name: node-challenge
+  stack: node
+  base_image: node:20-alpine
+  workdir: /app
+  app_src: .
+  app_dst: /app
+  expose_ports:
+  - '3000'
+  start:
+    mode: cmd
+    cmd: node app.js
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: /flag
+    permission: '444'
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+  extra:
+    env: {}
+    copy: []
+    user: ''
