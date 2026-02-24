@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## Unreleased
+
+### Added
+
+- Added `scripts/publish_release.sh` to automate end-to-end publishing:
+  - optional source sync (excluding `internal/`)
+  - release package build
+  - commit/push/tag
+  - GitHub Release create/update
+  - release asset upload (`CloverSec-CTF-Build-Dockerizer-<VERSION>.zip`)
+
+### Changed
+
+- Updated `README.md` with a dedicated release automation section and usage examples.
+
 ## v1.2.3 - 2026-02-24
 
 ### Added

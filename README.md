@@ -108,7 +108,8 @@ docker run -d -p 8080:80 ctf-demo:latest /start.sh
 ├── scripts/
 │   ├── sync.sh
 │   ├── doc_guard.sh
-│   └── release_build.sh
+│   ├── release_build.sh
+│   └── publish_release.sh
 ├── CHANGELOG.md
 └── VERSION
 ```
@@ -120,7 +121,21 @@ docker run -d -p 8080:80 ctf-demo:latest /start.sh
 - 栈手册：[stack_cookbook.md](src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md)
 - 故障排查：[troubleshooting.md](src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md)
 
-### 9. 更新记录
+### 9. 发布自动化
+
+当你需要把“同步源码 + 打包 + 提交 + 推送 + tag + Release 附件上传”串成一条命令时，可使用：
+
+```bash
+bash scripts/publish_release.sh --source-dir /path/to/CloverSec-CTF-Build-Dockerizer
+```
+
+常用参数：
+
+- `--skip-checks`：跳过 `release_build.sh` 的发布前检查
+- `--notes-file <path>`：指定 Release 说明文本
+- `--version vX.Y.Z`：本次发布直接覆盖 `VERSION`
+
+### 10. 更新记录
 
 详细记录见：[CHANGELOG.md](CHANGELOG.md)
 
@@ -135,13 +150,13 @@ Release 页面：
 
 - <https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases>
 
-### 10. 安全与边界
+### 11. 安全与边界
 
 - 公开仓库不包含 `internal/` 私有资料。
 - 禁止提交真实生产密钥、业务敏感数据或比赛敏感附件。
 - 示例中的 `flag` 仅用于流程验证。
 
-### 11. 维护团队
+### 12. 维护团队
 
 四叶草安全-创研中心
 
