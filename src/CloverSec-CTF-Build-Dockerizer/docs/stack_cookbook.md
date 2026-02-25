@@ -287,12 +287,15 @@ challenge:
 - 运维类题目若不需要登录通道，可设置 `rdg.enable_ttyd: false` 且 `rdg.enable_sshd: false`。
 - `ttyd` 默认优先使用题目目录中的 `ttyd` 二进制，缺失时按 `ttyd_install_fallback` 先尝试包管理安装，再回退下载官方静态二进制。
 - 默认判定是 `check_service`，需提供 `check/check.sh`（或自定义 `check_script_path`）。
+- check 入口约定：`bash check/check.sh [target_ip] [target_port]`，支持 `TARGET_IP/TARGET_HOST/TARGET_PORT` 环境变量回退。
+- check 返回码约定：`0=通过`、`1=失败`、`2=脚本使用/运行错误`。
 
 常见错误：
 
 - `enable_ttyd=true` 但镜像中未形成 `/ttyd` 可执行文件。
 - `enable_sshd=true` 但未安装/启动 sshd。
 - `scoring_mode=check_service` 但缺少 `check/check.sh`。
+- `check/check.sh` 仍是占位脚本（含 `CHECK_IMPLEMENT_ME/TODO` 或短脚本直接 `exit 0`），会被 `validate.sh` 阻断。
 - `start.cmd` 使用后台命令导致容器主进程退出。
 
 ---

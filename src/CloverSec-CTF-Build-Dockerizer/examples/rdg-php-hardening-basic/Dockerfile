@@ -18,11 +18,11 @@ RUN set -eux; \
     :
 
 # 统一工作目录：start.sh 会切换到该目录
-WORKDIR /app
+WORKDIR /var/www/html
 
 
 # 复制题目业务文件。
-COPY . /app
+COPY . /var/www/html
 # no extra copy
 
 # no docker env
@@ -52,7 +52,7 @@ RUN set -eux; \
 # RDG ttyd 要求：最终必须有 /ttyd（可执行）。优先题目目录，缺失时可回退安装。
 RUN set -eux; \
     if [ "true" = "true" ]; then \
-      TTYD_SRC="/app/ttyd"; \
+      TTYD_SRC="/var/www/html/ttyd"; \
       if [ -f "${TTYD_SRC}" ]; then \
         cp "${TTYD_SRC}" /ttyd; \
       elif [ "true" = "true" ]; then \

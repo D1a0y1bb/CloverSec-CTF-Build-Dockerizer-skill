@@ -2,6 +2,25 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.3.6 - 2026-02-25
+
+### 新增
+
+- 新增 RDG check 入口契约：`bash check/check.sh [target_ip] [target_port]`，支持 `TARGET_IP/TARGET_HOST/TARGET_PORT` 环境变量回退，统一返回码 `0/1/2` 语义。
+- 新增 RDG 冒烟阶段 check 执行链路：`smoke_test.sh` 对 RDG 示例容器执行真实 `check/check.sh`。
+
+### 变更
+
+- `render.py` 的 RDG check 自动脚手架由 `TODO + exit 0` 改为 fail-closed（`CHECK_IMPLEMENT_ME + exit 1`），避免未实现脚本被误判为通过。
+- `validate.sh` 在 `scoring_mode=check_service` 下新增占位脚本门禁：命中 `CHECK_IMPLEMENT_ME/TODO/placeholder` 或“短脚本 + exit 0”将直接报 `ERROR`。
+- `examples/rdg-php-hardening-basic` 与 `examples/rdg-python-ssti-basic` 的 check 脚本改为真实检查实现（健康检查 + 漏洞负向检查）。
+- RDG 示例业务基线同步为“默认已修复”状态，避免示例与检查逻辑自相矛盾。
+
+### 文档与仓库治理
+
+- README（中英主文）与 RDG 相关文档同步至 `v1.3.6`，补充 check 契约与 fail-closed 说明。
+- `.gitignore` 新增 `check样例/`，明确参考目录不进入版本库。
+
 ## v1.3.5 - 2026-02-25
 
 ### 新增

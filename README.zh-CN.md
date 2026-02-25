@@ -11,26 +11,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.5-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.6-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.5"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.6"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.3.5</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.3.6</code></p>
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.3.5
+## What's New in v1.3.6
 
-`v1.3.5` 将 RDG 从“兼容增强”升级为“防御修复题目可直接交付”的默认模式。RDG 模板默认具备 `ttyd + sshd` 双通道登录、`ctf/123456` 账户约定，以及 `check_service` 优先的判定语义。
+`v1.3.6` 重点补齐了 RDG check-service 的“最后一公里”。在延续 `v1.3.5` 的 `ttyd + sshd` 默认交付策略基础上，本次把检查脚本从“占位可通过”改成“未实现即阻断”，避免题目在发布时带着空 check 流程进入生产链路。
 
-本次把 `challenge.rdg` 扩展为完整可控模型：`enable_sshd`、`sshd_port`、`sshd_password_auth`、`ttyd_binary_relpath`、`ttyd_install_fallback`、`ctf_in_root_group`、`scoring_mode`、`include_flag_artifact`、`check_enabled`、`check_script_path`。渲染器、配置解析与校验器对这些字段统一收敛，保证 RDG 题目从自动探测到发版全链路一致。
+本次明确了 RDG check 入口契约：`bash check/check.sh [target_ip] [target_port]`，支持 `TARGET_IP/TARGET_HOST/TARGET_PORT` 环境变量回退，返回码统一为 `0=通过`、`1=失败`、`2=脚本使用/运行错误`。同时 `render.py` 新生成的脚手架改为 fail-closed（带 `CHECK_IMPLEMENT_ME` 标记并默认 `exit 1`），`validate.sh` 也新增了占位脚本门禁规则。
 
 <details>
-<summary><b>v1.3.5 RDG 技术增强清单</b></summary>
+<summary><b>v1.3.6 RDG 技术增强清单</b></summary>
 
-本次强化了 `/ttyd` 交付约束：`enable_ttyd=true` 时必须落地 `/ttyd`（优先题目目录自带，缺失先做包管理安装回退，再做官方静态二进制下载回退，仍失败则阻断）。同时新增 sshd 初始化与启动链路，并把 RDG 校验从提示级提升为门禁级（ttyd/sshd/ctf/check-script）。`/flag` 在 RDG 中保持默认启用，但可通过 `include_flag_artifact=false` 显式关闭。
+`rdg-php-hardening-basic` 与 `rdg-python-ssti-basic` 两个示例都已替换为真实检查脚本：前者执行“健康检查 + 反序列化利用负向检查”，后者执行“健康检查 + SSTI 利用负向检查”。`smoke_test.sh` 在容器启动后会自动执行对应 `check/check.sh`，使 RDG 回归结果可自动化验证。
 
 </details>
 
@@ -41,7 +41,7 @@
 - `rdg-php-hardening-basic`（PHP 审计类题目形态）
 - `rdg-python-ssti-basic`（Python SSTI 类题目形态）
 
-两个样例均覆盖 `ttyd + sshd + check_service` 默认流程；其中 Python 样例额外覆盖 `include_flag_artifact=false` 的无 flag 判定路径。
+两个样例均覆盖 `ttyd + sshd + check_service` 默认流程，并包含可执行的真实 check 脚本；其中 Python 样例额外覆盖 `include_flag_artifact=false` 的无 flag 判定路径。
 
 ### RDG 开关示例（运维型题目）
 
@@ -234,7 +234,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.3.5
+bash scripts/publish_release.sh --version v1.3.6
 ```
 
 ## 更新记录

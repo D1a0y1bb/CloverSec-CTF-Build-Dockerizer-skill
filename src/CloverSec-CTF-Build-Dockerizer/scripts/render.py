@@ -565,8 +565,18 @@ def render_files(context: Dict[str, Any]) -> None:
             check_path.write_text(
                 "#!/bin/bash\n"
                 "set -euo pipefail\n\n"
-                "echo \"[CHECK] TODO: implement vulnerability-repair check logic\"\n"
-                "exit 0\n",
+                "# CHECK_IMPLEMENT_ME: replace this scaffold with real check-service logic.\n"
+                "# Contract: bash check/check.sh [target_ip] [target_port]\n"
+                "# Exit code: 0=pass, 1=fail, 2=usage/runtime error.\n\n"
+                "TARGET_IP=\"${1:-${TARGET_IP:-${TARGET_HOST:-127.0.0.1}}}\"\n"
+                "TARGET_PORT=\"${2:-${TARGET_PORT:-80}}\"\n\n"
+                "if [[ -z \"${TARGET_IP}\" || -z \"${TARGET_PORT}\" ]]; then\n"
+                "  echo \"[CHECK] usage: bash check/check.sh [target_ip] [target_port]\" >&2\n"
+                "  exit 2\n"
+                "fi\n\n"
+                "echo \"[CHECK] CHECK_IMPLEMENT_ME: add service health + exploit-negative checks\"\n"
+                "echo \"[CHECK] target=${TARGET_IP}:${TARGET_PORT}\"\n"
+                "exit 1\n",
                 encoding="utf-8",
             )
         if check_path.is_file():
@@ -598,8 +608,11 @@ def render_files(context: Dict[str, Any]) -> None:
             f"（依据: {note.get('reason', '未提供')}，可通过 {note['override']} 覆盖）"
         )
 
-    if context["stack_id"] == "rdg" and not include_flag_artifact:
-        print("- 产物: Dockerfile, start.sh, check/check.sh（flag 可选关闭）")
+    if context["stack_id"] == "rdg":
+        if include_flag_artifact:
+            print("- 产物: Dockerfile, start.sh, flag, check/check.sh")
+        else:
+            print("- 产物: Dockerfile, start.sh, check/check.sh（flag 可选关闭）")
     else:
         print("- 产物: Dockerfile, start.sh, flag")
 

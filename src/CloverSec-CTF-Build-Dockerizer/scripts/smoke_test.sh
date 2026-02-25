@@ -8,7 +8,7 @@ RENDER_PY="${SCRIPT_DIR}/render.py"
 VALIDATE_SH="${SCRIPT_DIR}/validate.sh"
 
 FULL_RUN="${SMOKE_FULL_RUN:-0}"
-FORCE_RUN_LIST="${SMOKE_FORCE_RUN:-node-basic,php-apache-basic,python-flask-basic,pwn-basic,ai-basic}"
+FORCE_RUN_LIST="${SMOKE_FORCE_RUN:-node-basic,php-apache-basic,python-flask-basic,pwn-basic,ai-basic,rdg-php-hardening-basic,rdg-python-ssti-basic}"
 WAIT_SECONDS="${SMOKE_WAIT_SECONDS:-5}"
 KEEP_ARTIFACTS="${KEEP_SMOKE_ARTIFACTS:-0}"
 LAMP_RUN_MODE="${LAMP_RUN_MODE:-build-only}" # build-only/full
@@ -79,6 +79,30 @@ elif isinstance(ports, str) and ports.strip():
     print(ports.strip().split()[0])
 else:
     print("80")
+PY
+}
+
+get_stack_id() {
+  local challenge_file="$1"
+  python3 - "$challenge_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    print("")
+    raise SystemExit(0)
+
+try:
+    import yaml
+except ModuleNotFoundError:
+    print("")
+    raise SystemExit(0)
+
+raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+challenge = raw.get("challenge", {}) if isinstance(raw, dict) else {}
+stack = challenge.get("stack", "") if isinstance(challenge, dict) else ""
+print(str(stack).strip().lower())
 PY
 }
 
@@ -208,6 +232,33 @@ while IFS= read -r dir; do
 
   echo "[INFO] 容器运行正常，日志前 50 行："
   echo "$logs_out"
+
+  stack_id="$(get_stack_id "$challenge_yaml")"
+  if [[ "${stack_id}" == "rdg" ]]; then
+    check_script="${dir}/check/check.sh"
+    if [[ ! -f "${check_script}" ]]; then
+      echo "[ERROR] RDG 示例缺少 check 脚本: ${check_script}"
+      FAIL_LIST+=("${name}:missing-check-script")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
+
+    host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
+    if [[ -z "${host_port}" ]]; then
+      echo "[ERROR] 无法解析 RDG 检查端口映射: ${name} ${container_port}/tcp"
+      FAIL_LIST+=("${name}:check-port-resolve")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
+
+    echo "[INFO] 执行 RDG check 脚本: ${check_script} 127.0.0.1 ${host_port}"
+    if ! bash "${check_script}" "127.0.0.1" "${host_port}"; then
+      echo "[ERROR] RDG check 脚本失败: ${name}"
+      FAIL_LIST+=("${name}:rdg-check")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
+  fi
 
   PASS_LIST+=("${name}")
   cleanup_case "$container_name" "$image_tag"

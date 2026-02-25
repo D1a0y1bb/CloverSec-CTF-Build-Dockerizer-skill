@@ -102,8 +102,18 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.ctf_in_root_group` | 否 | `false` | `false` | RDG 是否加入 root 组 |
 | `challenge.rdg.scoring_mode` | 否 | `check_service` | `check_service` | RDG 判定模式 |
 | `challenge.rdg.include_flag_artifact` | 否 | `true` | `false` | RDG 是否保留 `/flag` 产物 |
-| `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 脚手架约束 |
+| `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
+
+### RDG check 脚本契约（v1.3.6）
+
+- 推荐入口：`bash check/check.sh [target_ip] [target_port]`
+- 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
+- 返回码语义：
+  - `0`：检查通过
+  - `1`：检查失败
+  - `2`：脚本使用或运行错误
+- 门禁规则：`render.py` 自动脚手架为 fail-closed（`CHECK_IMPLEMENT_ME` + `exit 1`）；`validate.sh` 会阻断占位脚本（如 `CHECK_IMPLEMENT_ME/TODO`、短脚本直接 `exit 0`）。
 
 ## 统一模板变量清单
 
@@ -301,7 +311,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <project_dir>/Docker
 
 AI 必须输出：
 
-- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`flag(可选)`、`check/check.sh(按 rdg.check_enabled 生成)`
+- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`flag(可选)`、`check/check.sh(按 rdg.check_enabled 生成，需替换为真实检查逻辑)`
 - 本地测试命令：`docker build` + `docker run ... /start.sh`
 - 平台导入提醒：端口映射、固定 `/start.sh` 启动、动态 flag 依赖 bash
 

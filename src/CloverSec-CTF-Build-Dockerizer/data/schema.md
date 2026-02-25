@@ -90,6 +90,9 @@ challenge:
 - `challenge.rdg.include_flag_artifact`：仅 `stack=rdg` 生效，默认 `true`。
 - `challenge.rdg.check_enabled`：仅 `stack=rdg` 生效，默认 `true`。
 - `challenge.rdg.check_script_path`：仅 `stack=rdg` 生效，默认 `check/check.sh`（相对 `WORKDIR`）。
+  - 脚本入口建议：`bash check/check.sh [target_ip] [target_port]`
+  - 脚本返回码约定：`0=通过`、`1=失败`、`2=脚本使用/运行错误`
+  - 质量门禁：占位脚本（如 `CHECK_IMPLEMENT_ME/TODO` 或短脚本直接 `exit 0`）会被 `validate.sh` 判定为 `ERROR`。
 
 - `challenge.extra.env`：附加环境变量。
 - `challenge.extra.copy`：附加复制列表。

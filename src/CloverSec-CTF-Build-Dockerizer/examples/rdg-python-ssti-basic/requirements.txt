@@ -1,1 +1,1 @@
-flask==3.0.3
+# no external dependency required for this rdg-python baseline sample

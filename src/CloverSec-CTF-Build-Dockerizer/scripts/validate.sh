@@ -739,6 +739,16 @@ run_dynamic_checks() {
       check_candidate="${base_dir}/${check_rel}"
       if [[ -f "$check_candidate" ]]; then
         log_result INFO "RDG check_service 脚本存在：${check_rel}"
+        local check_line_count
+        check_line_count="$(grep -cv '^[[:space:]]*$' "$check_candidate" || true)"
+
+        if contains_re "$check_candidate" '(CHECK_IMPLEMENT_ME|TODO[[:space:]]*implement|TODO:|placeholder)'; then
+          log_result ERROR "RDG check_service 脚本仍为占位实现：${check_rel}。修复：按真实业务补齐健康检查与漏洞负向检查逻辑。"
+        elif [[ "${check_line_count}" -le 8 ]] && contains_re "$check_candidate" 'exit[[:space:]]+0([[:space:]]|$)'; then
+          log_result ERROR "RDG check_service 脚本疑似占位实现（脚本过短且直接 exit 0）：${check_rel}。"
+        else
+          log_result INFO "RDG check_service 脚本通过占位检测"
+        fi
       else
         log_result ERROR "RDG scoring_mode=check_service 但缺少校验脚本：${check_rel}"
       fi

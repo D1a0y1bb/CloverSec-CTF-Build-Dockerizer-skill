@@ -11,7 +11,7 @@ chmod 444 /flag || true
 :
 
 
-cd "/app"
+cd "/var/www/html"
 
 if [[ "true" == "true" ]]; then
   if command -v sshd >/dev/null 2>&1; then

@@ -2,9 +2,9 @@ challenge:
   name: "rdg-php-hardening-basic"
   stack: "rdg"
   base_image: "php:8.2-apache"
-  workdir: "/app"
+  workdir: "/var/www/html"
   app_src: "."
-  app_dst: "/app"
+  app_dst: "/var/www/html"
   expose_ports:
     - "80"
     - "22"

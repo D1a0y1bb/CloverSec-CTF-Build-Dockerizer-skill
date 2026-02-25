@@ -6,6 +6,7 @@
 - 默认双通道登录：`ttyd + sshd`。
 - 默认判定链路：`check_service`（可回退为 `flag`）。
 - 在平台硬约束下保持可校验、可发布。
+- 默认 check 脚手架为 fail-closed：未实现时会以失败退出，避免误发布。
 
 ## 默认值
 
@@ -33,8 +34,18 @@
 | `ctf_in_root_group` | `false` | 是否将 ctf 用户加入 root 组 |
 | `scoring_mode` | `check_service` | 判定模式：`check_service` / `flag` |
 | `include_flag_artifact` | `true` | 是否保留 `/flag` 产物链路 |
-| `check_enabled` | `true` | 是否启用 check 脚手架约束 |
+| `check_enabled` | `true` | 是否启用 check 门禁约束 |
 | `check_script_path` | `check/check.sh` | check 脚本路径（相对 `WORKDIR`） |
+
+## check 脚本契约（v1.3.6）
+
+- 建议入口：`bash check/check.sh [target_ip] [target_port]`
+- 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
+- 返回码语义：
+  - `0`：检查通过（题目已修复）
+  - `1`：检查失败（漏洞仍可利用或业务异常）
+  - `2`：脚本使用或运行错误
+- 推荐结构：`服务可用性检查 + 漏洞负向检查（利用成功即失败）`
 
 ## 最小 challenge.yaml 示例
 
@@ -73,4 +84,5 @@ challenge:
 1. `enable_ttyd=true` 但未提供题目自带 ttyd，且关闭了安装/下载回退。
 2. `enable_sshd=true` 但未写入 sshd 配置或未启动 sshd。
 3. `scoring_mode=check_service` 且 `check/check.sh` 缺失。
-4. 把 `start_cmd` 写成后台命令，导致主进程退出。
+4. `check/check.sh` 仍是占位内容（`CHECK_IMPLEMENT_ME/TODO`、短脚本直接 `exit 0`），会被校验器阻断。
+5. 把 `start_cmd` 写成后台命令，导致主进程退出。
