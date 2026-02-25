@@ -23,6 +23,9 @@ OWNER_REPO=""
 RELEASE_ID=""
 RELEASE_HTML_URL=""
 ASSET_DOWNLOAD_URL=""
+RELEASE_IS_DRAFT=""
+RELEASE_IS_IMMUTABLE=""
+RELEASE_TAG_NAME=""
 AUTH_ARGS=()
 PUBLISH_STAGE_PATHS=()
 
@@ -49,8 +52,9 @@ What this script does:
   2) Build release artifact via scripts/release_build.sh
   3) Commit and push current branch
   4) Create/push git tag from VERSION
-  5) Create or update GitHub Release
+  5) Create or update GitHub Release (immutable-friendly: draft first)
   6) Upload dist/CloverSec-CTF-Build-Dockerizer-<VERSION>.zip as release asset
+  7) Publish draft release
 
 Options:
   --source-dir <path>     Sync files from source repo before publishing
@@ -441,6 +445,12 @@ elif expr == "release.html_url":
     print(obj.get("html_url", ""))
 elif expr == "release.upload_url":
     print(obj.get("upload_url", ""))
+elif expr == "release.draft":
+    print("true" if obj.get("draft", False) else "false")
+elif expr == "release.immutable":
+    print("true" if obj.get("immutable", False) else "false")
+elif expr == "release.tag_name":
+    print(obj.get("tag_name", ""))
 elif expr.startswith("asset.id:"):
     name = expr.split(":", 1)[1]
     asset_id = ""
@@ -449,6 +459,14 @@ elif expr.startswith("asset.id:"):
             asset_id = str(asset.get("id", ""))
             break
     print(asset_id)
+elif expr.startswith("asset.url:"):
+    name = expr.split(":", 1)[1]
+    asset_url = ""
+    for asset in obj.get("assets", []):
+        if asset.get("name") == name:
+            asset_url = str(asset.get("browser_download_url", ""))
+            break
+    print(asset_url)
 elif expr == "asset.browser_download_url":
     print(obj.get("browser_download_url", ""))
 else:
@@ -456,7 +474,25 @@ else:
 PY
 }
 
-create_or_update_release() {
+refresh_release_state() {
+  local response_file
+  local code
+
+  [[ -n "${RELEASE_ID}" ]] || die "release id is empty"
+
+  response_file="$(mktemp)"
+  code="$(api_request "GET" "https://api.github.com/repos/${OWNER_REPO}/releases/${RELEASE_ID}" "${response_file}")"
+  [[ "${code}" == "200" ]] || die "Failed to fetch release state (HTTP ${code}): $(head -c 500 "${response_file}")"
+
+  RELEASE_HTML_URL="$(json_read "${response_file}" "release.html_url")"
+  RELEASE_IS_DRAFT="$(json_read "${response_file}" "release.draft")"
+  RELEASE_IS_IMMUTABLE="$(json_read "${response_file}" "release.immutable")"
+  RELEASE_TAG_NAME="$(json_read "${response_file}" "release.tag_name")"
+
+  rm -f "${response_file}"
+}
+
+create_or_prepare_release() {
   local notes
   local notes_body
   local payload_file
@@ -483,16 +519,29 @@ create_or_update_release() {
   if [[ "${code}" == "200" ]]; then
     RELEASE_ID="$(json_read "${response_file}" "release.id")"
     [[ -n "${RELEASE_ID}" ]] || die "Cannot parse existing release id"
+    RELEASE_HTML_URL="$(json_read "${response_file}" "release.html_url")"
+    RELEASE_IS_DRAFT="$(json_read "${response_file}" "release.draft")"
+    RELEASE_IS_IMMUTABLE="$(json_read "${response_file}" "release.immutable")"
+    RELEASE_TAG_NAME="$(json_read "${response_file}" "release.tag_name")"
 
-    python3 - "${VERSION}" "${notes_body}" <<'PY' > "${payload_file}"
+    # Published immutable release is append-only blocked: keep as-is and let
+    # upload step decide whether existing asset is sufficient.
+    if [[ "${RELEASE_IS_IMMUTABLE}" == "true" && "${RELEASE_IS_DRAFT}" != "true" ]]; then
+      warn "Release ${VERSION} is immutable and already published; metadata update is skipped."
+      rm -f "${payload_file}" "${response_file}"
+      return 0
+    fi
+
+    python3 - "${VERSION}" "${notes_body}" "${RELEASE_IS_DRAFT}" <<'PY' > "${payload_file}"
 import json
 import sys
 version = sys.argv[1]
 notes = sys.argv[2]
+draft = sys.argv[3].lower() == "true"
 payload = {
     "name": version,
     "body": notes,
-    "draft": False,
+    "draft": draft,
     "prerelease": False
 }
 print(json.dumps(payload, ensure_ascii=False))
@@ -501,7 +550,6 @@ PY
     update_api="${release_api}/${RELEASE_ID}"
     code="$(api_request "PATCH" "${update_api}" "${response_file}" "${payload_file}")"
     [[ "${code}" == "200" ]] || die "Release update failed (HTTP ${code}): $(head -c 500 "${response_file}")"
-    RELEASE_HTML_URL="$(json_read "${response_file}" "release.html_url")"
     log "Updated release ${VERSION}"
   elif [[ "${code}" == "404" ]]; then
     python3 - "${VERSION}" "${CURRENT_BRANCH}" "${notes_body}" <<'PY' > "${payload_file}"
@@ -515,7 +563,7 @@ payload = {
     "target_commitish": branch,
     "name": version,
     "body": notes,
-    "draft": False,
+    "draft": True,
     "prerelease": False
 }
 print(json.dumps(payload, ensure_ascii=False))
@@ -523,13 +571,22 @@ PY
 
     create_api="${release_api}"
     code="$(api_request "POST" "${create_api}" "${response_file}" "${payload_file}")"
-    [[ "${code}" == "201" ]] || die "Release create failed (HTTP ${code}): $(head -c 500 "${response_file}")"
+    if [[ "${code}" != "201" ]]; then
+      if [[ "${code}" == "422" ]] && grep -q "tag_name was used by an immutable release" "${response_file}"; then
+        die "Release create blocked: tag ${VERSION} has been consumed by an immutable release record. Please bump VERSION (for example vX.Y.Z-r1) and retry."
+      fi
+      die "Release create failed (HTTP ${code}): $(head -c 500 "${response_file}")"
+    fi
     RELEASE_ID="$(json_read "${response_file}" "release.id")"
-    RELEASE_HTML_URL="$(json_read "${response_file}" "release.html_url")"
-    log "Created release ${VERSION}"
+    log "Created draft release ${VERSION} (immutable-compatible flow)"
   else
     die "Release lookup failed (HTTP ${code}): $(head -c 500 "${response_file}")"
   fi
+
+  RELEASE_HTML_URL="$(json_read "${response_file}" "release.html_url")"
+  RELEASE_IS_DRAFT="$(json_read "${response_file}" "release.draft")"
+  RELEASE_IS_IMMUTABLE="$(json_read "${response_file}" "release.immutable")"
+  RELEASE_TAG_NAME="$(json_read "${response_file}" "release.tag_name")"
 
   rm -f "${payload_file}" "${response_file}"
 }
@@ -539,6 +596,7 @@ upload_release_asset() {
   local get_release_file
   local code
   local existing_asset_id
+  local existing_asset_url
   local upload_response
   local upload_url
 
@@ -550,12 +608,28 @@ upload_release_asset() {
   get_release_file="$(mktemp)"
   code="$(api_request "GET" "https://api.github.com/repos/${OWNER_REPO}/releases/${RELEASE_ID}" "${get_release_file}")"
   [[ "${code}" == "200" ]] || die "Failed to fetch release before upload (HTTP ${code})"
+  RELEASE_IS_DRAFT="$(json_read "${get_release_file}" "release.draft")"
+  RELEASE_IS_IMMUTABLE="$(json_read "${get_release_file}" "release.immutable")"
+  RELEASE_HTML_URL="$(json_read "${get_release_file}" "release.html_url")"
+  RELEASE_TAG_NAME="$(json_read "${get_release_file}" "release.tag_name")"
 
   existing_asset_id="$(json_read "${get_release_file}" "asset.id:${asset_name}")"
+  existing_asset_url="$(json_read "${get_release_file}" "asset.url:${asset_name}")"
   if [[ -n "${existing_asset_id}" ]]; then
+    if [[ "${RELEASE_IS_IMMUTABLE}" == "true" && "${RELEASE_IS_DRAFT}" != "true" ]]; then
+      ASSET_DOWNLOAD_URL="${existing_asset_url}"
+      log "Immutable release already contains asset ${asset_name}; keeping existing asset"
+      rm -f "${get_release_file}"
+      return 0
+    fi
+
     code="$(api_request "DELETE" "https://api.github.com/repos/${OWNER_REPO}/releases/assets/${existing_asset_id}" "${get_release_file}")"
     [[ "${code}" == "204" ]] || die "Failed to delete existing asset id=${existing_asset_id} (HTTP ${code})"
     log "Deleted existing asset: ${asset_name}"
+  fi
+
+  if [[ "${RELEASE_IS_IMMUTABLE}" == "true" && "${RELEASE_IS_DRAFT}" != "true" ]]; then
+    die "Release ${VERSION} is immutable and published; cannot upload new asset ${asset_name}. Please bump VERSION and publish a new release."
   fi
 
   upload_response="$(mktemp)"
@@ -565,6 +639,40 @@ upload_release_asset() {
 
   ASSET_DOWNLOAD_URL="$(json_read "${upload_response}" "asset.browser_download_url")"
   rm -f "${get_release_file}" "${upload_response}"
+}
+
+publish_release_if_needed() {
+  local payload_file
+  local response_file
+  local code
+  local update_api
+
+  refresh_release_state
+
+  if [[ "${RELEASE_IS_DRAFT}" != "true" ]]; then
+    log "Release ${RELEASE_TAG_NAME:-${VERSION}} already published"
+    return 0
+  fi
+
+  payload_file="$(mktemp)"
+  python3 <<'PY' > "${payload_file}"
+import json
+print(json.dumps({"draft": False}, ensure_ascii=False))
+PY
+
+  response_file="$(mktemp)"
+  update_api="https://api.github.com/repos/${OWNER_REPO}/releases/${RELEASE_ID}"
+  code="$(api_request "PATCH" "${update_api}" "${response_file}" "${payload_file}")"
+  [[ "${code}" == "200" ]] || die "Release publish failed (HTTP ${code}): $(head -c 500 "${response_file}")"
+
+  RELEASE_HTML_URL="$(json_read "${response_file}" "release.html_url")"
+  RELEASE_IS_DRAFT="$(json_read "${response_file}" "release.draft")"
+  RELEASE_IS_IMMUTABLE="$(json_read "${response_file}" "release.immutable")"
+  RELEASE_TAG_NAME="$(json_read "${response_file}" "release.tag_name")"
+  [[ "${RELEASE_IS_DRAFT}" != "true" ]] || die "Release publish failed: release is still draft"
+
+  rm -f "${payload_file}" "${response_file}"
+  log "Published release ${RELEASE_TAG_NAME:-${VERSION}}"
 }
 
 main() {
@@ -592,8 +700,9 @@ main() {
 
   resolve_owner_repo
   setup_auth
-  create_or_update_release
+  create_or_prepare_release
   upload_release_asset
+  publish_release_if_needed
 
   echo "[OK] Publish complete"
   echo "[OK] Version: ${VERSION}"
