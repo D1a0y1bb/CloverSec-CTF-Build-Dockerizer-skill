@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="渲染 CTF Web Dockerfile/start.sh")
     parser.add_argument("--config", help="challenge.yaml 路径")
 
-    parser.add_argument("--stack", help="技术栈: node/php/python/java/tomcat/lamp/pwn/ai")
+    parser.add_argument("--stack", help="技术栈: node/php/python/java/tomcat/lamp/pwn/ai/rdg")
     parser.add_argument("--port", action="append", help="暴露端口，可重复传入")
     parser.add_argument("--workdir", help="WORKDIR，默认取栈默认值")
     parser.add_argument("--start", dest="start_cmd", help="启动命令")
@@ -132,6 +132,20 @@ def _has_value(value: Any) -> bool:
     return True
 
 
+def _to_bool(value: Any, field_name: str, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v in {"true", "1", "yes", "y"}:
+            return True
+        if v in {"false", "0", "no", "n"}:
+            return False
+    raise ConfigError(f"{field_name} 必须是布尔值")
+
+
 def build_render_context(
     args: argparse.Namespace,
     stacks: Dict[str, Dict[str, Any]],
@@ -158,12 +172,25 @@ def build_render_context(
 
     start_cfg = ensure_dict(challenge.get("start"), "challenge.start")
     extra_cfg = ensure_dict(challenge.get("extra"), "challenge.extra")
+    rdg_cfg = ensure_dict(challenge.get("rdg"), "challenge.rdg")
 
     mode = first_non_empty(args.mode, start_cfg.get("mode"), "cmd")
     if mode not in {"cmd", "service", "supervisor"}:
         raise ConfigError(f"不支持的 start.mode: {mode}")
 
-    base_image = first_non_empty(args.base_image, challenge.get("base_image"), defaults.get("base_image"))
+    infer_info = infer_from_patterns(scan_dir, stack_id, patterns_data)
+
+    inferred_base_image_raw = infer_info.get("base_image")
+    inferred_base_image = (
+        inferred_base_image_raw.strip() if isinstance(inferred_base_image_raw, str) else ""
+    )
+
+    base_image = first_non_empty(
+        args.base_image,
+        challenge.get("base_image"),
+        inferred_base_image,
+        defaults.get("base_image"),
+    )
     workdir = first_non_empty(args.workdir, challenge.get("workdir"), defaults.get("workdir"), "/app")
     app_src = first_non_empty(args.app_src, challenge.get("app_src"), ".")
     app_dst = first_non_empty(args.app_dst, challenge.get("app_dst"), workdir)
@@ -172,8 +199,6 @@ def build_render_context(
         raise ConfigError("未找到可用基础镜像（base_image）")
     if not workdir:
         raise ConfigError("workdir 不能为空")
-
-    infer_info = infer_from_patterns(scan_dir, stack_id, patterns_data)
 
     # 端口优先级：CLI > challenge > patterns 推断 > stacks defaults
     ports_from_cli = normalize_ports(args.port) if args.port else []
@@ -233,6 +258,28 @@ def build_render_context(
     if mode == "cmd" and not start_cmd:
         raise ConfigError("mode=cmd 时必须提供启动命令（start.cmd 或 --start）")
 
+    if not args.base_image and not _has_value(challenge.get("base_image")):
+        if inferred_base_image:
+            inference_notes.append(
+                {
+                    "field": "base_image",
+                    "value": inferred_base_image,
+                    "source": str(infer_info.get("base_image_source", "rule")),
+                    "reason": str(infer_info.get("base_image_reason", "")),
+                    "override": "--base-image 或 challenge.base_image",
+                }
+            )
+        elif defaults.get("base_image"):
+            inference_notes.append(
+                {
+                    "field": "base_image",
+                    "value": str(defaults.get("base_image")),
+                    "source": "default",
+                    "reason": "patterns 未命中，回退 stacks 默认基础镜像",
+                    "override": "--base-image 或 challenge.base_image",
+                }
+            )
+
     if ports_source != "explicit":
         inference_notes.append(
             {
@@ -266,6 +313,15 @@ def build_render_context(
     npm_install_block = str(first_non_empty(extra_cfg.get("npm_install_block"), "") or "")
     pip_requirements_block = str(first_non_empty(extra_cfg.get("pip_requirements_block"), "") or "")
 
+    rdg_enable_ttyd = _to_bool(rdg_cfg.get("enable_ttyd"), "challenge.rdg.enable_ttyd", True)
+    rdg_ttyd_port_raw = first_non_empty(rdg_cfg.get("ttyd_port"), "8022")
+    rdg_ttyd_port = str(rdg_ttyd_port_raw).strip()
+    if not rdg_ttyd_port.isdigit() or not (1 <= int(rdg_ttyd_port) <= 65535):
+        raise ConfigError("challenge.rdg.ttyd_port 必须是 1-65535 的端口数字")
+    rdg_ttyd_login_cmd = str(first_non_empty(rdg_cfg.get("ttyd_login_cmd"), "/bin/bash")).strip()
+    if not rdg_ttyd_login_cmd:
+        raise ConfigError("challenge.rdg.ttyd_login_cmd 不能为空")
+
     return {
         "stack_id": stack_id,
         "stack_display": stack_info.get("display_name", stack_id),
@@ -284,6 +340,9 @@ def build_render_context(
         "copy_items": copy_items,
         "npm_install_block": npm_install_block,
         "pip_requirements_block": pip_requirements_block,
+        "rdg_enable_ttyd": rdg_enable_ttyd,
+        "rdg_ttyd_port": rdg_ttyd_port,
+        "rdg_ttyd_login_cmd": rdg_ttyd_login_cmd,
         "output_dir": Path(args.output).resolve(),
         "inference_notes": inference_notes,
         "entry_file": infer_info.get("entry_file"),
@@ -317,6 +376,9 @@ def render_files(context: Dict[str, Any]) -> None:
         "PIP_REQUIREMENTS_BLOCK": build_pip_requirements_block(
             context.get("pip_requirements_block", "")
         ),
+        "RDG_ENABLE_TTYD": "true" if context.get("rdg_enable_ttyd") else "false",
+        "RDG_TTYD_PORT": context.get("rdg_ttyd_port", "8022"),
+        "RDG_TTYD_LOGIN_CMD": context.get("rdg_ttyd_login_cmd", "/bin/bash"),
     }
 
     docker_vars = {

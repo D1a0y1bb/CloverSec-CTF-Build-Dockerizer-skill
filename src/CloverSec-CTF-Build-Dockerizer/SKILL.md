@@ -1,7 +1,7 @@
 ---
 name: CloverSec-CTF-Build-Dockerizer
-description: 四叶草安全-创研中心竞赛专用题目容器构建Skills，面向 CTF Jeopardy（Web/Pwn/AI）的容器交付引擎：自动探测栈、生成合规 Dockerfile/start.sh/flag、执行规则校验并给出可修复建议，实现标准化工作流程的质量对齐。
-argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai --port 80 --start '...'"
+description: 四叶草安全-创研中心竞赛专用题目容器构建Skills，面向 CTF Jeopardy（Web/Pwn/AI）与 RDG（Docker）模式的容器交付引擎：自动探测栈、生成合规 Dockerfile/start.sh/flag、执行规则校验并给出可修复建议，实现标准化工作流程的质量对齐。
+argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg --port 80 --start '...'"
 disable-model-invocation: true
 allowed-tools:
   - Bash
@@ -19,7 +19,7 @@ allowed-tools:
 
 **镜像中必须存在 `/bin/bash`**
 
-**能力边界：当前仅支持 Jeopardy模式（Web/Pwn/AI），不支持 AWD/AWDP 竞赛模式编排。**
+**能力边界：当前支持 Jeopardy 模式（Web/Pwn/AI）与 RDG（Docker）模式，不支持 AWD/AWDP 竞赛模式编排。**
 
 ## 快速开始
 
@@ -59,13 +59,13 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
   - 本文 `输入契约` <-> 白皮书 `5. 输入契约`
   - 本文 `AI Orchestrated Mode` <-> 白皮书 `6. AI Orchestrated Wizard`
   - 本文 `手动模式` <-> 白皮书 `7. 手动模式`
-  - 本文 `8 栈模板索引` <-> 白皮书 `8. 八栈能力对照`
+  - 本文 `9 栈模板索引` <-> 白皮书 `8. 九栈能力对照`
   - 本文 `validate 规则速查` <-> 白皮书 `10. 校验系统`
   - 本文 `命令速查/附录` <-> 白皮书 `12-15`
 
 ## 一句话定位
 
-当你要把 Web、Pwn、AI等CTFJeopardy模式的题目源码变成平台可运行镜像时，使用本技能可以稳定生成并校验交付件。
+当你要把 Web、Pwn、AI 与 RDG（Docker）模式题目源码变成平台可运行镜像时，使用本技能可以稳定生成并校验交付件。
 
 ## 输入契约（challenge.yaml 字段映射）
 
@@ -159,7 +159,7 @@ AI 必须按固定顺序提问，且每题都带默认值：
 
 Q1 技术栈 
 默认：`<stack_guess.id>` 
-可选：`node/php/python/java/tomcat/lamp/pwn/ai`
+可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg`
 
 Q2 容器端口 
 默认：`<port_guess.ports>` 
@@ -204,7 +204,7 @@ Step 1 末尾硬规则（必须执行）：
 
 ```yaml
 CONFIG PROPOSAL:
-  stack: <node|php|python|java|tomcat|lamp|pwn|ai>
+  stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg>
   base_image: <string|optional>
   workdir: <string>
   app_src: <string>
@@ -301,7 +301,7 @@ docker build -t <image>:latest .
 docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 ```
 
-## 8 栈最小模板库索引
+## 9 栈最小模板库索引
 
 ### Node
 
@@ -717,7 +717,7 @@ bash scripts/sync.sh --codex-dir
 
 本技能只处理：
 
-- Jeopardy 模式 Web/Pwn/AI 题目环境容器入口标准化。
+- Jeopardy 模式 Web/Pwn/AI 与 RDG（Docker）题目环境容器入口标准化。
 - 平台契约合规。
 - 模板化复用与可验证交付。
 
@@ -735,6 +735,7 @@ bash scripts/sync.sh --codex-dir
 - `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/README.md`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/README.md`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/ai/README.md`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/README.md`
 - `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
 - `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
 - `src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md`

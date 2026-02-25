@@ -2,27 +2,36 @@
 
 [English](README.md)
 
-[![Version](https://img.shields.io/badge/version-v1.2.4-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
+[![Version](https://img.shields.io/badge/version-v1.3.0-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
 [![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
-[![Stacks](https://img.shields.io/badge/stacks-8-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
-[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.2.4)
+[![Stacks](https://img.shields.io/badge/stacks-9-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
+[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.0)
 
 ![CloverSec Overview](docs/assets/readme/hero-overview.png)
 
-四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF Jeopardy（Web / Pwn / AI）场景。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
+四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.2.4
+## What's New in v1.3.0
 
-`v1.2.4` 是该项目首次对外发布版本，目标不是简单堆功能，而是把“可用”提升为“可复现、可校验、可发布”。这次更新重点补齐了 Pwn 与 AI 两类题目的构建路径，使 Web / Pwn / AI 三大方向在同一流程内完成自动探测、模板生成与规则验收，避免分散脚本造成的维护断层。
+`v1.3.0` 新增独立 `rdg` 栈，用于承接 RDG（Docker）模式题目构建，并保持原有 8 栈能力不回归。该版本采用“兼容增强”策略：在 RDG 场景中补充 ttyd 旁路、ctf 用户约定、多服务启动特征推断，但不把这些增强项设为硬阻断。
 
-在工程稳定性方面，本版本集中修复了历史模板中的报错点，包括渲染阶段变量处理不一致、校验阶段报错提示不够可定位、部分脚本链路在边界输入下的退出行为不稳定等问题。配合发布脚本，当前流程可以从构建、检查到打包形成闭环，作为首次公开版已经具备团队协作和外部复用的基础稳定性。
+本次还扩展了推断优先级：`base_image` 现在支持 `CLI > challenge.yaml > patterns > stacks 默认值`，并把 `CONFIG PROPOSAL` / 解析器扩展到可识别 `challenge.rdg`（`enable_ttyd`、`ttyd_port`、`ttyd_login_cmd`）。这使 RDG 题目可以与其他栈一样，走自动探测、渲染、校验、发版的统一流程。
 
 <details>
-<summary><b>v1.2.4 技术修复与增强清单</b></summary>
+<summary><b>v1.3.0 RDG 技术增强清单</b></summary>
 
-本次发布完成了三项底层收敛：其一，模板输出统一回归到 `Dockerfile` / `start.sh` / `flag` 三件套，降低跨题型差异；其二，平台契约检查围绕 `/start.sh`、`/flag`、`/bin/bash`、`EXPOSE` 固化为标准校验项；其三，发布链路通过 `release_build.sh` 与 `publish_release.sh` 打通，减少手工发版步骤导致的遗漏风险。
+本次新增 `templates/rdg` 模板族和 2 个 RDG 回归样例，并在 `validate.sh` 增加 RDG 兼容增强检查（仅 WARN/INFO，不新增 ERROR 阻断）。平台硬约束保持不变：`/start.sh`、`/flag`、`/bin/bash`、`EXPOSE` 仍是发布门槛。
 
 </details>
+
+## RDG 回归样例
+
+`src/CloverSec-CTF-Build-Dockerizer/examples` 新增两个 RDG 回归样例：
+
+- `rdg-php-hardening-basic`（PHP 审计类题目形态）
+- `rdg-python-ssti-basic`（Python SSTI 类题目形态）
+
+样例刻意不携带 `ttyd` 二进制；RDG 运行时策略为“存在即启动，不存在告警”。
 
 ## 核心能力矩阵
 
@@ -166,6 +175,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 | lamp | 80 | 数据库后台 + Apache 前台 |
 | pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
 | ai | 5000 | `exec gunicorn ...` |
+| rdg | 80 | `exec apache2-foreground` / `exec python app.py` |
 
 ## 仓库结构
 
@@ -198,7 +208,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.2.4
+bash scripts/publish_release.sh --version v1.3.0
 ```
 
 ## 更新记录

@@ -2,6 +2,30 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.3.0 - 2026-02-25
+
+### 新增
+
+- 新增独立 `rdg` 栈，支持 RDG（Docker）模式题目渲染与交付。
+- 新增 RDG 专有配置字段：`challenge.rdg.enable_ttyd`、`challenge.rdg.ttyd_port`、`challenge.rdg.ttyd_login_cmd`。
+- 新增 RDG 模板目录：`src/CloverSec-CTF-Build-Dockerizer/templates/rdg/`。
+- 新增 2 个 RDG 回归样例：`rdg-php-hardening-basic`、`rdg-python-ssti-basic`。
+
+### 变更
+
+- `base_image` 推断优先级升级为：`CLI > challenge.yaml > patterns > stacks 默认值`。
+- `parse_config_block.py` 与 `CONFIG PROPOSAL` 支持 `stack: rdg` 及 RDG 子配置解析。
+- README（中英）与技能文档升级为 9 栈说明，并补充 RDG 使用与回归章节。
+
+### 校验与兼容
+
+- `validate.sh` 增加 RDG 兼容增强检查（ttyd、ctf 用户、多服务形态），以 WARN/INFO 为主，不新增 ERROR 阻断。
+- 平台硬约束保持不变：`/start.sh`、`/flag`、`/bin/bash`、`EXPOSE` 仍为必需项。
+
+### 仓库治理
+
+- 临时参考目录 `RDG/` 仅用于规则提炼，发布前删除且不纳入 Git 跟踪。
+
 ## v1.2.4 - 2026-02-24
 
 ### 新增

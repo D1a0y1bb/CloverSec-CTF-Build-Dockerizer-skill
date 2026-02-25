@@ -1,0 +1,29 @@
+challenge:
+  name: "rdg-python-ssti-basic"
+  stack: "rdg"
+  base_image: "python:3.11-slim"
+  workdir: "/app"
+  app_src: "."
+  app_dst: "/app"
+  expose_ports:
+    - "80"
+  start:
+    mode: "cmd"
+    cmd: "python app.py"
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  rdg:
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+  extra:
+    env:
+      PYTHONUNBUFFERED: "1"
+    copy: []
+    user: ""

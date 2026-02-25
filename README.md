@@ -2,27 +2,27 @@
 
 [简体中文](README.zh-CN.md) | [Legacy English Link](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-v1.2.4-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
+[![Version](https://img.shields.io/badge/version-v1.3.0-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
 [![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
-[![Stacks](https://img.shields.io/badge/stacks-8-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
-[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.2.4)
+[![Stacks](https://img.shields.io/badge/stacks-9-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
+[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.0)
 
-VERSION：v1.2.4
+VERSION：v1.3.0
 
 ![CloverSec Overview](docs/assets/readme/hero-overview.png)
 
-CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF Jeopardy challenges across Web, Pwn, and AI tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
+CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
-## What's New in v1.2.4
+## What's New in v1.3.0
 
-`v1.2.4` is the first public release and it is built around stability, not just feature count. The generation workflow now covers Pwn and AI challenge builds alongside Web, so all three tracks follow the same detect-render-validate path without fragmented scripts.
+`v1.3.0` introduces an independent `rdg` stack for RDG(Docker) challenge delivery and keeps the existing generation pipeline stable for the original eight stacks. The implementation is compatibility-first: RDG adds ttyd-sidecar-aware startup behavior, ctf-user conventions, and mode-specific inference without breaking legacy inputs.
 
-This release also resolves template-related failures that previously appeared in rendering and validation phases, and hardens multiple engineering paths such as error localization, edge-case script exits, and release chain consistency. The result is a workflow that can be reviewed, reproduced, and published as a standard team process.
+This release also upgrades inference precedence by adding `base_image` pattern inference (`CLI > challenge.yaml > patterns > stacks defaults`) and extends `CONFIG PROPOSAL` parsing to support the optional `challenge.rdg` object (`enable_ttyd`, `ttyd_port`, `ttyd_login_cmd`). As a result, RDG cases can be auto-detected, rendered, validated, and released in the same workflow.
 
 <details>
-<summary><b>v1.2.4 Technical hardening details</b></summary>
+<summary><b>v1.3.0 RDG technical details</b></summary>
 
-Three low-level contracts were tightened in this release: a normalized output triplet (`Dockerfile` / `start.sh` / `flag`), strict platform checks (`/start.sh`, `/flag`, `/bin/bash`, `EXPOSE`), and a converged release pipeline (`release_build.sh` + `publish_release.sh`) to reduce manual publishing drift.
+This version adds an RDG template family (`templates/rdg`), two RDG regression examples, and non-blocking RDG compatibility checks in `validate.sh` (WARN/INFO only for RDG enhancement items). It keeps platform hard constraints unchanged: `/start.sh`, `/flag`, `/bin/bash`, and `EXPOSE` remain mandatory.
 
 </details>
 
@@ -150,6 +150,15 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 
 </details>
 
+## RDG Regression Examples
+
+Two RDG examples are included in `src/CloverSec-CTF-Build-Dockerizer/examples` for regression and CI coverage:
+
+- `rdg-php-hardening-basic` (from PHP hardening challenge pattern)
+- `rdg-python-ssti-basic` (from Python SSTI challenge pattern)
+
+They intentionally do not vendor `ttyd` binaries; RDG runtime behavior is "enable if present, warn if missing".
+
 ## Platform Hard Constraints
 
 Delivery artifacts must comply with platform contracts: containers are started from `/start.sh`; `/flag` must exist and be readable at image root; `/bin/bash` must be present; Dockerfile must declare `EXPOSE`; and idle keepalive patterns like `sleep infinity` are forbidden. For single-service targets, the entry process must run in foreground via `exec` to preserve signal handling and predictable exits.
@@ -168,6 +177,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 | lamp | 80 | DB background + Apache foreground |
 | pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
 | ai | 5000 | `exec gunicorn ...` |
+| rdg | 80 | `exec apache2-foreground` / `exec python app.py` |
 
 ## Repository Structure
 
@@ -200,7 +210,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 bash scripts/release_build.sh
 
 # One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.2.4
+bash scripts/publish_release.sh --version v1.3.0
 ```
 
 ## Changelog

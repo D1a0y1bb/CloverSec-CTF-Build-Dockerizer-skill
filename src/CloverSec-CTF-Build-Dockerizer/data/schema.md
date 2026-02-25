@@ -7,7 +7,7 @@
 ```yaml
 challenge:
   name: "example"
-  stack: "node|php|python|java|tomcat|lamp|pwn|ai"
+  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg"
   base_image: ""
   workdir: "/app"
   app_src: "."
@@ -25,6 +25,10 @@ challenge:
   platform:
     entrypoint: "/start.sh"
     require_bash: true
+  rdg:
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
   extra:
     env: { KEY: VALUE }
     copy: [{ from: "x", to: "y" }]
@@ -36,7 +40,7 @@ challenge:
 ## 字段说明
 
 - `challenge.name`：题目标识字符串。
-- `challenge.stack`：技术栈，可选 `node/php/python/java/tomcat/lamp/pwn/ai`，缺省时自动侦测。
+- `challenge.stack`：技术栈，可选 `node/php/python/java/tomcat/lamp/pwn/ai/rdg`，缺省时自动侦测。
 - `challenge.base_image`：基础镜像；为空时使用栈默认值。
 - `challenge.workdir`：容器内工作目录。
 - `challenge.app_src`：构建上下文内源代码路径。
@@ -59,6 +63,10 @@ challenge:
 - `challenge.platform.entrypoint`：固定 `/start.sh`。
 - `challenge.platform.require_bash`：固定 `true`。
 
+- `challenge.rdg.enable_ttyd`：仅 `stack=rdg` 生效，默认 `true`。
+- `challenge.rdg.ttyd_port`：仅 `stack=rdg` 生效，默认 `8022`。
+- `challenge.rdg.ttyd_login_cmd`：仅 `stack=rdg` 生效，默认 `/bin/bash`。
+
 - `challenge.extra.env`：附加环境变量。
 - `challenge.extra.copy`：附加复制列表。
 - `challenge.extra.user`：运行用户（按题目要求启用）。
@@ -67,7 +75,7 @@ challenge:
 
 ## 能力边界
 
-- 当前支持 CTF Jeopardy 模式下的 Web/Pwn/AI 容器构建。
+- 当前支持 CTF Jeopardy 模式下的 Web/Pwn/AI 以及 RDG（Docker）容器构建。
 - 当前不支持 AWD/AWDP 赛制所需的攻防编排逻辑。
 
 ## 平台硬约束
@@ -92,6 +100,8 @@ challenge:
 - `examples/pwn-basic/challenge.yaml`
 - `examples/ai-basic/challenge.yaml`
 - `examples/ai-transformers-basic/challenge.yaml`
+- `examples/rdg-php-hardening-basic/challenge.yaml`
+- `examples/rdg-python-ssti-basic/challenge.yaml`
 
 兼容示例：
 

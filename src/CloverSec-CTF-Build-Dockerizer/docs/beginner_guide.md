@@ -9,7 +9,7 @@
 
 ## 1. 先知道它能做什么
 
-`CloverSec-CTF-Build-Dockerizer` 用于把 CTF Jeopardy 题目目录转换为平台可运行的容器交付物，核心链路是：
+`CloverSec-CTF-Build-Dockerizer` 用于把 CTF Jeopardy 与 RDG（Docker）题目目录转换为平台可运行的容器交付物，核心链路是：
 
 1. 自动探测栈与启动信息（`derive_config.py`）
 2. 输出配置确认块（`CONFIG PROPOSAL`）

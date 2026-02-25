@@ -375,10 +375,13 @@ def infer_from_patterns(scan_dir: Path, stack_id: str, patterns_data: Dict[str, 
 
     inferred_start: Optional[str] = None
     inferred_ports: List[str] = []
+    inferred_base_image: Optional[str] = None
     start_source = "none"
     ports_source = "none"
+    base_image_source = "none"
     start_reason = ""
     ports_reason = ""
+    base_image_reason = ""
     matched_rules: List[str] = []
 
     matched_entry = _first_existing_file(scan_dir, entry_files)
@@ -414,6 +417,13 @@ def infer_from_patterns(scan_dir: Path, stack_id: str, patterns_data: Dict[str, 
                     start_source = "rule"
                     start_reason = reason
 
+        if not inferred_base_image:
+            base_img_tpl = first_non_empty(infer_cfg.get("base_image"), "")
+            if isinstance(base_img_tpl, str) and base_img_tpl.strip():
+                inferred_base_image = base_img_tpl.strip()
+                base_image_source = "rule"
+                base_image_reason = reason
+
         matched_rules.append(rule_id)
 
     if not inferred_ports:
@@ -442,6 +452,15 @@ def infer_from_patterns(scan_dir: Path, stack_id: str, patterns_data: Dict[str, 
             start_source = "default"
             start_reason = str(first_non_empty(defaults.get("start_reason"), "规则未命中，使用保守默认启动命令"))
 
+    if not inferred_base_image:
+        fallback_base_img = defaults.get("base_image")
+        if isinstance(fallback_base_img, str) and fallback_base_img.strip():
+            inferred_base_image = fallback_base_img.strip()
+            base_image_source = "default"
+            base_image_reason = str(
+                first_non_empty(defaults.get("base_image_reason"), "规则未命中，使用保守默认基础镜像")
+            )
+
     return {
         "start_cmd": inferred_start,
         "start_source": start_source,
@@ -449,6 +468,9 @@ def infer_from_patterns(scan_dir: Path, stack_id: str, patterns_data: Dict[str, 
         "ports": inferred_ports,
         "ports_source": ports_source,
         "ports_reason": ports_reason,
+        "base_image": inferred_base_image,
+        "base_image_source": base_image_source,
+        "base_image_reason": base_image_reason,
         "entry_file": matched_entry,
         "matched_rules": matched_rules,
     }

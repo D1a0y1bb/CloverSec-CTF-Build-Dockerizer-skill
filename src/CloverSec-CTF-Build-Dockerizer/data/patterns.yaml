@@ -194,3 +194,49 @@ stacks:
             - "5000"
           start_cmd: "gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app"
           reason: "命中 AI 常见入口/依赖文件"
+
+  rdg:
+    entry_files:
+      - start.sh
+      - index.php
+      - app.py
+      - docker-compose.yml
+      - docker-compose.yaml
+    defaults:
+      expose_ports:
+        - "80"
+      base_image: "debian:bookworm-slim"
+      start_cmd: "bash -lc 'if command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v python3 >/dev/null 2>&1; then exec python3 app.py; elif command -v python >/dev/null 2>&1; then exec python app.py; elif command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; else exec /bin/bash; fi'"
+      start_reason: "RDG 规则未命中，回退兼容启动命令"
+      ports_reason: "RDG 规则未命中，回退默认端口"
+      base_image_reason: "RDG 规则未命中，回退默认基础镜像"
+    rules:
+      - id: rdg-php-apache
+        any_of_files:
+          - index.php
+          - composer.json
+        infer:
+          expose_ports:
+            - "80"
+          base_image: "php:8.2-apache"
+          start_cmd: "apache2-foreground"
+          reason: "命中 PHP Web 特征，推断 Apache 前台启动"
+      - id: rdg-python-flask
+        any_of_files:
+          - app.py
+          - requirements.txt
+        infer:
+          expose_ports:
+            - "80"
+          base_image: "python:3.11-slim"
+          start_cmd: "python app.py"
+          reason: "命中 Python Web 特征，推断 Python 前台启动"
+      - id: rdg-nginx
+        any_of_files:
+          - nginx.conf
+        infer:
+          expose_ports:
+            - "80"
+          base_image: "nginx:1.27-bookworm"
+          start_cmd: "nginx -g 'daemon off;'"
+          reason: "命中 nginx 配置，推断 nginx 前台启动"

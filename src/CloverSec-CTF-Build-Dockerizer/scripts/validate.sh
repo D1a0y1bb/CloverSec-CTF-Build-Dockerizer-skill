@@ -213,6 +213,11 @@ infer_stack_hint() {
     return
   fi
 
+  if contains_re "$START_SH" 'ttyd' || contains_re "$DOCKERFILE" '(^|[^A-Za-z0-9_-])(ttyd|useradd[[:space:]]+.*ctf)([^A-Za-z0-9_-]|$)'; then
+    echo "rdg"
+    return
+  fi
+
   if contains_re "$START_SH" 'xinetd|ctf\.xinetd' || contains_re "$DOCKERFILE" 'xinetd'; then
     echo "pwn"
     return
@@ -545,6 +550,32 @@ run_dynamic_checks() {
       log_result INFO "AI 场景已使用 gunicorn 前台监听 0.0.0.0"
     else
       log_result WARN "AI 场景建议使用 gunicorn 前台并监听 0.0.0.0。示例：`gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app`。"
+    fi
+  fi
+
+  if [[ "$stack_hint" == "rdg" ]]; then
+    if contains_re "$START_SH" 'ttyd'; then
+      log_result INFO "RDG 场景检测到 ttyd 启动逻辑"
+    else
+      log_result WARN "RDG 场景未检测到 ttyd 启动逻辑。建议在 start.sh 增加 ttyd 旁路（缺失不阻断）。"
+    fi
+
+    if contains_re "$DOCKERFILE" '(useradd|adduser)[[:space:]].*ctf'; then
+      log_result INFO "RDG 场景检测到 ctf 用户创建逻辑"
+    else
+      log_result WARN "RDG 场景未检测到 ctf 用户创建。建议创建低权限 ctf 账户用于题目交互。"
+    fi
+
+    if contains_re "$DOCKERFILE" '^[[:space:]]*EXPOSE[[:space:]]+80' || contains_re "$DOCKERFILE" '^[[:space:]]*EXPOSE[[:space:]]+[0-9]+'; then
+      log_result INFO "RDG 场景已声明 EXPOSE 端口"
+    else
+      log_result WARN "RDG 场景建议声明 EXPOSE 端口（通常为 80）。"
+    fi
+
+    if is_multiservice_start; then
+      log_result INFO "RDG 场景检测到多服务启动模式"
+    else
+      log_result WARN "RDG 场景未检测到多服务启动模式，可按题目需要保持单服务。"
     fi
   fi
 }

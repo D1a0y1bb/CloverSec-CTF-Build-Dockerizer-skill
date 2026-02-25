@@ -314,6 +314,43 @@ def _build_start_candidates(
             )
         notes.append("AI 栈建议设置 OPENBLAS/OMP/MKL 线程限制，避免高核心宿主机线程创建失败。")
 
+    elif stack_id == "rdg":
+        if (scan_dir / "index.php").is_file() or (scan_dir / "composer.json").is_file():
+            candidates.append(
+                {
+                    "cmd": "apache2-foreground",
+                    "rationale": "命中 PHP Web 特征，优先 Apache 前台启动",
+                    "evidence": ["命中文件: index.php/composer.json"],
+                }
+            )
+
+        if (scan_dir / "app.py").is_file():
+            candidates.append(
+                {
+                    "cmd": "python app.py",
+                    "rationale": "命中 Python 入口文件",
+                    "evidence": ["命中文件: app.py"],
+                }
+            )
+
+        if (scan_dir / "requirements.txt").is_file():
+            candidates.append(
+                {
+                    "cmd": "python app.py",
+                    "rationale": "命中 requirements.txt，按轻量 Web 服务推断",
+                    "evidence": ["命中文件: requirements.txt"],
+                }
+            )
+
+        candidates.append(
+            {
+                "cmd": "bash -lc 'if command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v python3 >/dev/null 2>&1; then exec python3 app.py; elif command -v python >/dev/null 2>&1; then exec python app.py; elif command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; else exec /bin/bash; fi'",
+                "rationale": "RDG 兼容回退命令（按运行环境自动选择主服务）",
+                "evidence": ["来源: patterns.yaml defaults.start_cmd"],
+            }
+        )
+        notes.append("RDG 栈默认兼容 ttyd 旁路；若容器内不存在 ttyd 将给出告警但不阻断。")
+
     if default_cmd:
         candidates.append(
             {
@@ -353,6 +390,10 @@ def _guess_app_paths(scan_dir: Path, stack_id: str, workdir: str) -> Tuple[str, 
             evidence.append("命中目录: bin，Pwn 默认复制到 /home/ctf")
         else:
             evidence.append("未命中 bin 目录，回退 app_src='.' -> app_dst=WORKDIR")
+    elif stack_id == "rdg":
+        app_src = "."
+        app_dst = "/app"
+        evidence.append("RDG 模式默认复制整个题目目录到 /app，兼容多种源码布局")
     else:
         evidence.append("按通用约定 app_src='.' -> app_dst=WORKDIR")
 
@@ -378,6 +419,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     defaults = ensure_dict(stack_info.get("defaults"), f"stacks[{stack_id}].defaults")
 
     infer_info = infer_from_patterns(project_dir, stack_id, patterns)
+    inferred_base_image_raw = infer_info.get("base_image")
+    inferred_base_image = (
+        inferred_base_image_raw.strip() if isinstance(inferred_base_image_raw, str) else ""
+    )
 
     guessed_ports = normalize_ports(infer_info.get("ports"))
     port_evidence: List[str] = []
@@ -420,6 +465,13 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     if not candidates:
         notes.append("未找到启动命令候选，Q4 必须手动输入 start_cmd。")
 
+    if inferred_base_image:
+        notes.append(
+            "基础镜像按 patterns 推断为 {}（source={}）。".format(
+                inferred_base_image, infer_info.get("base_image_source", "rule")
+            )
+        )
+
     stack_evidence: List[str] = []
     if stack_detail:
         file_hits = _as_list(stack_detail.get("file_hits"))
@@ -458,7 +510,7 @@ def derive(project_dir: Path) -> Dict[str, Any]:
         # 供 AI 直接渲染 Step 1 的 CONFIG PROPOSAL 块
         "config_proposal": {
             "stack": stack_id,
-            "base_image": str(defaults.get("base_image") or ""),
+            "base_image": inferred_base_image or str(defaults.get("base_image") or ""),
             "workdir": workdir,
             "app_src": app_src,
             "app_dst": app_dst,
@@ -477,6 +529,13 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             },
         },
     }
+
+    if stack_id == "rdg":
+        proposal["config_proposal"]["rdg"] = {
+            "enable_ttyd": True,
+            "ttyd_port": "8022",
+            "ttyd_login_cmd": "/bin/bash",
+        }
 
     return proposal
 

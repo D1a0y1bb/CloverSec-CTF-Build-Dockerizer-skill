@@ -65,7 +65,7 @@ Options:
 
 Examples:
   bash scripts/publish_release.sh --source-dir /path/to/source-repo
-  bash scripts/publish_release.sh --version v1.2.4
+  bash scripts/publish_release.sh --version v1.3.0
   bash scripts/publish_release.sh --notes-file /tmp/release_notes.md
 USAGE
 }

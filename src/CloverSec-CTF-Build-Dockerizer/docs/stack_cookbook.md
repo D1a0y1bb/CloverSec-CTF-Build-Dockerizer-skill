@@ -1,6 +1,6 @@
 # 技术栈配置手册（Stack Cookbook）
 
-本文档提供 8 个技术栈的最小可用配置、常见变更和注意事项。
+本文档提供 9 个技术栈的最小可用配置、常见变更和注意事项。
 
 ## 目录
 
@@ -12,6 +12,7 @@
 6. LAMP
 7. Pwn (xinetd)
 8. AI (CPU)
+9. RDG (Docker)
 
 ---
 
@@ -247,6 +248,41 @@ challenge:
 
 ---
 
+## 9) RDG (Docker)
+
+最小 challenge.yaml 片段：
+
+```yaml
+challenge:
+  stack: "rdg"
+  base_image: "php:8.2-apache"
+  workdir: "/app"
+  app_src: "."
+  app_dst: "/app"
+  expose_ports: ["80"]
+  start:
+    mode: "cmd"
+    cmd: "apache2-foreground"
+  rdg:
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+```
+
+常见变更：
+
+- PHP 题目可用 `apache2-foreground`，Python 题目可用 `python app.py`。
+- 如需禁用 ttyd 旁路，可设置 `rdg.enable_ttyd: false`。
+- 如果题目目录自带 `ttyd` 二进制，模板会在启动阶段自动探测并拉起。
+
+常见错误：
+
+- `start.cmd` 使用后台命令导致容器主进程退出。
+- 题目服务仅监听 `127.0.0.1`，端口映射不可达。
+- 误以为缺少 ttyd 会阻断发布（当前策略为 WARN，不阻断）。
+
+---
+
 ## 快速选型建议
 
 - 纯脚本服务：Node/Python
@@ -256,6 +292,7 @@ challenge:
 - 必须同容器 DB：LAMP
 - 二进制远程交互题：Pwn (xinetd)
 - AI Web 推理题：AI (CPU)
+- RDG Docker 模式题目：RDG (Docker)
 
 ## 关联文档
 

@@ -23,7 +23,7 @@ from utils import (  # noqa: E402
     normalize_ports,
 )
 
-ALLOWED_STACKS = {"node", "php", "python", "java", "tomcat", "lamp", "pwn", "ai"}
+ALLOWED_STACKS = {"node", "php", "python", "java", "tomcat", "lamp", "pwn", "ai", "rdg"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -167,6 +167,16 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
 
     challenge_name = args.name.strip() if args.name.strip() else f"{stack_raw}-challenge"
 
+    rdg = ensure_dict(proposal.get("rdg"), "rdg")
+    rdg_enable_ttyd = _to_bool(rdg.get("enable_ttyd"), True)
+    rdg_ttyd_port_raw = _first_non_empty(rdg.get("ttyd_port"), "8022")
+    rdg_ttyd_port = str(rdg_ttyd_port_raw).strip()
+    if not rdg_ttyd_port.isdigit() or not (1 <= int(rdg_ttyd_port) <= 65535):
+        raise ConfigError("rdg.ttyd_port 必须是 1-65535 的端口数字")
+    rdg_ttyd_login_cmd = str(_first_non_empty(rdg.get("ttyd_login_cmd"), "/bin/bash") or "/bin/bash").strip()
+    if not rdg_ttyd_login_cmd:
+        raise ConfigError("rdg.ttyd_login_cmd 不能为空")
+
     challenge: Dict[str, Any] = {
         "challenge": {
             "name": challenge_name,
@@ -197,6 +207,14 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
             },
         }
     }
+
+    if stack_raw == "rdg" or rdg:
+        challenge["challenge"]["rdg"] = {
+            "enable_ttyd": rdg_enable_ttyd,
+            "ttyd_port": rdg_ttyd_port,
+            "ttyd_login_cmd": rdg_ttyd_login_cmd,
+        }
+
     return challenge
 
 
