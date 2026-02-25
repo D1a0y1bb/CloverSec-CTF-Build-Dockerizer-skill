@@ -25,6 +25,30 @@ error() {
   echo "[ERROR] $*" >&2
 }
 
+extract_readme_version() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8", errors="ignore")
+version_re = r"v[0-9]+\.[0-9]+\.[0-9]+(?:[a-z0-9.-]+)?"
+patterns = [
+    rf"^\s*VERSION[：:]\s*({version_re})\s*$",
+    rf"<strong>\s*VERSION\s*</strong>\s*[：:]\s*({version_re})",
+]
+
+for pattern in patterns:
+    match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
+    if match:
+        print(match.group(1).strip())
+        raise SystemExit(0)
+
+print("")
+PY
+}
+
 if [[ ! -f "${README_FILE}" ]]; then
   echo "[ERROR] 缺少 README.md: ${README_FILE}" >&2
   exit 2
@@ -152,29 +176,38 @@ else
 fi
 
 repo_version="$(tr -d '[:space:]' < "${VERSION_FILE}")"
-readme_version="$(rg -n '^VERSION：' "${README_FILE}" | head -n1 | sed 's/^[0-9]*:VERSION：//' | tr -d '[:space:]' || true)"
+readme_version="$(extract_readme_version "${README_FILE}")"
 
 if [[ -z "${readme_version}" ]]; then
-  warn "README 顶部缺少 VERSION：<版本号> 元信息"
+  warn "README 缺少可解析的 VERSION 元信息（支持 VERSION:/VERSION：/HTML 版本行）"
 elif [[ "${readme_version}" != "${repo_version}" ]]; then
   warn "README 顶部 VERSION(${readme_version}) 与 VERSION 文件(${repo_version}) 不一致"
 else
   info "README 顶部 VERSION 与 VERSION 文件一致"
 fi
 
-if rg -q '^\| Phase \| 日期 \| 目标 \| 关键产出 \| 验收结果 \|$' "${README_FILE}"; then
-  info "Phase 回填表头字段完整"
-else
-  warn "README 缺少标准 Phase 回填表头：| Phase | 日期 | 目标 | 关键产出 | 验收结果 |"
+phase_template_enabled=0
+if rg -q '^\| Phase \| ' "${README_FILE}" || rg -q '^\| Phase [0-9]+(\b| /)' "${README_FILE}"; then
+  phase_template_enabled=1
 fi
 
-for i in $(seq 1 10); do
-  if rg -q "\\| Phase ${i}(\\b| /)" "${README_FILE}"; then
-    :
+if [[ "${phase_template_enabled}" == "1" ]]; then
+  if rg -q '^\| Phase \| 日期 \| 目标 \| 关键产出 \| 验收结果 \|$' "${README_FILE}"; then
+    info "Phase 回填表头字段完整"
   else
-    warn "README 未检测到 Phase ${i} 行"
+    warn "README 缺少标准 Phase 回填表头：| Phase | 日期 | 目标 | 关键产出 | 验收结果 |"
   fi
-done
+
+  for i in $(seq 1 10); do
+    if rg -q "\\| Phase ${i}(\\b| /)" "${README_FILE}"; then
+      :
+    else
+      warn "README 未检测到 Phase ${i} 行"
+    fi
+  done
+else
+  info "README 未启用 Phase 回填模板，跳过 Phase 行检查"
+fi
 
 echo
 echo "文档检查汇总"

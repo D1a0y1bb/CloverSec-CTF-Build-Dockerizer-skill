@@ -33,6 +33,15 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
+if ! python3 - <<'PY' >/dev/null 2>&1
+import yaml  # noqa: F401
+PY
+then
+  echo "[ERROR] 缺少 PyYAML（python3 模块 yaml），无法执行冒烟测试。" >&2
+  echo "[ERROR] 请先安装: pip3 install -r ${SCRIPT_DIR}/requirements.txt" >&2
+  exit 2
+fi
+
 if [[ ! -d "$EXAMPLES_DIR" ]]; then
   echo "[ERROR] examples 目录不存在: $EXAMPLES_DIR" >&2
   exit 2
@@ -62,11 +71,7 @@ if not path.exists():
     print("80")
     raise SystemExit(0)
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("80")
-    raise SystemExit(0)
+import yaml
 
 raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 challenge = raw.get("challenge", {}) if isinstance(raw, dict) else {}
@@ -93,11 +98,7 @@ if not path.exists():
     print("")
     raise SystemExit(0)
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("")
-    raise SystemExit(0)
+import yaml
 
 raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 challenge = raw.get("challenge", {}) if isinstance(raw, dict) else {}

@@ -74,7 +74,7 @@ rules:
     level: WARN
     scope: Dockerfile
     expect: present
-    when: "gunicorn|transformers|OPENBLAS|app\\.py|wsgi\\.py"
+    when: "gunicorn|uvicorn|transformers"
     pattern: "OPENBLAS_NUM_THREADS|OMP_NUM_THREADS|MKL_NUM_THREADS|NUMEXPR_NUM_THREADS|GOTO_NUM_THREADS"
     message: "AI 场景建议设置线程限制环境变量，避免高核心宿主机线程创建失败。"
 
@@ -82,7 +82,7 @@ rules:
     level: WARN
     scope: start.sh
     expect: present
-    when: "app\\.py|wsgi\\.py|gunicorn|transformers"
+    when: "gunicorn|uvicorn|transformers"
     pattern: "gunicorn[[:space:]]+.*-b[[:space:]]+0\\.0\\.0\\.0"
     message: "AI Web 服务建议使用 gunicorn 前台并监听 0.0.0.0。"
 
