@@ -2,6 +2,22 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.3.6-r1 - 2026-02-25
+
+### 变更
+
+- 收紧 `validate_rules.yaml` 中 AI 规则触发条件：`ai-thread-limit-recommended` 与 `ai-gunicorn-recommended` 仅在命中 `gunicorn|uvicorn|transformers` 时生效，避免 RDG/Python 普通场景误报。
+- 强化 `smoke_test.sh` 的 PyYAML 依赖门禁：启动前必须可 `import yaml`，缺失时立即 `exit 2` 并输出安装指引，去除静默降级路径。
+- 对齐 `doc_guard.sh` 与当前 README 版式：新增 `extract_readme_version()` 兼容 `VERSION:` / `VERSION：` / `<strong>VERSION</strong>:`，并把 Phase 检查调整为“仅在 README 启用 Phase 模板时执行”。
+
+### 验证结果
+
+- `bash -n`：`scripts/doc_guard.sh`、`src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh` 通过。
+- `python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py` 通过。
+- `validate_examples.sh` 与 `smoke_test.sh` 全量示例通过（18/18）。
+- `rdg-python-ssti-basic` 在 `validate.sh` 下 AI 误报消失（`WARN=0`）。
+- 模拟缺少 PyYAML 时，`smoke_test.sh` 按预期快速失败并返回 `exit 2`。
+
 ## v1.3.6 - 2026-02-25
 
 ### 新增

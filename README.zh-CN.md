@@ -11,26 +11,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.6-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.6--r1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.6"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.6-r1"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.3.6</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.3.6-r1</code></p>
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.3.6
+## What's New in v1.3.6-r1
 
-`v1.3.6` 重点补齐了 RDG check-service 的“最后一公里”。在延续 `v1.3.5` 的 `ttyd + sshd` 默认交付策略基础上，本次把检查脚本从“占位可通过”改成“未实现即阻断”，避免题目在发布时带着空 check 流程进入生产链路。
+`v1.3.6-r1` 是基于 `v1.3.6` 的质量补丁，不改变 RDG 既有交付契约，重点收敛三类会影响发布可信度的问题：AI 规则误触发、冒烟依赖静默降级、README 治理脚本对新版格式的不兼容。
 
-本次明确了 RDG check 入口契约：`bash check/check.sh [target_ip] [target_port]`，支持 `TARGET_IP/TARGET_HOST/TARGET_PORT` 环境变量回退，返回码统一为 `0=通过`、`1=失败`、`2=脚本使用/运行错误`。同时 `render.py` 新生成的脚手架改为 fail-closed（带 `CHECK_IMPLEMENT_ME` 标记并默认 `exit 1`），`validate.sh` 也新增了占位脚本门禁规则。
+规则层面，`validate_rules.yaml` 里两条 AI 建议规则只在命中 `gunicorn|uvicorn|transformers` 时触发，普通 RDG/Python 题目不再被误报。执行层面，`smoke_test.sh` 在启动前强制检查 `python3` 能否导入 `yaml`，缺失时直接 `exit 2` 并给出安装提示，彻底去掉“默认值回退导致假通过”的路径。文档治理层面，`doc_guard.sh` 新增多格式 VERSION 提取能力，并把 Phase 检查改成“仅在 README 启用模板时才执行”，避免无效告警。
 
 <details>
-<summary><b>v1.3.6 RDG 技术增强清单</b></summary>
+<summary><b>v1.3.6-r1 补丁验证结果</b></summary>
 
-`rdg-php-hardening-basic` 与 `rdg-python-ssti-basic` 两个示例都已替换为真实检查脚本：前者执行“健康检查 + 反序列化利用负向检查”，后者执行“健康检查 + SSTI 利用负向检查”。`smoke_test.sh` 在容器启动后会自动执行对应 `check/check.sh`，使 RDG 回归结果可自动化验证。
+本补丁在全量回归下已验证通过：shell 语法检查通过、Python 编译检查通过、`validate_examples.sh` 与 `smoke_test.sh` 均为 `18/18`，`rdg-python-ssti-basic` 的 AI 误报告警归零；同时在模拟缺少 PyYAML 的环境下，`smoke_test.sh` 能按预期快速失败并返回 `exit 2`。
 
 </details>
 
@@ -234,7 +234,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.3.6
+bash scripts/publish_release.sh --version v1.3.6-r1
 ```
 
 ## 更新记录

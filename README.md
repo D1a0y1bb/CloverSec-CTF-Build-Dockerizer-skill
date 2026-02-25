@@ -12,26 +12,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.6-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.6--r1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.6"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.6-r1"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.3.6</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.3.6-r1</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
-## What's New in v1.3.6
+## What's New in v1.3.6-r1
 
-`v1.3.6` completes the RDG check-service implementation baseline. This release keeps RDG's `ttyd + sshd` defaults from `v1.3.5` and closes the remaining quality gap in checker delivery by replacing placeholder logic with enforceable runtime checks.
+`v1.3.6-r1` is a quality patch on top of `v1.3.6`. It keeps the RDG check-service baseline intact while hardening three reliability gates that affected real release confidence: AI rule triggering, smoke dependency detection, and README governance parsing.
 
-The RDG check entry contract is now explicit: `bash check/check.sh [target_ip] [target_port]` with environment fallback (`TARGET_IP/TARGET_HOST/TARGET_PORT`) and return-code semantics (`0=pass`, `1=fail`, `2=usage/runtime error`). `render.py` now generates fail-closed scaffolding (`CHECK_IMPLEMENT_ME` marker + `exit 1`), and `validate.sh` now blocks placeholder check scripts instead of treating "file exists" as sufficient.
+AI recommendations in `validate_rules.yaml` are now constrained to `gunicorn|uvicorn|transformers`, which removes false WARN signals in ordinary RDG/Python projects. `smoke_test.sh` now fails fast with `exit 2` when `python3` cannot import `yaml`, so missing PyYAML never degrades into a silent default path. `doc_guard.sh` now parses multiple README version syntaxes and skips Phase checks when the Phase template is not enabled, removing noisy warnings for the current README format.
 
 <details>
-<summary><b>v1.3.6 RDG technical details</b></summary>
+<summary><b>v1.3.6-r1 patch details</b></summary>
 
-Two RDG examples now ship with real check implementations instead of TODO stubs: `rdg-php-hardening-basic` validates index health + unserialize exploit-negative behavior; `rdg-python-ssti-basic` validates index health + SSTI exploit-negative behavior. `smoke_test.sh` now executes these check scripts after container boot, so RDG regression is validated as part of automated smoke flow.
+Validation results for this patch are stable on full regression: shell syntax checks passed, Python compile checks passed, `validate_examples.sh` and `smoke_test.sh` both passed all 18 examples, RDG Python false-AI warnings were cleared, and a simulated PyYAML-missing environment correctly exited with code `2`.
 
 </details>
 
@@ -235,7 +235,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 bash scripts/release_build.sh
 
 # One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.3.6
+bash scripts/publish_release.sh --version v1.3.6-r1
 ```
 
 ## Changelog
