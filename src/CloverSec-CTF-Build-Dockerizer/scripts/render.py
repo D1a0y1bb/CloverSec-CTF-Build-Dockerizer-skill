@@ -146,6 +146,36 @@ def _to_bool(value: Any, field_name: str, default: bool) -> bool:
     raise ConfigError(f"{field_name} 必须是布尔值")
 
 
+def _merge_unique_ports(base_ports: List[str], extra_ports: List[str]) -> List[str]:
+    merged = list(base_ports)
+    seen = set(base_ports)
+    for port in extra_ports:
+        if port not in seen:
+            merged.append(port)
+            seen.add(port)
+    return merged
+
+
+def _resolve_rdg_check_host_path(output_dir: Path, workdir: str, check_script_path: str) -> Path:
+    raw = str(check_script_path).strip()
+    if not raw:
+        raise ConfigError("challenge.rdg.check_script_path 不能为空")
+
+    if raw.startswith("/"):
+        workdir_norm = workdir.rstrip("/")
+        if workdir_norm and raw.startswith(workdir_norm + "/"):
+            rel = raw[len(workdir_norm) + 1 :]
+        else:
+            rel = raw.lstrip("/")
+    else:
+        rel = raw
+
+    rel = rel.strip("/")
+    if not rel:
+        raise ConfigError("challenge.rdg.check_script_path 不能为空路径根")
+    return output_dir / rel
+
+
 def build_render_context(
     args: argparse.Namespace,
     stacks: Dict[str, Dict[str, Any]],
@@ -179,6 +209,59 @@ def build_render_context(
         raise ConfigError(f"不支持的 start.mode: {mode}")
 
     infer_info = infer_from_patterns(scan_dir, stack_id, patterns_data)
+
+    rdg_enable_ttyd = _to_bool(rdg_cfg.get("enable_ttyd"), "challenge.rdg.enable_ttyd", True)
+    rdg_ttyd_port_raw = first_non_empty(rdg_cfg.get("ttyd_port"), "8022")
+    rdg_ttyd_port = str(rdg_ttyd_port_raw).strip()
+    if not rdg_ttyd_port.isdigit() or not (1 <= int(rdg_ttyd_port) <= 65535):
+        raise ConfigError("challenge.rdg.ttyd_port 必须是 1-65535 的端口数字")
+
+    rdg_ttyd_login_cmd = str(first_non_empty(rdg_cfg.get("ttyd_login_cmd"), "/bin/bash")).strip()
+    if not rdg_ttyd_login_cmd:
+        raise ConfigError("challenge.rdg.ttyd_login_cmd 不能为空")
+
+    rdg_enable_sshd = _to_bool(rdg_cfg.get("enable_sshd"), "challenge.rdg.enable_sshd", True)
+    rdg_sshd_port_raw = first_non_empty(rdg_cfg.get("sshd_port"), "22")
+    rdg_sshd_port = str(rdg_sshd_port_raw).strip()
+    if not rdg_sshd_port.isdigit() or not (1 <= int(rdg_sshd_port) <= 65535):
+        raise ConfigError("challenge.rdg.sshd_port 必须是 1-65535 的端口数字")
+
+    rdg_sshd_password_auth = _to_bool(
+        rdg_cfg.get("sshd_password_auth"), "challenge.rdg.sshd_password_auth", True
+    )
+    rdg_ttyd_binary_relpath = str(
+        first_non_empty(rdg_cfg.get("ttyd_binary_relpath"), "ttyd")
+    ).strip()
+    if not rdg_ttyd_binary_relpath:
+        raise ConfigError("challenge.rdg.ttyd_binary_relpath 不能为空")
+
+    rdg_ttyd_install_fallback = _to_bool(
+        rdg_cfg.get("ttyd_install_fallback"), "challenge.rdg.ttyd_install_fallback", True
+    )
+    rdg_ctf_user = str(first_non_empty(rdg_cfg.get("ctf_user"), "ctf")).strip()
+    if not rdg_ctf_user:
+        raise ConfigError("challenge.rdg.ctf_user 不能为空")
+
+    rdg_ctf_password = str(first_non_empty(rdg_cfg.get("ctf_password"), "123456")).strip()
+    if not rdg_ctf_password:
+        raise ConfigError("challenge.rdg.ctf_password 不能为空")
+
+    rdg_ctf_in_root_group = _to_bool(
+        rdg_cfg.get("ctf_in_root_group"), "challenge.rdg.ctf_in_root_group", False
+    )
+    rdg_scoring_mode = str(first_non_empty(rdg_cfg.get("scoring_mode"), "check_service")).strip().lower()
+    if rdg_scoring_mode not in {"check_service", "flag"}:
+        raise ConfigError("challenge.rdg.scoring_mode 仅支持 check_service 或 flag")
+
+    rdg_include_flag_artifact = _to_bool(
+        rdg_cfg.get("include_flag_artifact"), "challenge.rdg.include_flag_artifact", True
+    )
+    rdg_check_enabled = _to_bool(rdg_cfg.get("check_enabled"), "challenge.rdg.check_enabled", True)
+    rdg_check_script_path = str(
+        first_non_empty(rdg_cfg.get("check_script_path"), "check/check.sh")
+    ).strip()
+    if rdg_check_enabled and not rdg_check_script_path:
+        raise ConfigError("challenge.rdg.check_script_path 不能为空")
 
     inferred_base_image_raw = infer_info.get("base_image")
     inferred_base_image = (
@@ -223,6 +306,14 @@ def build_render_context(
             expose_ports = normalize_ports(defaults.get("expose_ports"))
             ports_source = "default"
             ports_reason = "patterns 未给出端口，回退 stacks 默认值"
+
+    if stack_id == "rdg":
+        rdg_extra_ports: List[str] = []
+        if rdg_enable_ttyd:
+            rdg_extra_ports.append(rdg_ttyd_port)
+        if rdg_enable_sshd:
+            rdg_extra_ports.append(rdg_sshd_port)
+        expose_ports = _merge_unique_ports(expose_ports, rdg_extra_ports)
 
     if not expose_ports:
         raise ConfigError("expose_ports 不能为空，至少需要一个端口")
@@ -313,15 +404,6 @@ def build_render_context(
     npm_install_block = str(first_non_empty(extra_cfg.get("npm_install_block"), "") or "")
     pip_requirements_block = str(first_non_empty(extra_cfg.get("pip_requirements_block"), "") or "")
 
-    rdg_enable_ttyd = _to_bool(rdg_cfg.get("enable_ttyd"), "challenge.rdg.enable_ttyd", True)
-    rdg_ttyd_port_raw = first_non_empty(rdg_cfg.get("ttyd_port"), "8022")
-    rdg_ttyd_port = str(rdg_ttyd_port_raw).strip()
-    if not rdg_ttyd_port.isdigit() or not (1 <= int(rdg_ttyd_port) <= 65535):
-        raise ConfigError("challenge.rdg.ttyd_port 必须是 1-65535 的端口数字")
-    rdg_ttyd_login_cmd = str(first_non_empty(rdg_cfg.get("ttyd_login_cmd"), "/bin/bash")).strip()
-    if not rdg_ttyd_login_cmd:
-        raise ConfigError("challenge.rdg.ttyd_login_cmd 不能为空")
-
     return {
         "stack_id": stack_id,
         "stack_display": stack_info.get("display_name", stack_id),
@@ -343,6 +425,18 @@ def build_render_context(
         "rdg_enable_ttyd": rdg_enable_ttyd,
         "rdg_ttyd_port": rdg_ttyd_port,
         "rdg_ttyd_login_cmd": rdg_ttyd_login_cmd,
+        "rdg_enable_sshd": rdg_enable_sshd,
+        "rdg_sshd_port": rdg_sshd_port,
+        "rdg_sshd_password_auth": rdg_sshd_password_auth,
+        "rdg_ttyd_binary_relpath": rdg_ttyd_binary_relpath,
+        "rdg_ttyd_install_fallback": rdg_ttyd_install_fallback,
+        "rdg_ctf_user": rdg_ctf_user,
+        "rdg_ctf_password": rdg_ctf_password,
+        "rdg_ctf_in_root_group": rdg_ctf_in_root_group,
+        "rdg_scoring_mode": rdg_scoring_mode,
+        "rdg_include_flag_artifact": rdg_include_flag_artifact,
+        "rdg_check_enabled": rdg_check_enabled,
+        "rdg_check_script_path": rdg_check_script_path,
         "output_dir": Path(args.output).resolve(),
         "inference_notes": inference_notes,
         "entry_file": infer_info.get("entry_file"),
@@ -360,6 +454,21 @@ def render_files(context: Dict[str, Any]) -> None:
 
     docker_tpl = load_template_with_includes(docker_tpl_path, TEMPLATES_DIR)
     start_tpl = load_template_with_includes(start_tpl_path, TEMPLATES_DIR)
+
+    flag_docker_block = load_template_with_includes(
+        TEMPLATES_DIR / "snippets" / "copy-flag-start.tpl", TEMPLATES_DIR
+    ).rstrip()
+    flag_start_block = load_template_with_includes(
+        TEMPLATES_DIR / "snippets" / "ensure-flag.tpl", TEMPLATES_DIR
+    ).rstrip()
+
+    if context["stack_id"] == "rdg" and not context.get("rdg_include_flag_artifact", True):
+        flag_docker_block = (
+            "# RDG include_flag_artifact=false：跳过 /flag 产物拷贝。"
+            "\nCOPY start.sh /start.sh"
+            "\nRUN chmod 555 /start.sh"
+        )
+        flag_start_block = ": # RDG include_flag_artifact=false：跳过 /flag 检查"
 
     common_vars = {
         "BASE_IMAGE": context["base_image"],
@@ -379,6 +488,25 @@ def render_files(context: Dict[str, Any]) -> None:
         "RDG_ENABLE_TTYD": "true" if context.get("rdg_enable_ttyd") else "false",
         "RDG_TTYD_PORT": context.get("rdg_ttyd_port", "8022"),
         "RDG_TTYD_LOGIN_CMD": context.get("rdg_ttyd_login_cmd", "/bin/bash"),
+        "RDG_ENABLE_SSHD": "true" if context.get("rdg_enable_sshd") else "false",
+        "RDG_SSHD_PORT": context.get("rdg_sshd_port", "22"),
+        "RDG_SSHD_PASSWORD_AUTH_TEXT": "yes"
+        if context.get("rdg_sshd_password_auth", True)
+        else "no",
+        "RDG_TTYD_BINARY_RELPATH": context.get("rdg_ttyd_binary_relpath", "ttyd"),
+        "RDG_TTYD_INSTALL_FALLBACK": "true"
+        if context.get("rdg_ttyd_install_fallback", True)
+        else "false",
+        "RDG_CTF_USER": context.get("rdg_ctf_user", "ctf"),
+        "RDG_CTF_PASSWORD": context.get("rdg_ctf_password", "123456"),
+        "RDG_CTF_IN_ROOT_GROUP": "true"
+        if context.get("rdg_ctf_in_root_group", False)
+        else "false",
+        "RDG_SCORING_MODE": context.get("rdg_scoring_mode", "check_service"),
+        "RDG_CHECK_ENABLED": "true" if context.get("rdg_check_enabled", True) else "false",
+        "RDG_CHECK_SCRIPT_PATH": context.get("rdg_check_script_path", "check/check.sh"),
+        "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
+        "RDG_FLAG_START_BLOCK": flag_start_block,
     }
 
     docker_vars = {
@@ -399,6 +527,8 @@ def render_files(context: Dict[str, Any]) -> None:
         start_text=rendered_start,
         workdir=context["workdir"],
         start_mode=context["mode"],
+        stack_id=context["stack_id"],
+        include_flag_artifact=context.get("rdg_include_flag_artifact", True),
     )
 
     out_dir: Path = context["output_dir"]
@@ -413,15 +543,35 @@ def render_files(context: Dict[str, Any]) -> None:
 
     os.chmod(start_out, 0o755)
 
-    flag_default = "flag{static_test_flag}\n"
-    if not flag_out.exists():
-        flag_out.write_text(flag_default, encoding="utf-8")
-    else:
-        current = flag_out.read_text(encoding="utf-8", errors="ignore")
-        if not current.strip() or current.strip().lower() == "flag{}":
-            os.chmod(flag_out, 0o644)
+    include_flag_artifact = bool(context.get("rdg_include_flag_artifact", True))
+    if context["stack_id"] != "rdg" or include_flag_artifact:
+        flag_default = "flag{static_test_flag}\n"
+        if not flag_out.exists():
             flag_out.write_text(flag_default, encoding="utf-8")
-    os.chmod(flag_out, 0o444)
+        else:
+            current = flag_out.read_text(encoding="utf-8", errors="ignore")
+            if not current.strip() or current.strip().lower() == "flag{}":
+                os.chmod(flag_out, 0o644)
+                flag_out.write_text(flag_default, encoding="utf-8")
+        os.chmod(flag_out, 0o444)
+
+    generated_check_script: str | None = None
+    if context["stack_id"] == "rdg" and context.get("rdg_check_enabled", True):
+        check_path = _resolve_rdg_check_host_path(
+            out_dir, context["workdir"], context.get("rdg_check_script_path", "check/check.sh")
+        )
+        if not check_path.exists():
+            check_path.parent.mkdir(parents=True, exist_ok=True)
+            check_path.write_text(
+                "#!/bin/bash\n"
+                "set -euo pipefail\n\n"
+                "echo \"[CHECK] TODO: implement vulnerability-repair check logic\"\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+        if check_path.is_file():
+            os.chmod(check_path, 0o755)
+        generated_check_script = str(check_path.relative_to(out_dir))
 
     print("生成完成（CloverSec-CTF-Build-Dockerizer）")
     print(f"- 输出目录: {out_dir}")
@@ -448,7 +598,22 @@ def render_files(context: Dict[str, Any]) -> None:
             f"（依据: {note.get('reason', '未提供')}，可通过 {note['override']} 覆盖）"
         )
 
-    print("- 产物: Dockerfile, start.sh, flag")
+    if context["stack_id"] == "rdg" and not include_flag_artifact:
+        print("- 产物: Dockerfile, start.sh, check/check.sh（flag 可选关闭）")
+    else:
+        print("- 产物: Dockerfile, start.sh, flag")
+
+    if context["stack_id"] == "rdg":
+        print(
+            "- RDG: ttyd={ttyd}, sshd={sshd}, scoring_mode={mode}, include_flag_artifact={flag}".format(
+                ttyd="on" if context.get("rdg_enable_ttyd") else "off",
+                sshd="on" if context.get("rdg_enable_sshd") else "off",
+                mode=context.get("rdg_scoring_mode", "check_service"),
+                flag="true" if context.get("rdg_include_flag_artifact", True) else "false",
+            )
+        )
+        if generated_check_script:
+            print(f"- RDG check 脚手架: {generated_check_script}")
 
 
 def maybe_print_detect_debug(args: argparse.Namespace, details: List[Dict[str, Any]]) -> None:

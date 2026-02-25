@@ -546,14 +546,16 @@ def validate_rendered(
     start_text: str,
     workdir: str,
     start_mode: str,
+    stack_id: str = "",
+    include_flag_artifact: bool = True,
 ) -> None:
     docker_requirements = [
         "COPY start.sh /start.sh",
-        "COPY flag /flag",
         "chmod 555 /start.sh",
-        "chmod 444 /flag",
         "EXPOSE ",
     ]
+    if not (stack_id == "rdg" and not include_flag_artifact):
+        docker_requirements.extend(["COPY flag /flag", "chmod 444 /flag"])
 
     missing = [item for item in docker_requirements if item not in docker_text]
     if missing:

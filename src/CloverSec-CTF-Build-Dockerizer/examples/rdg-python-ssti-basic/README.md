@@ -4,7 +4,9 @@ RDG(Python) 最小回归样例，用于验证：
 
 - `stack: rdg` + Python 入口推断
 - `python app.py` 前台主服务可执行
-- RDG ttyd 配置字段可解析并注入模板
+- RDG ttyd/sshd 字段可解析并注入模板
+- `include_flag_artifact=false` 的无 flag 判定路径
+- `check_service` 判定脚手架存在（`check/check.sh`）
 
 ## 本地验证
 

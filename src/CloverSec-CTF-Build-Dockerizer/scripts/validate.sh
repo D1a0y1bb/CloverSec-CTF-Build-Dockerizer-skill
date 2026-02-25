@@ -31,6 +31,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RULES_FILE="${SKILL_ROOT}/data/validate_rules.yaml"
 
+RDG_ENABLE_TTYD_CFG="true"
+RDG_ENABLE_SSHD_CFG="true"
+RDG_SSHD_PASSWORD_AUTH_CFG="true"
+RDG_TTYD_INSTALL_FALLBACK_CFG="true"
+RDG_CTF_USER_CFG="ctf"
+RDG_CTF_IN_ROOT_GROUP_CFG="false"
+RDG_SCORING_MODE_CFG="check_service"
+RDG_INCLUDE_FLAG_ARTIFACT_CFG="true"
+RDG_CHECK_ENABLED_CFG="true"
+RDG_CHECK_SCRIPT_PATH_CFG="check/check.sh"
+RDG_WORKDIR_CFG="/app"
+
 if [[ ! -f "$DOCKERFILE" ]]; then
   echo "[ERROR] Dockerfile 不存在: $DOCKERFILE" >&2
   exit 2
@@ -193,6 +205,69 @@ parse_challenge_stack() {
   ' "$file"
 }
 
+parse_challenge_key_value() {
+  local file="$1"
+  local key="$2"
+  local default="$3"
+
+  if [[ ! -f "$file" ]]; then
+    echo "$default"
+    return
+  fi
+
+  local line
+  line="$(grep -E "^[[:space:]]*${key}:[[:space:]]*" "$file" | head -n1 || true)"
+  if [[ -z "$line" ]]; then
+    echo "$default"
+    return
+  fi
+
+  local value
+  value="${line#*:}"
+  value="$(printf '%s' "$value" | sed -E "s/^[[:space:]]*//; s/[\"']//g; s/[[:space:]]*$//")"
+  if [[ -z "$value" ]]; then
+    echo "$default"
+  else
+    echo "$value"
+  fi
+}
+
+normalize_bool_text() {
+  local raw="$1"
+  local default="$2"
+  local lower
+  lower="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
+    true|1|yes|y)
+      echo "true"
+      ;;
+    false|0|no|n)
+      echo "false"
+      ;;
+    *)
+      echo "$default"
+      ;;
+  esac
+}
+
+load_rdg_config_from_challenge() {
+  if [[ -z "$CHALLENGE_YAML" || ! -f "$CHALLENGE_YAML" ]]; then
+    return
+  fi
+
+  RDG_ENABLE_TTYD_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "enable_ttyd" "$RDG_ENABLE_TTYD_CFG")" "true")"
+  RDG_ENABLE_SSHD_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "enable_sshd" "$RDG_ENABLE_SSHD_CFG")" "true")"
+  RDG_SSHD_PASSWORD_AUTH_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "sshd_password_auth" "$RDG_SSHD_PASSWORD_AUTH_CFG")" "true")"
+  RDG_TTYD_INSTALL_FALLBACK_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "ttyd_install_fallback" "$RDG_TTYD_INSTALL_FALLBACK_CFG")" "true")"
+  RDG_CTF_USER_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "ctf_user" "$RDG_CTF_USER_CFG")"
+  RDG_CTF_IN_ROOT_GROUP_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "ctf_in_root_group" "$RDG_CTF_IN_ROOT_GROUP_CFG")" "false")"
+  RDG_SCORING_MODE_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "scoring_mode" "$RDG_SCORING_MODE_CFG")"
+  RDG_INCLUDE_FLAG_ARTIFACT_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "include_flag_artifact" "$RDG_INCLUDE_FLAG_ARTIFACT_CFG")" "true")"
+  RDG_CHECK_ENABLED_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "check_enabled" "$RDG_CHECK_ENABLED_CFG")" "true")"
+  RDG_CHECK_SCRIPT_PATH_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "check_script_path" "$RDG_CHECK_SCRIPT_PATH_CFG")"
+  RDG_WORKDIR_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "workdir" "$RDG_WORKDIR_CFG")"
+}
+
 parse_docker_expose_ports() {
   grep -Ei '^[[:space:]]*EXPOSE[[:space:]]+' "$DOCKERFILE" \
     | sed -E 's/^[[:space:]]*EXPOSE[[:space:]]+//' \
@@ -266,36 +341,53 @@ rule_scope_file() {
 run_hard_rules() {
   echo "[A] 平台必需硬规则"
 
+  local stack_cfg=""
+  if [[ -n "$CHALLENGE_YAML" && -f "$CHALLENGE_YAML" ]]; then
+    stack_cfg="$(parse_challenge_stack "$CHALLENGE_YAML" || true)"
+  fi
+  local rdg_flag_optional=0
+  if [[ "$stack_cfg" == "rdg" && "$RDG_INCLUDE_FLAG_ARTIFACT_CFG" == "false" ]]; then
+    rdg_flag_optional=1
+  fi
+
   if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*start\.sh.*(/start\.sh|"/start\.sh")'; then
     log_result INFO "Dockerfile 已将 start.sh 放置到 /start.sh"
   else
-    log_result ERROR "未检测到 /start.sh 拷贝逻辑。修复：在 Dockerfile 增加 `COPY start.sh /start.sh`。"
+    log_result ERROR "未检测到 /start.sh 拷贝逻辑。修复：在 Dockerfile 增加 COPY start.sh /start.sh。"
   fi
 
-  if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*flag.*(/flag|"/flag")' \
-    || contains_re "$DOCKERFILE" '^[[:space:]]*RUN[[:space:]].*(touch|echo|printf|install).*([[:space:]]|>)\/flag'; then
-    log_result INFO "Dockerfile 已创建或复制 /flag"
+  if [[ $rdg_flag_optional -eq 1 ]]; then
+    log_result INFO "RDG include_flag_artifact=false：放行 /flag 产物校验"
   else
-    log_result ERROR "未检测到 /flag 创建逻辑。修复：增加 `COPY flag /flag` 或 `RUN touch /flag`。"
+    if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*flag.*(/flag|"/flag")' \
+      || contains_re "$DOCKERFILE" '^[[:space:]]*RUN[[:space:]].*(touch|echo|printf|install).*([[:space:]]|>)\/flag'; then
+      log_result INFO "Dockerfile 已创建或复制 /flag"
+    else
+      log_result ERROR "未检测到 /flag 创建逻辑。修复：增加 COPY flag /flag 或 RUN touch /flag。"
+    fi
   fi
 
   if contains_re "$DOCKERFILE" 'chmod.*(\+x|a\+x|u\+x|555|755|775).*/start\.sh'; then
     log_result INFO "Dockerfile 已对 /start.sh 设置可执行权限"
   else
-    log_result ERROR "未检测到 /start.sh 可执行权限。修复：增加 `RUN chmod 555 /start.sh`。"
+    log_result ERROR "未检测到 /start.sh 可执行权限。修复：增加 RUN chmod 555 /start.sh。"
   fi
 
-  if contains_re "$DOCKERFILE" 'chmod.*(444|644|664|744|755|a\+r|u\+r|go\+r).*/flag'; then
-    log_result INFO "Dockerfile 已对 /flag 设置可读权限"
+  if [[ $rdg_flag_optional -eq 1 ]]; then
+    log_result INFO "RDG include_flag_artifact=false：放行 /flag 权限校验"
   else
-    log_result ERROR "未检测到 /flag 可读权限。修复：增加 `RUN chmod 444 /flag`。"
+    if contains_re "$DOCKERFILE" 'chmod.*(444|644|664|744|755|a\+r|u\+r|go\+r).*/flag'; then
+      log_result INFO "Dockerfile 已对 /flag 设置可读权限"
+    else
+      log_result ERROR "未检测到 /flag 可读权限。修复：增加 RUN chmod 444 /flag。"
+    fi
   fi
 
   FIRST_LINE="$(head -n1 "$START_SH" | tr -d '\r')"
   if [[ "$FIRST_LINE" == "#!/bin/bash" ]]; then
     log_result INFO "start.sh 首行是 #!/bin/bash"
   else
-    log_result ERROR "start.sh 首行必须是 #!/bin/bash。修复：将 shebang 改为 `#!/bin/bash`。"
+    log_result ERROR "start.sh 首行必须是 #!/bin/bash。修复：将 shebang 改为 #!/bin/bash。"
   fi
 
   echo
@@ -448,7 +540,7 @@ run_dynamic_checks() {
       if [[ $MULTISERVICE -eq 1 ]]; then
         log_result WARN "未检测到 cd ${WORKDIR_VALUE}，多服务场景可接受但建议显式对齐"
       else
-        log_result ERROR "WORKDIR 与 start.sh 路径不一致。修复：在 start.sh 增加 `cd ${WORKDIR_VALUE}`。"
+        log_result ERROR "WORKDIR 与 start.sh 路径不一致。修复：在 start.sh 增加 cd ${WORKDIR_VALUE}。"
       fi
     fi
   else
@@ -484,7 +576,7 @@ run_dynamic_checks() {
     if [[ $REAL_EXEC -eq 1 ]]; then
       log_result INFO "单服务场景已使用 exec 作为 PID1"
     else
-      log_result ERROR "单服务未使用 exec 启动主进程。修复：将启动行改为 `exec <主命令>`。"
+      log_result ERROR "单服务未使用 exec 启动主进程。修复：将启动行改为 exec <主命令>。"
     fi
   else
     if [[ $REAL_EXEC -eq 1 ]]; then
@@ -506,7 +598,7 @@ run_dynamic_checks() {
     if contains_re "$START_SH" 'exec[[:space:]]+.*xinetd[[:space:]]+.*-dontfork'; then
       log_result INFO "Pwn 场景已使用 xinetd 前台模式（exec ... -dontfork）"
     else
-      log_result ERROR "Pwn 场景未检测到 xinetd 前台启动。修复：在 start.sh 使用 `exec /usr/sbin/xinetd -dontfork`。"
+      log_result ERROR "Pwn 场景未检测到 xinetd 前台启动。修复：在 start.sh 使用 exec /usr/sbin/xinetd -dontfork。"
     fi
 
     local docker_ports=()
@@ -514,7 +606,7 @@ run_dynamic_checks() {
       [[ -n "$line" ]] && docker_ports+=("$line")
     done < <(parse_docker_expose_ports)
     if [[ ${#docker_ports[@]} -eq 0 ]]; then
-      log_result ERROR "Pwn 场景未检测到 EXPOSE 端口。修复：添加 `EXPOSE <pwn_port>`。"
+      log_result ERROR "Pwn 场景未检测到 EXPOSE 端口。修复：添加 EXPOSE <pwn_port>。"
     else
       log_result INFO "Pwn 场景 EXPOSE 端口已声明: ${docker_ports[*]}"
     fi
@@ -533,7 +625,7 @@ run_dynamic_checks() {
       if [[ $found -eq 1 ]]; then
         log_result INFO "Pwn 场景 EXPOSE 与 ctf.xinetd 端口一致（${xport}）"
       else
-        log_result ERROR "ctf.xinetd 端口 ${xport} 未在 EXPOSE 中声明。修复：补充 `EXPOSE ${xport}`。"
+        log_result ERROR "ctf.xinetd 端口 ${xport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${xport}。"
       fi
     fi
   fi
@@ -549,33 +641,107 @@ run_dynamic_checks() {
     if contains_re "$START_SH" 'gunicorn[[:space:]]+.*-b[[:space:]]+0\.0\.0\.0'; then
       log_result INFO "AI 场景已使用 gunicorn 前台监听 0.0.0.0"
     else
-      log_result WARN "AI 场景建议使用 gunicorn 前台并监听 0.0.0.0。示例：`gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app`。"
+      log_result WARN "AI 场景建议使用 gunicorn 前台并监听 0.0.0.0。示例：gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app。"
     fi
   fi
 
   if [[ "$stack_hint" == "rdg" ]]; then
-    if contains_re "$START_SH" 'ttyd'; then
-      log_result INFO "RDG 场景检测到 ttyd 启动逻辑"
+    local rdg_user_re
+    rdg_user_re="$(escape_regex "$RDG_CTF_USER_CFG")"
+
+    if [[ "$RDG_ENABLE_TTYD_CFG" == "true" ]]; then
+      if contains_re "$DOCKERFILE" '/ttyd' && contains_re "$DOCKERFILE" 'chmod[[:space:]]+.*(/ttyd)'; then
+        log_result INFO "RDG 场景检测到 /ttyd 产物落地与赋权逻辑"
+      else
+        log_result ERROR "RDG enable_ttyd=true 但未检测到 /ttyd 构建逻辑。修复：将 ttyd 复制到 /ttyd 并 chmod 755。"
+      fi
+
+      if contains_re "$START_SH" '(^|[^A-Za-z0-9_/-])/ttyd([^A-Za-z0-9_/-]|$)|ttyd'; then
+        log_result INFO "RDG 场景检测到 ttyd 启动逻辑"
+      else
+        log_result ERROR "RDG enable_ttyd=true 但 start.sh 未检测到 ttyd 启动逻辑。"
+      fi
+
+      if [[ "$RDG_TTYD_INSTALL_FALLBACK_CFG" == "true" ]]; then
+        if contains_re "$DOCKERFILE" '(apt-get[[:space:]].*ttyd|apk[[:space:]]+add.*ttyd)'; then
+          log_result INFO "RDG 场景检测到 ttyd 安装回退逻辑"
+        else
+          log_result ERROR "RDG ttyd_install_fallback=true 但未检测到 ttyd 安装回退逻辑。"
+        fi
+      fi
     else
-      log_result WARN "RDG 场景未检测到 ttyd 启动逻辑。建议在 start.sh 增加 ttyd 旁路（缺失不阻断）。"
+      log_result INFO "RDG enable_ttyd=false：跳过 ttyd 强制校验"
     fi
 
-    if contains_re "$DOCKERFILE" '(useradd|adduser)[[:space:]].*ctf'; then
+    if [[ "$RDG_ENABLE_SSHD_CFG" == "true" ]]; then
+      if contains_re "$DOCKERFILE" '(openssh|sshd|ssh-keygen)'; then
+        log_result INFO "RDG 场景检测到 sshd 安装/配置逻辑"
+      else
+        log_result ERROR "RDG enable_sshd=true 但未检测到 sshd 安装或配置逻辑。"
+      fi
+
+      if contains_re "$START_SH" '(/usr/sbin/sshd|(^|[[:space:]])sshd)([[:space:]]|$)'; then
+        log_result INFO "RDG 场景检测到 sshd 启动逻辑"
+      else
+        log_result ERROR "RDG enable_sshd=true 但 start.sh 未检测到 sshd 启动逻辑。"
+      fi
+    else
+      log_result INFO "RDG enable_sshd=false：跳过 sshd 强制校验"
+    fi
+
+    if contains_re "$DOCKERFILE" "(useradd|adduser)[[:space:]].*${rdg_user_re}" \
+      || (contains_re "$DOCKERFILE" '(useradd|adduser)' && contains_re "$DOCKERFILE" 'CTF_USER'); then
       log_result INFO "RDG 场景检测到 ctf 用户创建逻辑"
     else
-      log_result WARN "RDG 场景未检测到 ctf 用户创建。建议创建低权限 ctf 账户用于题目交互。"
+      log_result ERROR "RDG 场景未检测到 ctf 用户创建。修复：创建 ${RDG_CTF_USER_CFG} 账号。"
     fi
 
-    if contains_re "$DOCKERFILE" '^[[:space:]]*EXPOSE[[:space:]]+80' || contains_re "$DOCKERFILE" '^[[:space:]]*EXPOSE[[:space:]]+[0-9]+'; then
+    if contains_re "$DOCKERFILE" '(chpasswd|passwd[[:space:]])' || contains_re "$START_SH" '(chpasswd|passwd[[:space:]])'; then
+      log_result INFO "RDG 场景检测到 ctf 用户密码初始化逻辑"
+    else
+      log_result ERROR "RDG 场景未检测到 ctf 用户密码初始化。修复：设置默认口令（例如 123456）。"
+    fi
+
+    if [[ "$RDG_CTF_IN_ROOT_GROUP_CFG" == "true" ]]; then
+      if contains_re "$DOCKERFILE" "(usermod[[:space:]]+-aG[[:space:]]+root[[:space:]]+${rdg_user_re}|addgroup[[:space:]]+${rdg_user_re}[[:space:]]+root)" \
+        || (contains_re "$DOCKERFILE" '(usermod[[:space:]]+-aG[[:space:]]+root|addgroup[[:space:]].*[[:space:]]+root)' && contains_re "$DOCKERFILE" 'CTF_USER'); then
+        log_result INFO "RDG 场景检测到 ctf 用户加入 root 组逻辑"
+      else
+        log_result ERROR "RDG ctf_in_root_group=true 但未检测到加组逻辑。"
+      fi
+    fi
+
+    if contains_re "$DOCKERFILE" '^[[:space:]]*EXPOSE[[:space:]]+[0-9]+'; then
       log_result INFO "RDG 场景已声明 EXPOSE 端口"
     else
-      log_result WARN "RDG 场景建议声明 EXPOSE 端口（通常为 80）。"
+      log_result ERROR "RDG 场景未检测到 EXPOSE 端口声明。"
     fi
 
     if is_multiservice_start; then
       log_result INFO "RDG 场景检测到多服务启动模式"
     else
-      log_result WARN "RDG 场景未检测到多服务启动模式，可按题目需要保持单服务。"
+      log_result WARN "RDG 场景未检测到多服务启动模式，可按题目需求保持单服务。"
+    fi
+
+    if [[ "$RDG_SCORING_MODE_CFG" == "check_service" && "$RDG_CHECK_ENABLED_CFG" == "true" ]]; then
+      local base_dir
+      base_dir="$(cd "$(dirname "$DOCKERFILE")" && pwd)"
+      local check_rel
+      local check_candidate
+      check_rel="$RDG_CHECK_SCRIPT_PATH_CFG"
+      if [[ "$check_rel" == /* ]]; then
+        if [[ -n "$RDG_WORKDIR_CFG" && "$check_rel" == "${RDG_WORKDIR_CFG%/}/"* ]]; then
+          check_rel="${check_rel#${RDG_WORKDIR_CFG%/}/}"
+        else
+          check_rel="${check_rel#/}"
+        fi
+      fi
+      check_candidate="${base_dir}/${check_rel}"
+      if [[ -f "$check_candidate" ]]; then
+        log_result INFO "RDG check_service 脚本存在：${check_rel}"
+      else
+        log_result ERROR "RDG scoring_mode=check_service 但缺少校验脚本：${check_rel}"
+      fi
     fi
   fi
 }
@@ -626,7 +792,7 @@ run_challenge_port_check() {
   if [[ ${#missing_ports[@]} -eq 0 ]]; then
     log_result INFO "EXPOSE 端口与 challenge.yaml 一致"
   else
-    log_result ERROR "EXPOSE 缺少 challenge.yaml 声明端口: ${missing_ports[*]}。修复：补充 `EXPOSE ${missing_ports[*]}`。"
+    log_result ERROR "EXPOSE 缺少 challenge.yaml 声明端口: ${missing_ports[*]}。修复：补充 EXPOSE ${missing_ports[*]}。"
   fi
 }
 
@@ -638,6 +804,8 @@ if [[ -n "$CHALLENGE_YAML" ]]; then
 fi
 
 echo
+
+load_rdg_config_from_challenge
 
 run_hard_rules
 run_configurable_rules

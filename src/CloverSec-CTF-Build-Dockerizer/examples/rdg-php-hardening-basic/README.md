@@ -4,7 +4,8 @@ RDG(PHP) 最小回归样例，用于验证：
 
 - `stack: rdg` 渲染路径可用
 - `apache2-foreground` 前台主服务可执行
-- ttyd 缺失时仅告警，不阻断
+- 默认 `ttyd + sshd` 登录链路与 `ctf/123456`
+- `check_service` 判定脚手架存在（`check/check.sh`）
 
 ## 本地验证
 

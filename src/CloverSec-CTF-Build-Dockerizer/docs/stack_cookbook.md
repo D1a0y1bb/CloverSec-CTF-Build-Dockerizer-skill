@@ -259,7 +259,7 @@ challenge:
   workdir: "/app"
   app_src: "."
   app_dst: "/app"
-  expose_ports: ["80"]
+  expose_ports: ["80", "22", "8022"]
   start:
     mode: "cmd"
     cmd: "apache2-foreground"
@@ -267,19 +267,33 @@ challenge:
     enable_ttyd: true
     ttyd_port: "8022"
     ttyd_login_cmd: "/bin/bash"
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: true
+    check_enabled: true
+    check_script_path: "check/check.sh"
 ```
 
 常见变更：
 
 - PHP 题目可用 `apache2-foreground`，Python 题目可用 `python app.py`。
-- 如需禁用 ttyd 旁路，可设置 `rdg.enable_ttyd: false`。
-- 如果题目目录自带 `ttyd` 二进制，模板会在启动阶段自动探测并拉起。
+- 运维类题目若不需要登录通道，可设置 `rdg.enable_ttyd: false` 且 `rdg.enable_sshd: false`。
+- `ttyd` 默认优先使用题目目录中的 `ttyd` 二进制，缺失时按 `ttyd_install_fallback` 先尝试包管理安装，再回退下载官方静态二进制。
+- 默认判定是 `check_service`，需提供 `check/check.sh`（或自定义 `check_script_path`）。
 
 常见错误：
 
+- `enable_ttyd=true` 但镜像中未形成 `/ttyd` 可执行文件。
+- `enable_sshd=true` 但未安装/启动 sshd。
+- `scoring_mode=check_service` 但缺少 `check/check.sh`。
 - `start.cmd` 使用后台命令导致容器主进程退出。
-- 题目服务仅监听 `127.0.0.1`，端口映射不可达。
-- 误以为缺少 ttyd 会阻断发布（当前策略为 WARN，不阻断）。
 
 ---
 

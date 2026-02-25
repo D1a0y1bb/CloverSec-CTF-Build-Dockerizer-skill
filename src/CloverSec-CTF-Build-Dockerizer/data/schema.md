@@ -29,6 +29,18 @@ challenge:
     enable_ttyd: true
     ttyd_port: "8022"
     ttyd_login_cmd: "/bin/bash"
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: true
+    check_enabled: true
+    check_script_path: "check/check.sh"
   extra:
     env: { KEY: VALUE }
     copy: [{ from: "x", to: "y" }]
@@ -66,6 +78,18 @@ challenge:
 - `challenge.rdg.enable_ttyd`：仅 `stack=rdg` 生效，默认 `true`。
 - `challenge.rdg.ttyd_port`：仅 `stack=rdg` 生效，默认 `8022`。
 - `challenge.rdg.ttyd_login_cmd`：仅 `stack=rdg` 生效，默认 `/bin/bash`。
+- `challenge.rdg.enable_sshd`：仅 `stack=rdg` 生效，默认 `true`。
+- `challenge.rdg.sshd_port`：仅 `stack=rdg` 生效，默认 `22`。
+- `challenge.rdg.sshd_password_auth`：仅 `stack=rdg` 生效，默认 `true`。
+- `challenge.rdg.ttyd_binary_relpath`：仅 `stack=rdg` 生效，默认 `ttyd`。
+- `challenge.rdg.ttyd_install_fallback`：仅 `stack=rdg` 生效，默认 `true`。
+- `challenge.rdg.ctf_user`：仅 `stack=rdg` 生效，默认 `ctf`。
+- `challenge.rdg.ctf_password`：仅 `stack=rdg` 生效，默认 `123456`。
+- `challenge.rdg.ctf_in_root_group`：仅 `stack=rdg` 生效，默认 `false`。
+- `challenge.rdg.scoring_mode`：仅 `stack=rdg` 生效，默认 `check_service`，可选 `check_service/flag`。
+- `challenge.rdg.include_flag_artifact`：仅 `stack=rdg` 生效，默认 `true`。
+- `challenge.rdg.check_enabled`：仅 `stack=rdg` 生效，默认 `true`。
+- `challenge.rdg.check_script_path`：仅 `stack=rdg` 生效，默认 `check/check.sh`（相对 `WORKDIR`）。
 
 - `challenge.extra.env`：附加环境变量。
 - `challenge.extra.copy`：附加复制列表。
@@ -81,7 +105,7 @@ challenge:
 ## 平台硬约束
 
 - 镜像必须包含 `/start.sh` 并可执行。
-- 镜像必须包含 `/flag` 且可读。
+- 镜像必须包含 `/flag` 且可读（RDG 且 `include_flag_artifact=false` 时可显式关闭）。
 - 镜像必须包含 `/bin/bash`。
 - Dockerfile 必须包含 `EXPOSE`。
 - 单服务启动必须使用 `exec` 作为 PID1。

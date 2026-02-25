@@ -1,6 +1,6 @@
 ---
 name: CloverSec-CTF-Build-Dockerizer
-description: 四叶草安全-创研中心竞赛专用题目容器构建Skills，面向 CTF Jeopardy（Web/Pwn/AI）与 RDG（Docker）模式的容器交付引擎：自动探测栈、生成合规 Dockerfile/start.sh/flag、执行规则校验并给出可修复建议，实现标准化工作流程的质量对齐。
+description: 四叶草安全-创研中心竞赛专用题目容器构建Skills，面向 CTF Jeopardy（Web/Pwn/AI）与 RDG（Docker）模式的容器交付引擎：自动探测栈、生成合规 Dockerfile/start.sh/flag(可选)+check 脚手架、执行规则校验并给出可修复建议，实现标准化工作流程的质量对齐。
 argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg --port 80 --start '...'"
 disable-model-invocation: true
 allowed-tools:
@@ -15,7 +15,7 @@ allowed-tools:
 
 **硬约束：平台固定使用 `/start.sh` 启动**
 
-**镜像根目录必须包含 `/flag` 且可读**
+**镜像根目录默认必须包含 `/flag` 且可读（RDG 且 include_flag_artifact=false 可放行）**
 
 **镜像中必须存在 `/bin/bash`**
 
@@ -24,7 +24,7 @@ allowed-tools:
 ## 快速开始
 
 1. 进入示例目录。
-2. 用 `render.py` 生成 `Dockerfile/start.sh/flag`。
+2. 用 `render.py` 生成 `Dockerfile/start.sh/flag(可选)+check 脚手架`。
 3. 用 `validate.sh` 做静态校验。
 4. 本地 `docker build`。
 5. 本地 `docker run ... /start.sh`。
@@ -92,6 +92,18 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.extra.user` | 否 | 空 | `www-data` | 当前不直接渲染 |
 | `challenge.extra.npm_install_block` | 否 | 自动生成 | `RUN npm ci ...` | `{{NPM_INSTALL_BLOCK}}` |
 | `challenge.extra.pip_requirements_block` | 否 | 自动生成 | `RUN pip install ...` | `{{PIP_REQUIREMENTS_BLOCK}}` |
+| `challenge.rdg.enable_sshd` | 否 | `true` | `true` | RDG sshd 登录开关 |
+| `challenge.rdg.sshd_port` | 否 | `22` | `22` | RDG sshd 端口 |
+| `challenge.rdg.sshd_password_auth` | 否 | `true` | `true` | RDG sshd 密码认证 |
+| `challenge.rdg.ttyd_binary_relpath` | 否 | `ttyd` | `ttyd` | RDG ttyd 二进制相对路径 |
+| `challenge.rdg.ttyd_install_fallback` | 否 | `true` | `true` | RDG ttyd 安装回退开关 |
+| `challenge.rdg.ctf_user` | 否 | `ctf` | `ctf` | RDG 默认选手账户 |
+| `challenge.rdg.ctf_password` | 否 | `123456` | `123456` | RDG 默认选手口令 |
+| `challenge.rdg.ctf_in_root_group` | 否 | `false` | `false` | RDG 是否加入 root 组 |
+| `challenge.rdg.scoring_mode` | 否 | `check_service` | `check_service` | RDG 判定模式 |
+| `challenge.rdg.include_flag_artifact` | 否 | `true` | `false` | RDG 是否保留 `/flag` 产物 |
+| `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 脚手架约束 |
+| `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
 ## 统一模板变量清单
 
@@ -114,7 +126,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `/start.sh` 必须能启动真实服务。
 - `/start.sh` 必须保持容器持续运行。
 - `/start.sh` 必须有可观测日志输出。
-- `/flag` 必须存在且可读。
+- `/flag` 默认必须存在且可读（RDG 且 `include_flag_artifact=false` 可放行）。
 - `/bin/bash` 必须存在。
 - 单服务必须 `exec` 主进程。
 - 多服务可后台一个前台一个，但不能空转。
@@ -219,6 +231,22 @@ CONFIG PROPOSAL:
   flag:
     path: "/flag"
     permission: "444"
+  rdg:
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: true
+    check_enabled: true
+    check_script_path: "check/check.sh"
 ```
 
 3. YAML 块后必须原样输出以下两句话（不得改写）：
@@ -251,7 +279,7 @@ AI 自动完成（按顺序）：
    - 采用 Step 1 中最后一版 `CONFIG PROPOSAL`。
 2. 用户回复 YAML：
    - 先执行 `parse_config_block.py` 从 stdin 解析为 `challenge.yaml`。
-3. 执行 `render.py` 生成 `Dockerfile/start.sh/flag`。
+3. 执行 `render.py` 生成 `Dockerfile/start.sh/flag(可选)+check 脚手架`。
 4. 执行 `validate.sh` 做静态校验。
 
 推荐命令链：
@@ -273,7 +301,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <project_dir>/Docker
 
 AI 必须输出：
 
-- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`flag`
+- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`flag(可选)`、`check/check.sh(按 rdg.check_enabled 生成)`
 - 本地测试命令：`docker build` + `docker run ... /start.sh`
 - 平台导入提醒：端口映射、固定 `/start.sh` 启动、动态 flag 依赖 bash
 
@@ -579,14 +607,14 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 
 ## 输出契约清单（生成后必须满足）
 
-- 产物必须包含 `Dockerfile`、`start.sh`、`flag`。
+- 产物必须包含 `Dockerfile`、`start.sh`，并在默认模式下包含 `flag`。
 - `start.sh` 首行必须是 `#!/bin/bash`。
 - `start.sh` 必须包含 `set -euo pipefail`。
 - `Dockerfile` 必须有 `EXPOSE`。
 - `Dockerfile` 必须把 `start.sh` 放到 `/start.sh`。
-- `Dockerfile` 必须把 `flag` 放到 `/flag`。
+- `Dockerfile` 必须把 `flag` 放到 `/flag`（RDG 且 `include_flag_artifact=false` 除外）。
 - `Dockerfile` 必须设置 `/start.sh` 可执行。
-- `Dockerfile` 必须设置 `/flag` 可读。
+- `Dockerfile` 必须设置 `/flag` 可读（RDG 且 `include_flag_artifact=false` 除外）。
 - 镜像必须有 `/bin/bash`。
 - 单服务必须 `exec` 主进程。
 - 不能使用空转保活。

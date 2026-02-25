@@ -183,5 +183,5 @@ stacks:
       start_cmd: "bash -lc 'if command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v python3 >/dev/null 2>&1; then exec python3 app.py; elif command -v python >/dev/null 2>&1; then exec python app.py; elif command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; else exec /bin/bash; fi'"
       healthcheck_cmd: "curl -fsS http://127.0.0.1:80/ || exit 1"
     notes: >
-      适用于 RDG（Docker）题目模式，强调题目服务 + ttyd 旁路的兼容交付。
-      本栈采用兼容增强策略，ttyd/ctf 用户等增强项默认建议启用但不强阻断。
+      适用于 RDG（Docker）防御修复题目模式，默认启用 ttyd + sshd 双通道登录。
+      默认采用 check-service 判定链路，ctf 账号默认口令为 123456，可按题目配置覆盖。

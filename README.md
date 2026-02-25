@@ -2,27 +2,27 @@
 
 [简体中文](README.zh-CN.md) | [Legacy English Link](README.en.md)
 
-[![Version](https://img.shields.io/badge/version-v1.3.0-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
+[![Version](https://img.shields.io/badge/version-v1.3.5-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
 [![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
 [![Stacks](https://img.shields.io/badge/stacks-9-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
-[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.0)
+[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.5)
 
-VERSION：v1.3.0
+VERSION：v1.3.5
 
 ![CloverSec Overview](docs/assets/readme/hero-overview.png)
 
 CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
-## What's New in v1.3.0
+## What's New in v1.3.5
 
-`v1.3.0` introduces an independent `rdg` stack for RDG(Docker) challenge delivery and keeps the existing generation pipeline stable for the original eight stacks. The implementation is compatibility-first: RDG adds ttyd-sidecar-aware startup behavior, ctf-user conventions, and mode-specific inference without breaking legacy inputs.
+`v1.3.5` upgrades RDG from a compatibility add-on to a default delivery mode for defense-and-repair challenges. The RDG template now targets real operation flow: dual login channels (`ttyd + sshd`), a default player account (`ctf/123456`), and check-service-first scoring semantics.
 
-This release also upgrades inference precedence by adding `base_image` pattern inference (`CLI > challenge.yaml > patterns > stacks defaults`) and extends `CONFIG PROPOSAL` parsing to support the optional `challenge.rdg` object (`enable_ttyd`, `ttyd_port`, `ttyd_login_cmd`). As a result, RDG cases can be auto-detected, rendered, validated, and released in the same workflow.
+The `challenge.rdg` model is expanded with security and operations controls (`enable_sshd`, `sshd_port`, `sshd_password_auth`, `ttyd_binary_relpath`, `ttyd_install_fallback`, `ctf_in_root_group`, `scoring_mode`, `include_flag_artifact`, `check_enabled`, `check_script_path`). `render.py`, config parsing, and validation are aligned around the same fields, so RDG builds can be detected, rendered, checked, and released with one consistent pipeline.
 
 <details>
-<summary><b>v1.3.0 RDG technical details</b></summary>
+<summary><b>v1.3.5 RDG technical details</b></summary>
 
-This version adds an RDG template family (`templates/rdg`), two RDG regression examples, and non-blocking RDG compatibility checks in `validate.sh` (WARN/INFO only for RDG enhancement items). It keeps platform hard constraints unchanged: `/start.sh`, `/flag`, `/bin/bash`, and `EXPOSE` remain mandatory.
+This version enforces `/ttyd` binary delivery when `enable_ttyd=true` (copy from project first, package-install fallback second, static binary download fallback third, fail when still unavailable), adds sshd bootstrap/config/startup defaults, and upgrades RDG validation from WARN-style hints to gate-level checks for ttyd/sshd/ctf/check-script paths. RDG keeps `/flag` enabled by default but now supports explicit opt-out via `include_flag_artifact=false`.
 
 </details>
 
@@ -32,7 +32,7 @@ This version adds an RDG template family (`templates/rdg`), two RDG regression e
 |---|---|---|---|
 | Auto Detection | `derive_config.py` | Detect stack, ports, and start-command candidates | Input basis for `CONFIG PROPOSAL` |
 | Config Parsing | `parse_config_block.py` | Convert confirmation block to `challenge.yaml` | Normalized config |
-| Render | `render.py` | Generate container delivery files | `Dockerfile` / `start.sh` / `flag` |
+| Render | `render.py` | Generate container delivery files | `Dockerfile` / `start.sh` / `flag(optional)` / `check/check.sh` |
 | Static Validation | `validate.sh` | Enforce platform contract and rules | ERROR/WARN/INFO report |
 | Example Regression | `validate_examples.sh` | Batch-check sample directories | pass/fail summary |
 | Packaging | `release_build.sh` | Build versioned folder and zip | `dist/...-vX.Y.Z.zip` |
@@ -157,11 +157,27 @@ Two RDG examples are included in `src/CloverSec-CTF-Build-Dockerizer/examples` f
 - `rdg-php-hardening-basic` (from PHP hardening challenge pattern)
 - `rdg-python-ssti-basic` (from Python SSTI challenge pattern)
 
-They intentionally do not vendor `ttyd` binaries; RDG runtime behavior is "enable if present, warn if missing".
+Both examples now cover `ttyd + sshd + check_service` defaults. The Python example explicitly validates `include_flag_artifact=false` to cover non-flag scoring mode.
+
+### RDG Toggle Example (Ops-Only Challenge)
+
+For scenarios such as WebLogic maintenance challenges where player shell login is not required, you can disable both channels:
+
+```yaml
+challenge:
+  stack: rdg
+  rdg:
+    enable_ttyd: false
+    enable_sshd: false
+    scoring_mode: check_service
+    include_flag_artifact: false
+    check_enabled: true
+    check_script_path: "check/check.sh"
+```
 
 ## Platform Hard Constraints
 
-Delivery artifacts must comply with platform contracts: containers are started from `/start.sh`; `/flag` must exist and be readable at image root; `/bin/bash` must be present; Dockerfile must declare `EXPOSE`; and idle keepalive patterns like `sleep infinity` are forbidden. For single-service targets, the entry process must run in foreground via `exec` to preserve signal handling and predictable exits.
+Delivery artifacts must comply with platform contracts: containers are started from `/start.sh`; `/bin/bash` must be present; Dockerfile must declare `EXPOSE`; and idle keepalive patterns like `sleep infinity` are forbidden. `/flag` is mandatory by default, with one RDG exception: `include_flag_artifact=false` for check-service-only challenge delivery.
 
 Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
 
@@ -177,7 +193,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 | lamp | 80 | DB background + Apache foreground |
 | pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
 | ai | 5000 | `exec gunicorn ...` |
-| rdg | 80 | `exec apache2-foreground` / `exec python app.py` |
+| rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
 
 ## Repository Structure
 
@@ -210,7 +226,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 bash scripts/release_build.sh
 
 # One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.3.0
+bash scripts/publish_release.sh --version v1.3.5
 ```
 
 ## Changelog
@@ -226,7 +242,7 @@ It provides real generated outputs and reproducible validation flows for PR revi
 No. `npx skills add` installs from repository content, while release assets are for versioned archival/distribution.
 
 ### Q3: Why are `/start.sh`, `/flag`, and `/bin/bash` mandatory?
-They are platform contract requirements; missing any of them can break startup or dynamic flag injection.
+They are platform contract requirements. In RDG mode, `/flag` can be explicitly disabled with `include_flag_artifact=false` when scoring is driven by check-service.
 
 ## Maintenance and Contribution
 

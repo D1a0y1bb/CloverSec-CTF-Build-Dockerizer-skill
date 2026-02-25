@@ -28,3 +28,4 @@
 - 最小应用文件（源码或二进制制品）
 - `README.md`：本目录的快速运行说明
 - 可选渲染产物：`Dockerfile`、`start.sh`、`flag`
+- RDG 示例额外包含：`check/check.sh`（check-service 判定脚手架）

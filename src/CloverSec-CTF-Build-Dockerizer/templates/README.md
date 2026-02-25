@@ -32,6 +32,8 @@
 - `start-header.tpl`：统一 shebang 与 `set -euo pipefail`
 - `ensure-flag.tpl`：启动前确保 `/flag` 可读
 
+说明：RDG 模板支持 `challenge.rdg.include_flag_artifact=false`，该模式下会改为仅写入 `/start.sh`，不再强制渲染 `/flag` 片段。
+
 ## include 语法
 
 模板支持最小 include 语法，由 `render.py` 在渲染时内联：

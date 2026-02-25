@@ -349,7 +349,8 @@ def _build_start_candidates(
                 "evidence": ["来源: patterns.yaml defaults.start_cmd"],
             }
         )
-        notes.append("RDG 栈默认兼容 ttyd 旁路；若容器内不存在 ttyd 将给出告警但不阻断。")
+        notes.append("RDG 默认启用 ttyd+sshd 双通道，并创建 ctf 用户（默认口令 123456）。")
+        notes.append("RDG 默认采用 check-service 判定；如无需登录链路可显式关闭 enable_ttyd/enable_sshd。")
 
     if default_cmd:
         candidates.append(
@@ -531,10 +532,28 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     }
 
     if stack_id == "rdg":
+        rdg_ports = list(guessed_ports)
+        for p in ["8022", "22"]:
+            if p not in rdg_ports:
+                rdg_ports.append(p)
+        proposal["port_guess"]["ports"] = rdg_ports
+        proposal["config_proposal"]["expose_ports"] = rdg_ports
         proposal["config_proposal"]["rdg"] = {
             "enable_ttyd": True,
             "ttyd_port": "8022",
             "ttyd_login_cmd": "/bin/bash",
+            "enable_sshd": True,
+            "sshd_port": "22",
+            "sshd_password_auth": True,
+            "ttyd_binary_relpath": "ttyd",
+            "ttyd_install_fallback": True,
+            "ctf_user": "ctf",
+            "ctf_password": "123456",
+            "ctf_in_root_group": False,
+            "scoring_mode": "check_service",
+            "include_flag_artifact": True,
+            "check_enabled": True,
+            "check_script_path": "check/check.sh",
         }
 
     return proposal

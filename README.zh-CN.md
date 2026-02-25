@@ -2,25 +2,25 @@
 
 [English](README.md)
 
-[![Version](https://img.shields.io/badge/version-v1.3.0-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
+[![Version](https://img.shields.io/badge/version-v1.3.5-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
 [![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
 [![Stacks](https://img.shields.io/badge/stacks-9-orange)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
-[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.0)
+[![Release Asset](https://img.shields.io/badge/release-zip-success)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.5)
 
 ![CloverSec Overview](docs/assets/readme/hero-overview.png)
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.3.0
+## What's New in v1.3.5
 
-`v1.3.0` 新增独立 `rdg` 栈，用于承接 RDG（Docker）模式题目构建，并保持原有 8 栈能力不回归。该版本采用“兼容增强”策略：在 RDG 场景中补充 ttyd 旁路、ctf 用户约定、多服务启动特征推断，但不把这些增强项设为硬阻断。
+`v1.3.5` 将 RDG 从“兼容增强”升级为“防御修复题目可直接交付”的默认模式。RDG 模板默认具备 `ttyd + sshd` 双通道登录、`ctf/123456` 账户约定，以及 `check_service` 优先的判定语义。
 
-本次还扩展了推断优先级：`base_image` 现在支持 `CLI > challenge.yaml > patterns > stacks 默认值`，并把 `CONFIG PROPOSAL` / 解析器扩展到可识别 `challenge.rdg`（`enable_ttyd`、`ttyd_port`、`ttyd_login_cmd`）。这使 RDG 题目可以与其他栈一样，走自动探测、渲染、校验、发版的统一流程。
+本次把 `challenge.rdg` 扩展为完整可控模型：`enable_sshd`、`sshd_port`、`sshd_password_auth`、`ttyd_binary_relpath`、`ttyd_install_fallback`、`ctf_in_root_group`、`scoring_mode`、`include_flag_artifact`、`check_enabled`、`check_script_path`。渲染器、配置解析与校验器对这些字段统一收敛，保证 RDG 题目从自动探测到发版全链路一致。
 
 <details>
-<summary><b>v1.3.0 RDG 技术增强清单</b></summary>
+<summary><b>v1.3.5 RDG 技术增强清单</b></summary>
 
-本次新增 `templates/rdg` 模板族和 2 个 RDG 回归样例，并在 `validate.sh` 增加 RDG 兼容增强检查（仅 WARN/INFO，不新增 ERROR 阻断）。平台硬约束保持不变：`/start.sh`、`/flag`、`/bin/bash`、`EXPOSE` 仍是发布门槛。
+本次强化了 `/ttyd` 交付约束：`enable_ttyd=true` 时必须落地 `/ttyd`（优先题目目录自带，缺失先做包管理安装回退，再做官方静态二进制下载回退，仍失败则阻断）。同时新增 sshd 初始化与启动链路，并把 RDG 校验从提示级提升为门禁级（ttyd/sshd/ctf/check-script）。`/flag` 在 RDG 中保持默认启用，但可通过 `include_flag_artifact=false` 显式关闭。
 
 </details>
 
@@ -31,7 +31,23 @@
 - `rdg-php-hardening-basic`（PHP 审计类题目形态）
 - `rdg-python-ssti-basic`（Python SSTI 类题目形态）
 
-样例刻意不携带 `ttyd` 二进制；RDG 运行时策略为“存在即启动，不存在告警”。
+两个样例均覆盖 `ttyd + sshd + check_service` 默认流程；其中 Python 样例额外覆盖 `include_flag_artifact=false` 的无 flag 判定路径。
+
+### RDG 开关示例（运维型题目）
+
+对于 WebLogic 运维题等“不需要选手登录容器”的场景，可以显式关闭双通道：
+
+```yaml
+challenge:
+  stack: rdg
+  rdg:
+    enable_ttyd: false
+    enable_sshd: false
+    scoring_mode: check_service
+    include_flag_artifact: false
+    check_enabled: true
+    check_script_path: "check/check.sh"
+```
 
 ## 核心能力矩阵
 
@@ -39,7 +55,7 @@
 |---|---|---|---|
 | 自动探测 | `derive_config.py` | 识别栈、端口、启动命令候选 | `CONFIG PROPOSAL` 输入依据 |
 | 配置解析 | `parse_config_block.py` | 把确认块转为 `challenge.yaml` | 标准化配置 |
-| 渲染生成 | `render.py` | 生成 Docker 交付文件 | `Dockerfile` / `start.sh` / `flag` |
+| 渲染生成 | `render.py` | 生成 Docker 交付文件 | `Dockerfile` / `start.sh` / `flag(可选)` / `check/check.sh` |
 | 静态校验 | `validate.sh` | 校验平台硬约束与规则 | ERROR/WARN/INFO |
 | 样例回归 | `validate_examples.sh` | 批量验证示例目录 | 回归通过/失败清单 |
 | 打包发布 | `release_build.sh` | 生成版本目录和 zip | `dist/...-vX.Y.Z.zip` |
@@ -159,7 +175,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 
 ## 平台硬约束
 
-交付镜像必须满足以下平台契约：平台固定通过 `/start.sh` 启动容器；镜像根目录必须存在可读 `/flag`；镜像内必须可用 `/bin/bash`；`Dockerfile` 必须声明 `EXPOSE`；并且禁止使用 `sleep infinity` 这类空转保活方式。单服务场景下，入口进程应使用前台 `exec` 启动，确保信号接管和退出语义稳定。
+交付镜像必须满足以下平台契约：平台固定通过 `/start.sh` 启动容器；镜像内必须可用 `/bin/bash`；`Dockerfile` 必须声明 `EXPOSE`；并且禁止使用 `sleep infinity` 这类空转保活方式。`/flag` 默认仍为硬约束，但 RDG 可在 `include_flag_artifact=false` 时显式放行（适配 check-service 判定）。
 
 详细契约文档见：[platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
 
@@ -175,7 +191,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 | lamp | 80 | 数据库后台 + Apache 前台 |
 | pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
 | ai | 5000 | `exec gunicorn ...` |
-| rdg | 80 | `exec apache2-foreground` / `exec python app.py` |
+| rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
 
 ## 仓库结构
 
@@ -208,7 +224,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.3.0
+bash scripts/publish_release.sh --version v1.3.5
 ```
 
 ## 更新记录
@@ -224,7 +240,7 @@ bash scripts/publish_release.sh --version v1.3.0
 不依赖。`npx skills add` 主要读取仓库内容，Release 附件用于版本归档与离线分发。
 
 ### Q3：为什么 `/start.sh`、`/flag`、`/bin/bash` 是硬性要求？
-这些是平台运行契约的一部分，缺失任意一项都可能导致启动失败或动态 flag 注入失效。
+这些是平台运行契约的一部分。RDG 场景若使用 `check_service` 判定，可通过 `include_flag_artifact=false` 显式关闭 `/flag` 产物。
 
 ## 维护与贡献
 

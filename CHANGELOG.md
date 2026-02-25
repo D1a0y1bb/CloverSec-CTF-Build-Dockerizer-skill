@@ -2,29 +2,30 @@
 
 本项目的重要变更都会记录在本文件中。
 
-## v1.3.0 - 2026-02-25
+## v1.3.5 - 2026-02-25
 
 ### 新增
 
-- 新增独立 `rdg` 栈，支持 RDG（Docker）模式题目渲染与交付。
-- 新增 RDG 专有配置字段：`challenge.rdg.enable_ttyd`、`challenge.rdg.ttyd_port`、`challenge.rdg.ttyd_login_cmd`。
-- 新增 RDG 模板目录：`src/CloverSec-CTF-Build-Dockerizer/templates/rdg/`。
-- 新增 2 个 RDG 回归样例：`rdg-php-hardening-basic`、`rdg-python-ssti-basic`。
+- 新增 RDG 扩展配置字段：`enable_sshd`、`sshd_port`、`sshd_password_auth`、`ttyd_binary_relpath`、`ttyd_install_fallback`、`ctf_user`、`ctf_password`、`ctf_in_root_group`、`scoring_mode`、`include_flag_artifact`、`check_enabled`、`check_script_path`。
+- 新增 RDG check-service 脚手架：`check/check.sh`（渲染时按需自动补齐）。
+- 新增 RDG 样例 check 目录：`examples/rdg-php-hardening-basic/check/`、`examples/rdg-python-ssti-basic/check/`。
 
 ### 变更
 
-- `base_image` 推断优先级升级为：`CLI > challenge.yaml > patterns > stacks 默认值`。
-- `parse_config_block.py` 与 `CONFIG PROPOSAL` 支持 `stack: rdg` 及 RDG 子配置解析。
-- README（中英）与技能文档升级为 9 栈说明，并补充 RDG 使用与回归章节。
+- RDG 模板升级为 `ttyd + sshd` 双通道默认交付，默认创建 `ctf/123456`，可按题目配置覆盖。
+- `render.py` 支持 RDG 端口自动补齐（业务端口 + sshd + ttyd），并支持 `include_flag_artifact=false` 无 flag 产物路径。
+- RDG ttyd 回退链路增强：包管理安装不可用时自动尝试下载官方静态二进制并落地 `/ttyd`。
+- `derive_config.py` 与 `parse_config_block.py` 输出/解析完整 RDG 配置模型。
+- README（中英）与 RDG 文档更新为 v1.3.5 策略说明。
 
 ### 校验与兼容
 
-- `validate.sh` 增加 RDG 兼容增强检查（ttyd、ctf 用户、多服务形态），以 WARN/INFO 为主，不新增 ERROR 阻断。
-- 平台硬约束保持不变：`/start.sh`、`/flag`、`/bin/bash`、`EXPOSE` 仍为必需项。
+- `validate.sh` RDG 检查升级为门禁级：`/ttyd`、sshd、ctf 口令初始化、root 组可选校验、check-service 脚本存在性。
+- 当 `stack=rdg` 且 `include_flag_artifact=false` 时，放行 `/flag` 硬约束；其余栈规则不变。
 
 ### 仓库治理
 
-- 临时参考目录 `RDG/` 仅用于规则提炼，发布前删除且不纳入 Git 跟踪。
+- 版本升级至 `v1.3.5`，发布链路继续使用 immutable-compatible `publish_release.sh`。
 
 ## v1.2.4 - 2026-02-24
 

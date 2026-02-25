@@ -176,6 +176,33 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     rdg_ttyd_login_cmd = str(_first_non_empty(rdg.get("ttyd_login_cmd"), "/bin/bash") or "/bin/bash").strip()
     if not rdg_ttyd_login_cmd:
         raise ConfigError("rdg.ttyd_login_cmd 不能为空")
+    rdg_enable_sshd = _to_bool(rdg.get("enable_sshd"), True)
+    rdg_sshd_port_raw = _first_non_empty(rdg.get("sshd_port"), "22")
+    rdg_sshd_port = str(rdg_sshd_port_raw).strip()
+    if not rdg_sshd_port.isdigit() or not (1 <= int(rdg_sshd_port) <= 65535):
+        raise ConfigError("rdg.sshd_port 必须是 1-65535 的端口数字")
+    rdg_sshd_password_auth = _to_bool(rdg.get("sshd_password_auth"), True)
+    rdg_ttyd_binary_relpath = str(_first_non_empty(rdg.get("ttyd_binary_relpath"), "ttyd") or "ttyd").strip()
+    if not rdg_ttyd_binary_relpath:
+        raise ConfigError("rdg.ttyd_binary_relpath 不能为空")
+    rdg_ttyd_install_fallback = _to_bool(rdg.get("ttyd_install_fallback"), True)
+    rdg_ctf_user = str(_first_non_empty(rdg.get("ctf_user"), "ctf") or "ctf").strip()
+    if not rdg_ctf_user:
+        raise ConfigError("rdg.ctf_user 不能为空")
+    rdg_ctf_password = str(_first_non_empty(rdg.get("ctf_password"), "123456") or "123456").strip()
+    if not rdg_ctf_password:
+        raise ConfigError("rdg.ctf_password 不能为空")
+    rdg_ctf_in_root_group = _to_bool(rdg.get("ctf_in_root_group"), False)
+    rdg_scoring_mode = str(_first_non_empty(rdg.get("scoring_mode"), "check_service") or "check_service").strip().lower()
+    if rdg_scoring_mode not in {"check_service", "flag"}:
+        raise ConfigError("rdg.scoring_mode 仅支持 check_service 或 flag")
+    rdg_include_flag_artifact = _to_bool(rdg.get("include_flag_artifact"), True)
+    rdg_check_enabled = _to_bool(rdg.get("check_enabled"), True)
+    rdg_check_script_path = str(
+        _first_non_empty(rdg.get("check_script_path"), "check/check.sh") or "check/check.sh"
+    ).strip()
+    if rdg_check_enabled and not rdg_check_script_path:
+        raise ConfigError("rdg.check_script_path 不能为空")
 
     challenge: Dict[str, Any] = {
         "challenge": {
@@ -213,6 +240,18 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
             "enable_ttyd": rdg_enable_ttyd,
             "ttyd_port": rdg_ttyd_port,
             "ttyd_login_cmd": rdg_ttyd_login_cmd,
+            "enable_sshd": rdg_enable_sshd,
+            "sshd_port": rdg_sshd_port,
+            "sshd_password_auth": rdg_sshd_password_auth,
+            "ttyd_binary_relpath": rdg_ttyd_binary_relpath,
+            "ttyd_install_fallback": rdg_ttyd_install_fallback,
+            "ctf_user": rdg_ctf_user,
+            "ctf_password": rdg_ctf_password,
+            "ctf_in_root_group": rdg_ctf_in_root_group,
+            "scoring_mode": rdg_scoring_mode,
+            "include_flag_artifact": rdg_include_flag_artifact,
+            "check_enabled": rdg_check_enabled,
+            "check_script_path": rdg_check_script_path,
         }
 
     return challenge
