@@ -1,6 +1,10 @@
 # CloverSec-CTF-Build-Dockerizer
 
-[简体中文](README.zh-CN.md) | [Legacy English Link](README.en.md)
+<p align="center">
+  <a href="README.zh-CN.md"><strong>简体中文</strong></a>
+  <span> · </span>
+  <a href="README.en.md"><strong>Legacy English Link</strong></a>
+</p>
 
 [![Version](https://img.shields.io/badge/version-v1.3.5-blue)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases)
 [![Scope](https://img.shields.io/badge/CTF-Jeopardy-2ea44f)](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill)
@@ -9,7 +13,9 @@
 
 VERSION：v1.3.5
 
-![CloverSec Overview](docs/assets/readme/hero-overview.png)
+<p align="center">
+  <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
+</p>
 
 CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
