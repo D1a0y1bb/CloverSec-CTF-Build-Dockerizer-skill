@@ -25,6 +25,14 @@ challenge:
   platform:
     entrypoint: "/start.sh"
     require_bash: true
+    allow_loopback_bind: false
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
   rdg:
     enable_ttyd: true
     ttyd_port: "8022"
@@ -74,6 +82,14 @@ challenge:
 
 - `challenge.platform.entrypoint`：固定 `/start.sh`。
 - `challenge.platform.require_bash`：固定 `true`。
+- `challenge.platform.allow_loopback_bind`：默认 `false`。开启后放行 localhost/127.0.0.1 监听门禁（用于 SSRF/内网链路题型）。
+
+- `challenge.healthcheck.enabled`：默认 `true`，控制是否渲染 Docker `HEALTHCHECK`。
+- `challenge.healthcheck.cmd`：健康检查命令，默认回退 `stacks.yaml defaults.healthcheck_cmd`。
+- `challenge.healthcheck.interval`：默认 `30s`。
+- `challenge.healthcheck.timeout`：默认 `5s`。
+- `challenge.healthcheck.retries`：默认 `3`。
+- `challenge.healthcheck.start_period`：默认 `10s`。
 
 - `challenge.rdg.enable_ttyd`：仅 `stack=rdg` 生效，默认 `true`。
 - `challenge.rdg.ttyd_port`：仅 `stack=rdg` 生效，默认 `8022`。

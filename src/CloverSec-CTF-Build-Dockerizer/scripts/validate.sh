@@ -42,6 +42,7 @@ RDG_INCLUDE_FLAG_ARTIFACT_CFG="true"
 RDG_CHECK_ENABLED_CFG="true"
 RDG_CHECK_SCRIPT_PATH_CFG="check/check.sh"
 RDG_WORKDIR_CFG="/app"
+ALLOW_LOOPBACK_BIND_CFG="false"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
   echo "[ERROR] Dockerfile 不存在: $DOCKERFILE" >&2
@@ -138,6 +139,43 @@ has_service_start_cmd() {
 
 has_tail_dev_null() {
   contains_re "$START_SH" 'tail[[:space:]]+-[fF][[:space:]]+/dev/null'
+}
+
+has_background_ampersand() {
+  grep -Eiq '(^|[^#].*)[^&]&[[:space:]]*$' "$START_SH"
+}
+
+has_wait_or_foreground_hold() {
+  contains_re "$START_SH" '(^|[[:space:]])(wait|fg)([[:space:]]|$)'
+}
+
+has_public_frontend_entry() {
+  if contains_re "$START_SH" 'apache2-foreground|apache2ctl[[:space:]]+-D[[:space:]]+FOREGROUND|httpd[[:space:]]+-D[[:space:]]+FOREGROUND|catalina\.sh[[:space:]]+run|nginx[[:space:]]+-g[[:space:]]+.*daemon[[:space:]]+off;'; then
+    return 0
+  fi
+  if contains_re "$START_SH" '(gunicorn|uvicorn).*(0\.0\.0\.0|\-\-host[=[:space:]]*0\.0\.0\.0|\-b[[:space:]]*0\.0\.0\.0)'; then
+    return 0
+  fi
+  return 1
+}
+
+uses_loopback_bind() {
+  contains_re "$START_SH" '127\.0\.0\.1|localhost|bind-address=127\.0\.0\.1|--host[=[:space:]]*127\.0\.0\.1|--host[=[:space:]]*localhost|\-b[[:space:]]*127\.0\.0\.1'
+}
+
+extract_start_cmd_ports() {
+  {
+    grep -Eio -- '--port[=[:space:]]*[0-9]{1,5}' "$START_SH" 2>/dev/null | sed -E 's/.*[=[:space:]]([0-9]{1,5})/\1/' || true
+    grep -Eio -- '\-b[[:space:]]*(0\.0\.0\.0|127\.0\.0\.1|localhost):[0-9]{1,5}' "$START_SH" 2>/dev/null | sed -E 's/.*:([0-9]{1,5})/\1/' || true
+    grep -Eio -- 'runserver[[:space:]]+(0\.0\.0\.0|127\.0\.0\.1|localhost):[0-9]{1,5}' "$START_SH" 2>/dev/null | sed -E 's/.*:([0-9]{1,5})/\1/' || true
+    grep -Eio -- 'listen\([[:space:]]*[0-9]{1,5}[[:space:]]*\)' "$START_SH" 2>/dev/null | sed -E 's/[^0-9]*([0-9]{1,5}).*/\1/' || true
+  } | awk 'NF' | sort -u
+}
+
+extract_tcpserver_port_from_start() {
+  grep -Eio 'tcpserver[[:space:]]+(-[[:alnum:]]+[[:space:]]+)*((0\.0\.0\.0|127\.0\.0\.1|localhost)[[:space:]]+)?[0-9]{1,5}' "$START_SH" \
+    | head -n1 \
+    | grep -Eo '[0-9]{1,5}$' || true
 }
 
 escape_regex() {
@@ -266,6 +304,7 @@ load_rdg_config_from_challenge() {
   RDG_CHECK_ENABLED_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "check_enabled" "$RDG_CHECK_ENABLED_CFG")" "true")"
   RDG_CHECK_SCRIPT_PATH_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "check_script_path" "$RDG_CHECK_SCRIPT_PATH_CFG")"
   RDG_WORKDIR_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "workdir" "$RDG_WORKDIR_CFG")"
+  ALLOW_LOOPBACK_BIND_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "allow_loopback_bind" "$ALLOW_LOOPBACK_BIND_CFG")" "false")"
 }
 
 parse_docker_expose_ports() {
@@ -293,7 +332,7 @@ infer_stack_hint() {
     return
   fi
 
-  if contains_re "$START_SH" 'xinetd|ctf\.xinetd' || contains_re "$DOCKERFILE" 'xinetd'; then
+  if contains_re "$START_SH" 'xinetd|ctf\.xinetd|tcpserver' || contains_re "$DOCKERFILE" 'xinetd|ucspi-tcp6|tcpserver'; then
     echo "pwn"
     return
   fi
@@ -594,17 +633,71 @@ run_dynamic_checks() {
     log_result INFO "检测到栈提示: ${stack_hint}"
   fi
 
+  local has_public_frontend=0
+  if has_public_frontend_entry; then
+    has_public_frontend=1
+  fi
+
+  if uses_loopback_bind; then
+    if [[ "$ALLOW_LOOPBACK_BIND_CFG" == "true" ]]; then
+      log_result INFO "challenge.platform.allow_loopback_bind=true：已按配置放行 localhost/127.0.0.1 监听。"
+    elif [[ $has_public_frontend -eq 1 ]]; then
+      log_result INFO "检测到公网前置入口且回环监听用于辅服务，按 SSRF/内网链路场景放行。"
+    else
+      log_result ERROR "检测到服务监听 localhost/127.0.0.1 且未配置豁免。修复：改监听 0.0.0.0 或设置 challenge.platform.allow_loopback_bind=true。"
+    fi
+  else
+    log_result INFO "未检测到 localhost/127.0.0.1 监听模式"
+  fi
+
+  local has_bg_ampersand=0
+  if has_background_ampersand; then
+    has_bg_ampersand=1
+  fi
+  local has_wait_hold=0
+  if has_wait_or_foreground_hold; then
+    has_wait_hold=1
+  fi
+  if [[ $has_bg_ampersand -eq 1 && $REAL_EXEC -eq 0 && $has_wait_hold -eq 0 ]]; then
+    log_result ERROR "检测到后台 '&' 启动且脚本无前台阻塞主进程。修复：追加 exec 前台主服务或 wait。"
+  fi
+
+  local start_ports=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && start_ports+=("$line")
+  done < <(extract_start_cmd_ports)
+
+  local docker_ports=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && docker_ports+=("$line")
+  done < <(parse_docker_expose_ports)
+
+  if [[ ${#start_ports[@]} -gt 0 ]]; then
+    local sp
+    for sp in "${start_ports[@]}"; do
+      local found_in_docker=0
+      local dp
+      for dp in "${docker_ports[@]}"; do
+        if [[ "$sp" == "$dp" ]]; then
+          found_in_docker=1
+          break
+        fi
+      done
+      if [[ $found_in_docker -eq 0 ]]; then
+        log_result WARN "启动命令显式端口 ${sp} 未在 Dockerfile EXPOSE 中声明。建议补齐 EXPOSE ${sp}。"
+      fi
+    done
+  fi
+
   if [[ "$stack_hint" == "pwn" ]]; then
     if contains_re "$START_SH" 'exec[[:space:]]+.*xinetd[[:space:]]+.*-dontfork'; then
       log_result INFO "Pwn 场景已使用 xinetd 前台模式（exec ... -dontfork）"
+    elif contains_re "$START_SH" 'exec[[:space:]]+.*tcpserver'; then
+      log_result INFO "Pwn 场景已使用 tcpserver 前台模式"
     else
-      log_result ERROR "Pwn 场景未检测到 xinetd 前台启动。修复：在 start.sh 使用 exec /usr/sbin/xinetd -dontfork。"
+      log_result ERROR "Pwn 场景未检测到 xinetd/tcpserver 前台启动。修复：使用 exec /usr/sbin/xinetd -dontfork 或 exec tcpserver ...。"
     fi
 
-    local docker_ports=()
-    while IFS= read -r line; do
-      [[ -n "$line" ]] && docker_ports+=("$line")
-    done < <(parse_docker_expose_ports)
     if [[ ${#docker_ports[@]} -eq 0 ]]; then
       log_result ERROR "Pwn 场景未检测到 EXPOSE 端口。修复：添加 EXPOSE <pwn_port>。"
     else
@@ -626,6 +719,24 @@ run_dynamic_checks() {
         log_result INFO "Pwn 场景 EXPOSE 与 ctf.xinetd 端口一致（${xport}）"
       else
         log_result ERROR "ctf.xinetd 端口 ${xport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${xport}。"
+      fi
+    else
+      local tport
+      tport="$(extract_tcpserver_port_from_start)"
+      if [[ -n "$tport" ]]; then
+        local tfound=0
+        local tp
+        for tp in "${docker_ports[@]}"; do
+          if [[ "$tp" == "$tport" ]]; then
+            tfound=1
+            break
+          fi
+        done
+        if [[ $tfound -eq 1 ]]; then
+          log_result INFO "Pwn 场景 EXPOSE 与 tcpserver 端口一致（${tport}）"
+        else
+          log_result ERROR "tcpserver 端口 ${tport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${tport}。"
+        fi
       fi
     fi
   fi
@@ -803,6 +914,28 @@ run_challenge_port_check() {
     log_result INFO "EXPOSE 端口与 challenge.yaml 一致"
   else
     log_result ERROR "EXPOSE 缺少 challenge.yaml 声明端口: ${missing_ports[*]}。修复：补充 EXPOSE ${missing_ports[*]}。"
+  fi
+
+  local start_ports=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && start_ports+=("$line")
+  done < <(extract_start_cmd_ports)
+
+  if [[ ${#start_ports[@]} -gt 0 ]]; then
+    local sp
+    for sp in "${start_ports[@]}"; do
+      local found=0
+      local ep
+      for ep in "${expected_ports[@]}"; do
+        if [[ "$sp" == "$ep" ]]; then
+          found=1
+          break
+        fi
+      done
+      if [[ $found -eq 0 ]]; then
+        log_result WARN "启动命令显式端口 ${sp} 未在 challenge.expose_ports 声明。建议同步 challenge.yaml。"
+      fi
+    done
   fi
 }
 

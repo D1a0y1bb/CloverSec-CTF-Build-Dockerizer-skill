@@ -58,17 +58,31 @@ rules:
     level: ERROR
     scope: start.sh
     expect: present
-    when: "xinetd|ctf\\.xinetd"
-    pattern: "exec[[:space:]]+.*xinetd[[:space:]]+.*-dontfork"
-    message: "Pwn 场景必须以前台方式启动 xinetd。修复：使用 `exec /usr/sbin/xinetd -dontfork`。"
+    when: "xinetd|ctf\\.xinetd|tcpserver"
+    pattern: "exec[[:space:]]+.*(xinetd[[:space:]]+.*-dontfork|tcpserver)"
+    message: "Pwn 场景必须以前台方式启动 xinetd 或 tcpserver。修复：`exec /usr/sbin/xinetd -dontfork` 或 `exec tcpserver ...`。"
 
   - id: pwn-port-expose-required
     level: ERROR
     scope: Dockerfile
     expect: present
-    when: "xinetd|ctf\\.xinetd"
+    when: "xinetd|ctf\\.xinetd|tcpserver"
     pattern: "^[[:space:]]*EXPOSE[[:space:]]+[0-9]"
     message: "Pwn 场景必须显式暴露服务端口。修复：添加 `EXPOSE <pwn_port>`。"
+
+  - id: localhost-bind-review
+    level: WARN
+    scope: start.sh
+    expect: match
+    pattern: "127\\.0\\.0\\.1|localhost"
+    message: "检测到 localhost/127.0.0.1 监听线索。默认会触发动态门禁，请确认是否需要 `platform.allow_loopback_bind=true`。"
+
+  - id: background-ampersand-review
+    level: WARN
+    scope: start.sh
+    expect: match
+    pattern: "[^&]&[[:space:]]*$"
+    message: "检测到后台启动符号 `&`。请确保脚本最终存在前台阻塞主进程（exec 或 wait）。"
 
   - id: ai-thread-limit-recommended
     level: WARN

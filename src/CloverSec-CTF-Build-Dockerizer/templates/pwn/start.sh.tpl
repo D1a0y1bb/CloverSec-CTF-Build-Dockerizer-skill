@@ -21,11 +21,70 @@ fi
 
 rm -f /run/xinetd.pid
 
-# 单服务前台策略：exec xinetd -dontfork 作为 PID1。
-START_CMD="{{START_CMD}}"
-if [[ -z "${START_CMD}" ]]; then
-  START_CMD="/usr/sbin/xinetd -dontfork"
+extract_xinetd_field() {
+  local key="$1"
+  local cfg="{{WORKDIR}}/ctf.xinetd"
+  if [[ ! -f "${cfg}" ]]; then
+    return
+  fi
+  grep -E "^[[:space:]]*${key}[[:space:]]*=" "${cfg}" \
+    | head -n1 \
+    | sed -E "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//; s/[[:space:]]+$//"
+}
+
+TCP_PORT="$(extract_xinetd_field port || true)"
+TCP_SERVER="$(extract_xinetd_field server || true)"
+TCP_ARGS="$(extract_xinetd_field server_args || true)"
+
+if [[ -z "${TCP_PORT}" ]]; then
+  TCP_PORT="$(echo "{{EXPOSE_PORTS}}" | awk '{print $1}')"
+fi
+if [[ -z "${TCP_PORT}" ]]; then
+  TCP_PORT="10000"
 fi
 
-echo "[INFO] exec: ${START_CMD}"
-exec bash -lc "${START_CMD}"
+if [[ -z "${TCP_SERVER}" ]]; then
+  if [[ -x "{{WORKDIR}}/bin/chall" ]]; then
+    TCP_SERVER="{{WORKDIR}}/bin/chall"
+  elif [[ -x "{{WORKDIR}}/chall" ]]; then
+    TCP_SERVER="{{WORKDIR}}/chall"
+  else
+    TCP_SERVER="/bin/sh"
+  fi
+fi
+
+if [[ "${TCP_SERVER}" == "/bin/sh" && -z "${TCP_ARGS}" ]]; then
+  if [[ -x "{{WORKDIR}}/bin/chall" ]]; then
+    TCP_ARGS="{{WORKDIR}}/bin/chall"
+  elif [[ -x "{{WORKDIR}}/chall" ]]; then
+    TCP_ARGS="{{WORKDIR}}/chall"
+  fi
+fi
+
+START_CMD="{{START_CMD}}"
+
+if command -v xinetd >/dev/null 2>&1; then
+  if [[ -z "${START_CMD}" || "${START_CMD}" == *"xinetd"* ]]; then
+    START_CMD="/usr/sbin/xinetd -dontfork"
+  fi
+  echo "[INFO] exec: ${START_CMD}"
+  exec bash -lc "${START_CMD}"
+fi
+
+if command -v tcpserver >/dev/null 2>&1; then
+  if [[ -n "${START_CMD}" && "${START_CMD}" != *"xinetd"* ]]; then
+    echo "[INFO] exec custom start cmd (tcpserver path): ${START_CMD}"
+    exec bash -lc "${START_CMD}"
+  fi
+
+  if [[ -n "${TCP_ARGS}" ]]; then
+    echo "[INFO] exec: tcpserver -v 0.0.0.0 ${TCP_PORT} ${TCP_SERVER} ${TCP_ARGS}"
+    exec sh -lc "exec tcpserver -v 0.0.0.0 ${TCP_PORT} ${TCP_SERVER} ${TCP_ARGS}"
+  fi
+
+  echo "[INFO] exec: tcpserver -v 0.0.0.0 ${TCP_PORT} ${TCP_SERVER}"
+  exec tcpserver -v 0.0.0.0 "${TCP_PORT}" "${TCP_SERVER}"
+fi
+
+echo "[ERROR] 当前镜像缺少 xinetd/tcpserver，无法启动 Pwn 服务" >&2
+exit 1

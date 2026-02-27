@@ -22,6 +22,34 @@ stacks:
             - "3000"
           start_cmd: "npm run start"
           reason: "命中 Next.js 配置文件"
+      - id: nestjs
+        any_of_files:
+          - nest-cli.json
+        any_of_file_contains:
+          - file: package.json
+            pattern: "\"@nestjs/core\"|\"start:prod\""
+        infer:
+          expose_ports:
+            - "3000"
+          start_cmd: "npm run start:prod"
+          reason: "命中 NestJS 特征（nest-cli 或 @nestjs/core）"
+      - id: pnpm-workspace
+        any_of_files:
+          - pnpm-workspace.yaml
+        infer:
+          expose_ports:
+            - "3000"
+          start_cmd: "pnpm -r --parallel start"
+          reason: "命中 pnpm workspace，使用 workspace 启动命令候选"
+      - id: node-monorepo
+        any_of_globs:
+          - "apps/*/package.json"
+          - "packages/*/package.json"
+        infer:
+          expose_ports:
+            - "3000"
+          start_cmd: "npm run start"
+          reason: "命中 monorepo package.json 结构"
       - id: node-common-entry
         any_of_files:
           - server.js
@@ -75,6 +103,19 @@ stacks:
             - "8000"
           start_cmd: "python manage.py runserver 0.0.0.0:8000"
           reason: "命中 Django manage.py"
+      - id: fastapi-or-poetry
+        any_of_file_contains:
+          - file: requirements.txt
+            pattern: "(?i)fastapi|uvicorn"
+          - file: pyproject.toml
+            pattern: "(?i)fastapi|uvicorn"
+          - file: pyproject.toml
+            pattern: "(?i)\\[tool\\.poetry\\]"
+        infer:
+          expose_ports:
+            - "8000"
+          start_cmd: "uvicorn main:app --host 0.0.0.0 --port 8000"
+          reason: "命中 FastAPI/Uvicorn/Poetry 依赖信号"
       - id: flask-like
         any_of_files:
           - app.py
@@ -89,13 +130,31 @@ stacks:
     entry_files:
       - app.jar
       - target/app.jar
+      - build/libs/app.jar
     defaults:
       expose_ports:
         - "8080"
       start_cmd: "java -jar app.jar"
+      start_cmd_template: "java -jar {entry_file}"
       start_reason: "Java 规则未命中，回退默认 JAR 启动"
       ports_reason: "Java 规则未命中，回退默认端口"
     rules:
+      - id: spring-boot
+        any_of_file_contains:
+          - file: pom.xml
+            pattern: "(?i)spring-boot-starter"
+          - file: build.gradle
+            pattern: "(?i)spring-boot"
+          - file: build.gradle.kts
+            pattern: "(?i)spring-boot"
+        any_of_globs:
+          - "target/*.jar"
+          - "build/libs/*.jar"
+        infer:
+          expose_ports:
+            - "8080"
+          start_cmd: "java -jar {entry_file}"
+          reason: "命中 Spring Boot 依赖与构建产物"
       - id: built-jar
         any_of_globs:
           - "target/*.jar"
@@ -103,8 +162,8 @@ stacks:
         infer:
           expose_ports:
             - "8080"
-          start_cmd: "java -jar app.jar"
-          reason: "命中 Java 构建产物目录"
+          start_cmd: "java -jar {entry_file}"
+          reason: "命中 Java 构建产物目录并使用动态 JAR 路径"
 
   tomcat:
     entry_files:

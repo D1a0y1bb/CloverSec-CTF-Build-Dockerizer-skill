@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -13,6 +14,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_ROOT = SCRIPT_DIR.parent
 DATA_DIR = SKILL_ROOT / "data"
 TEMPLATES_DIR = SKILL_ROOT / "templates"
+_DURATION_RE = re.compile(r"^[0-9]+(ns|us|ms|s|m|h)$")
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -156,6 +158,25 @@ def _merge_unique_ports(base_ports: List[str], extra_ports: List[str]) -> List[s
     return merged
 
 
+def _parse_duration(value: Any, field_name: str, default: str) -> str:
+    raw = str(first_non_empty(value, default) or default).strip()
+    if not _DURATION_RE.match(raw):
+        raise ConfigError(f"{field_name} 格式非法（示例: 30s/5s/10s）: {raw}")
+    return raw
+
+
+def _parse_positive_int(value: Any, field_name: str, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        number = int(str(value).strip())
+    except ValueError as exc:
+        raise ConfigError(f"{field_name} 必须是正整数") from exc
+    if number < 1:
+        raise ConfigError(f"{field_name} 必须是正整数")
+    return number
+
+
 def _resolve_rdg_check_host_path(output_dir: Path, workdir: str, check_script_path: str) -> Path:
     raw = str(check_script_path).strip()
     if not raw:
@@ -201,6 +222,8 @@ def build_render_context(
     defaults = ensure_dict(stack_info.get("defaults"), f"stacks[{stack_id}].defaults")
 
     start_cfg = ensure_dict(challenge.get("start"), "challenge.start")
+    platform_cfg = ensure_dict(challenge.get("platform"), "challenge.platform")
+    healthcheck_cfg = ensure_dict(challenge.get("healthcheck"), "challenge.healthcheck")
     extra_cfg = ensure_dict(challenge.get("extra"), "challenge.extra")
     rdg_cfg = ensure_dict(challenge.get("rdg"), "challenge.rdg")
 
@@ -266,6 +289,32 @@ def build_render_context(
     inferred_base_image_raw = infer_info.get("base_image")
     inferred_base_image = (
         inferred_base_image_raw.strip() if isinstance(inferred_base_image_raw, str) else ""
+    )
+
+    allow_loopback_bind = _to_bool(
+        platform_cfg.get("allow_loopback_bind"), "challenge.platform.allow_loopback_bind", False
+    )
+
+    default_healthcheck_cmd = str(defaults.get("healthcheck_cmd") or "").strip()
+    healthcheck_enabled = _to_bool(
+        healthcheck_cfg.get("enabled"), "challenge.healthcheck.enabled", True
+    )
+    healthcheck_cmd = str(
+        first_non_empty(healthcheck_cfg.get("cmd"), default_healthcheck_cmd, "") or ""
+    ).strip()
+    if healthcheck_enabled and not healthcheck_cmd:
+        raise ConfigError("challenge.healthcheck.enabled=true 时，challenge.healthcheck.cmd 不能为空")
+    healthcheck_interval = _parse_duration(
+        healthcheck_cfg.get("interval"), "challenge.healthcheck.interval", "30s"
+    )
+    healthcheck_timeout = _parse_duration(
+        healthcheck_cfg.get("timeout"), "challenge.healthcheck.timeout", "5s"
+    )
+    healthcheck_retries = _parse_positive_int(
+        healthcheck_cfg.get("retries"), "challenge.healthcheck.retries", 3
+    )
+    healthcheck_start_period = _parse_duration(
+        healthcheck_cfg.get("start_period"), "challenge.healthcheck.start_period", "10s"
     )
 
     base_image = first_non_empty(
@@ -437,6 +486,13 @@ def build_render_context(
         "rdg_include_flag_artifact": rdg_include_flag_artifact,
         "rdg_check_enabled": rdg_check_enabled,
         "rdg_check_script_path": rdg_check_script_path,
+        "allow_loopback_bind": allow_loopback_bind,
+        "healthcheck_enabled": healthcheck_enabled,
+        "healthcheck_cmd": healthcheck_cmd,
+        "healthcheck_interval": healthcheck_interval,
+        "healthcheck_timeout": healthcheck_timeout,
+        "healthcheck_retries": healthcheck_retries,
+        "healthcheck_start_period": healthcheck_start_period,
         "output_dir": Path(args.output).resolve(),
         "inference_notes": inference_notes,
         "entry_file": infer_info.get("entry_file"),
@@ -469,6 +525,22 @@ def render_files(context: Dict[str, Any]) -> None:
             "\nRUN chmod 555 /start.sh"
         )
         flag_start_block = ": # RDG include_flag_artifact=false：跳过 /flag 检查"
+
+    healthcheck_block = "# healthcheck disabled"
+    if context.get("healthcheck_enabled", True):
+        health_tpl = load_template_with_includes(
+            TEMPLATES_DIR / "snippets" / "healthcheck.tpl", TEMPLATES_DIR
+        )
+        healthcheck_block = render_template(
+            health_tpl,
+            {
+                "HEALTHCHECK_INTERVAL": str(context.get("healthcheck_interval", "30s")),
+                "HEALTHCHECK_TIMEOUT": str(context.get("healthcheck_timeout", "5s")),
+                "HEALTHCHECK_RETRIES": str(context.get("healthcheck_retries", 3)),
+                "HEALTHCHECK_START_PERIOD": str(context.get("healthcheck_start_period", "10s")),
+                "HEALTHCHECK_CMD": str(context.get("healthcheck_cmd", "")),
+            },
+        ).rstrip()
 
     common_vars = {
         "BASE_IMAGE": context["base_image"],
@@ -507,6 +579,7 @@ def render_files(context: Dict[str, Any]) -> None:
         "RDG_CHECK_SCRIPT_PATH": context.get("rdg_check_script_path", "check/check.sh"),
         "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
         "RDG_FLAG_START_BLOCK": flag_start_block,
+        "HEALTHCHECK_BLOCK": healthcheck_block,
     }
 
     docker_vars = {
@@ -594,6 +667,18 @@ def render_files(context: Dict[str, Any]) -> None:
     print(f"- 端口: {' '.join(context['expose_ports'])}")
     print(f"- WORKDIR: {context['workdir']}")
     print(f"- 启动命令: {context['start_cmd']}")
+    if context.get("healthcheck_enabled", True):
+        print(
+            "- HEALTHCHECK: cmd={cmd} interval={interval} timeout={timeout} retries={retries} start_period={start_period}".format(
+                cmd=context.get("healthcheck_cmd", ""),
+                interval=context.get("healthcheck_interval", "30s"),
+                timeout=context.get("healthcheck_timeout", "5s"),
+                retries=context.get("healthcheck_retries", 3),
+                start_period=context.get("healthcheck_start_period", "10s"),
+            )
+        )
+    else:
+        print("- HEALTHCHECK: disabled")
 
     entry_file = context.get("entry_file")
     if entry_file:

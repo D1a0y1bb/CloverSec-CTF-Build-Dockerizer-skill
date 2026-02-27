@@ -333,12 +333,58 @@ def _any_glob(scan_dir: Path, globs: List[str]) -> Optional[str]:
     return None
 
 
+def _any_file_contains(scan_dir: Path, checks: List[Any]) -> Optional[str]:
+    for idx, item in enumerate(checks, start=1):
+        if not isinstance(item, dict):
+            raise ConfigError(
+                f"patterns.rules.any_of_file_contains 第 {idx} 项必须是对象（包含 file/pattern）"
+            )
+
+        file_ref = str(first_non_empty(item.get("file"), "")).strip()
+        pattern = str(first_non_empty(item.get("pattern"), "")).strip()
+        if not file_ref or not pattern:
+            continue
+
+        candidates: List[Path] = []
+        direct = scan_dir / file_ref
+        if direct.is_file():
+            candidates.append(direct)
+        else:
+            candidates.extend([p for p in sorted(scan_dir.glob(file_ref)) if p.is_file()])
+
+        if not candidates:
+            continue
+
+        try:
+            regex = re.compile(pattern, re.MULTILINE)
+        except re.error as exc:
+            raise ConfigError(
+                f"patterns.rules.any_of_file_contains pattern 无效：{pattern}"
+            ) from exc
+
+        for candidate in candidates:
+            try:
+                content = candidate.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            if regex.search(content):
+                try:
+                    return str(candidate.relative_to(scan_dir))
+                except ValueError:
+                    return str(candidate)
+
+    return None
+
+
 def _rule_matches(scan_dir: Path, rule: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     files = [str(x) for x in ensure_list(rule.get("any_of_files"), "patterns.rules.any_of_files")]
     dirs = [str(x) for x in ensure_list(rule.get("any_of_dirs"), "patterns.rules.any_of_dirs")]
     globs = [str(x) for x in ensure_list(rule.get("any_of_globs"), "patterns.rules.any_of_globs")]
+    file_contains = ensure_list(
+        rule.get("any_of_file_contains"), "patterns.rules.any_of_file_contains"
+    )
 
-    if not files and not dirs and not globs:
+    if not files and not dirs and not globs and not file_contains:
         # 无条件规则
         return True, None
 
@@ -353,6 +399,10 @@ def _rule_matches(scan_dir: Path, rule: Dict[str, Any]) -> Tuple[bool, Optional[
     glob_hit = _any_glob(scan_dir, globs)
     if glob_hit:
         return True, glob_hit
+
+    contains_hit = _any_file_contains(scan_dir, file_contains)
+    if contains_hit:
+        return True, contains_hit
 
     return False, None
 

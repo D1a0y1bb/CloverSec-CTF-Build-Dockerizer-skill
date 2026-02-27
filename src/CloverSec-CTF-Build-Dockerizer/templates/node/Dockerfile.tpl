@@ -36,5 +36,8 @@ COPY {{APP_SRC}} {{APP_DST}}
 # 声明端口，便于平台映射与排障。
 {{> snippets/expose.tpl }}
 
+# 可选健康检查。
+{{HEALTHCHECK_BLOCK}}
+
 # 默认入口保持与平台一致。
 {{> snippets/cmd-start.tpl }}

@@ -112,5 +112,6 @@ RUN chmod 555 /start.sh
 # 对外暴露端口（至少一个）
 EXPOSE 80 22 8022
 
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/80'
 # 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

@@ -24,6 +24,7 @@ from utils import (  # noqa: E402
 )
 
 ALLOWED_STACKS = {"node", "php", "python", "java", "tomcat", "lamp", "pwn", "ai", "rdg"}
+_DURATION_RE = re.compile(r"^[0-9]+(ns|us|ms|s|m|h)$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -122,6 +123,25 @@ def _to_bool(value: Any, default: bool) -> bool:
     raise ConfigError(f"布尔字段解析失败：{value}")
 
 
+def _parse_duration(value: Any, field_name: str, default: str) -> str:
+    raw = str(_first_non_empty(value, default) or default).strip()
+    if not _DURATION_RE.match(raw):
+        raise ConfigError(f"{field_name} 格式非法（示例: 30s/5s/10s）: {raw}")
+    return raw
+
+
+def _parse_positive_int(value: Any, field_name: str, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        number = int(str(value).strip())
+    except ValueError as exc:
+        raise ConfigError(f"{field_name} 必须是正整数") from exc
+    if number < 1:
+        raise ConfigError(f"{field_name} 必须是正整数")
+    return number
+
+
 def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
     stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
 
@@ -160,6 +180,28 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     platform = ensure_dict(proposal.get("platform"), "platform")
     entrypoint = str(_first_non_empty(platform.get("entrypoint"), "/start.sh") or "/start.sh").strip()
     require_bash = _to_bool(platform.get("require_bash"), True)
+    allow_loopback_bind = _to_bool(platform.get("allow_loopback_bind"), False)
+
+    healthcheck = ensure_dict(proposal.get("healthcheck"), "healthcheck")
+    healthcheck_enabled = _to_bool(healthcheck.get("enabled"), True)
+    default_healthcheck_cmd = str(defaults.get("healthcheck_cmd") or "").strip()
+    healthcheck_cmd = str(
+        _first_non_empty(healthcheck.get("cmd"), default_healthcheck_cmd, "") or ""
+    ).strip()
+    if healthcheck_enabled and not healthcheck_cmd:
+        raise ConfigError("healthcheck.enabled=true 时，healthcheck.cmd 不能为空")
+    healthcheck_interval = _parse_duration(
+        healthcheck.get("interval"), "healthcheck.interval", "30s"
+    )
+    healthcheck_timeout = _parse_duration(
+        healthcheck.get("timeout"), "healthcheck.timeout", "5s"
+    )
+    healthcheck_retries = _parse_positive_int(
+        healthcheck.get("retries"), "healthcheck.retries", 3
+    )
+    healthcheck_start_period = _parse_duration(
+        healthcheck.get("start_period"), "healthcheck.start_period", "10s"
+    )
 
     flag = ensure_dict(proposal.get("flag"), "flag")
     flag_path = str(_first_non_empty(flag.get("path"), "/flag") or "/flag").strip()
@@ -226,6 +268,15 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
             "platform": {
                 "entrypoint": entrypoint,
                 "require_bash": require_bash,
+                "allow_loopback_bind": allow_loopback_bind,
+            },
+            "healthcheck": {
+                "enabled": healthcheck_enabled,
+                "cmd": healthcheck_cmd,
+                "interval": healthcheck_interval,
+                "timeout": healthcheck_timeout,
+                "retries": healthcheck_retries,
+                "start_period": healthcheck_start_period,
             },
             "extra": {
                 "env": {},

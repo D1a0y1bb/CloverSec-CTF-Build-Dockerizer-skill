@@ -105,4 +105,5 @@ RUN set -eux; \
 
 {{RDG_FLAG_DOCKER_BLOCK}}
 {{> snippets/expose.tpl }}
+{{HEALTHCHECK_BLOCK}}
 {{> snippets/cmd-start.tpl }}

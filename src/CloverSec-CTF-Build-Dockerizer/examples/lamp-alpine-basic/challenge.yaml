@@ -1,0 +1,32 @@
+challenge:
+  name: lamp-alpine-basic
+  stack: lamp
+  base_image: alpine:3.20
+  workdir: /var/www/html
+  app_src: .
+  app_dst: /var/www/html
+  expose_ports:
+    - "80"
+  start:
+    mode: cmd
+    cmd: "httpd -D FOREGROUND"
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: /flag
+    permission: "444"
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+    allow_loopback_bind: false
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
+  extra:
+    env: {}
+    copy: []
+    user: ""

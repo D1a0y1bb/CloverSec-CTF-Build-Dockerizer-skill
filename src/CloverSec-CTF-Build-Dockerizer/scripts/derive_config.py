@@ -81,6 +81,20 @@ def _requirements_contains(scan_dir: Path, needle: str) -> bool:
     return needle.lower() in content
 
 
+def _file_contains(scan_dir: Path, rel_path: str, pattern: str) -> bool:
+    path = scan_dir / rel_path
+    if not path.is_file():
+        return False
+    try:
+        content = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return False
+    try:
+        return re.search(pattern, content, flags=re.IGNORECASE | re.MULTILINE) is not None
+    except re.error:
+        return False
+
+
 def _extract_xinetd_port(scan_dir: Path) -> Optional[Tuple[str, str]]:
     """从 xinetd 配置中提取端口。"""
     candidates = ["ctf.xinetd", "xinetd.conf", "etc/xinetd.d/ctf"]
@@ -152,6 +166,26 @@ def _build_start_candidates(
     default_cmd = str(defaults.get("start_cmd") or "").strip()
 
     if stack_id == "node":
+        if (scan_dir / "nest-cli.json").is_file() or _file_contains(
+            scan_dir, "package.json", r"@nestjs/core|\"start:prod\""
+        ):
+            candidates.append(
+                {
+                    "cmd": "npm run start:prod",
+                    "rationale": "命中 NestJS 工程信号",
+                    "evidence": ["命中文件: nest-cli.json/package.json(@nestjs/core)"],
+                }
+            )
+
+        if (scan_dir / "pnpm-workspace.yaml").is_file():
+            candidates.append(
+                {
+                    "cmd": "pnpm -r --parallel start",
+                    "rationale": "命中 pnpm workspace 结构",
+                    "evidence": ["命中文件: pnpm-workspace.yaml"],
+                }
+            )
+
         pkg_cmd = _read_package_start(scan_dir)
         if pkg_cmd:
             candidates.append(
@@ -175,6 +209,18 @@ def _build_start_candidates(
             notes.append("未命中 server.js/app.js/index.js，Q4 请手动确认启动命令。")
 
     elif stack_id == "python":
+        if _requirements_contains(scan_dir, "fastapi") or _requirements_contains(
+            scan_dir, "uvicorn"
+        ) or _file_contains(scan_dir, "pyproject.toml", r"fastapi|uvicorn|\[tool\.poetry\]"):
+            py_port = ports[0] if ports else "8000"
+            candidates.append(
+                {
+                    "cmd": f"uvicorn main:app --host 0.0.0.0 --port {py_port}",
+                    "rationale": "命中 FastAPI/Uvicorn/Poetry 依赖信号",
+                    "evidence": ["命中文件: requirements.txt/pyproject.toml"],
+                }
+            )
+
         if (scan_dir / "manage.py").is_file():
             django_port = ports[0] if ports else "8000"
             candidates.append(
@@ -207,6 +253,32 @@ def _build_start_candidates(
             )
 
     elif stack_id == "java":
+        build_jar = _find_first_existing(
+            scan_dir,
+            [
+                "target/app.jar",
+                "build/libs/app.jar",
+            ],
+        )
+        if not build_jar:
+            target_glob = sorted(scan_dir.glob("target/*.jar"))
+            libs_glob = sorted(scan_dir.glob("build/libs/*.jar"))
+            selected = target_glob[0] if target_glob else (libs_glob[0] if libs_glob else None)
+            if selected:
+                try:
+                    build_jar = str(selected.relative_to(scan_dir))
+                except ValueError:
+                    build_jar = str(selected)
+
+        if build_jar:
+            candidates.append(
+                {
+                    "cmd": f"java -jar {build_jar}",
+                    "rationale": "命中 Java/Spring Boot 构建产物",
+                    "evidence": [f"命中文件: {build_jar}"],
+                }
+            )
+
         if (scan_dir / "app.jar").is_file():
             candidates.append(
                 {
@@ -362,6 +434,22 @@ def _build_start_candidates(
         )
 
     unique = _unique_candidates(candidates, limit=3)
+    entry_hint = str(infer_info.get("entry_file") or "").strip()
+    entry_sensitive_stacks = {"node", "python", "java", "tomcat", "ai", "rdg"}
+    if stack_id in entry_sensitive_stacks and not entry_hint:
+        unique.insert(
+            0,
+            {
+                "cmd": "",
+                "rationale": "未推断到可执行入口，必须手动确认启动命令",
+                "evidence": [
+                    "patterns 未命中有效 entry_file",
+                    "为避免误生成误执行，Q4 需显式填写 start.cmd",
+                ],
+            },
+        )
+        notes.append("未推断到入口文件，Q4 不可直接回车，必须显式填写启动命令。")
+
     if not unique:
         notes.append("未生成可用启动命令候选，Q4 必须手动输入 start_cmd。")
 
@@ -426,6 +514,7 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     )
 
     guessed_ports = normalize_ports(infer_info.get("ports"))
+    ports_from_default = False
     port_evidence: List[str] = []
     xinetd_port = _extract_xinetd_port(project_dir) if stack_id == "pwn" else None
     if xinetd_port:
@@ -441,6 +530,7 @@ def derive(project_dir: Path) -> Dict[str, Any]:
                 port_evidence.append(reason)
     else:
         guessed_ports = normalize_ports(defaults.get("expose_ports"))
+        ports_from_default = True
         port_evidence.append("回退: stacks.yaml defaults.expose_ports")
 
     workdir = str(defaults.get("workdir") or "/app")
@@ -459,12 +549,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     if best_conf < 0.6:
         notes.append(f"栈侦测置信度较低（{best_conf:.2f}），Q1 请重点确认技术栈。")
 
-    if not guessed_ports:
-        guessed_ports = normalize_ports(defaults.get("expose_ports"))
-        notes.append("未推断出端口，已回退默认端口，请在 Q2 确认。")
-
     if not candidates:
         notes.append("未找到启动命令候选，Q4 必须手动输入 start_cmd。")
+    elif not candidates[0].get("cmd", "").strip():
+        notes.append("启动命令候选为空占位，Q4 必须填写可执行命令。")
 
     if inferred_base_image:
         notes.append(
@@ -487,6 +575,16 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     else:
         stack_evidence.append("未命中明确特征，使用默认栈回退")
 
+    requires_explicit_stack_confirm = best_conf < 0.6
+    requires_port_confirm = ports_from_default or infer_info.get("ports_source") in {"none", "default"}
+    requires_start_cmd_confirm = (
+        not candidates
+        or not str(candidates[0].get("cmd", "")).strip()
+        or infer_info.get("start_source") in {"none", "default", "entry"}
+    )
+
+    default_healthcheck_cmd = str(defaults.get("healthcheck_cmd") or "").strip()
+
     proposal: Dict[str, Any] = {
         "stack_guess": {
             "id": stack_id,
@@ -507,6 +605,11 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             "app_dst": app_dst,
             "evidence": app_path_evidence,
         },
+        "gates": {
+            "requires_explicit_stack_confirm": requires_explicit_stack_confirm,
+            "requires_start_cmd_confirm": requires_start_cmd_confirm,
+            "requires_port_confirm": requires_port_confirm,
+        },
         "notes": notes,
         # 供 AI 直接渲染 Step 1 的 CONFIG PROPOSAL 块
         "config_proposal": {
@@ -523,10 +626,19 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             "platform": {
                 "entrypoint": "/start.sh",
                 "require_bash": True,
+                "allow_loopback_bind": False,
             },
             "flag": {
                 "path": "/flag",
                 "permission": "444",
+            },
+            "healthcheck": {
+                "enabled": True,
+                "cmd": default_healthcheck_cmd,
+                "interval": "30s",
+                "timeout": "5s",
+                "retries": 3,
+                "start_period": "10s",
             },
         },
     }

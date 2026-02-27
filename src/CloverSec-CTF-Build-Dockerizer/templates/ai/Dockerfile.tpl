@@ -46,5 +46,8 @@ ENV OPENBLAS_NUM_THREADS=1 \
 # 暴露服务端口（默认 5000）。
 {{> snippets/expose.tpl }}
 
+# 可选健康检查。
+{{HEALTHCHECK_BLOCK}}
+
 # 保持与平台一致的默认入口。
 {{> snippets/cmd-start.tpl }}

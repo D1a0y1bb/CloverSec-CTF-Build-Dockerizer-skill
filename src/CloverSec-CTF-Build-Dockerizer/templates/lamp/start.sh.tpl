@@ -11,7 +11,11 @@ chown -R mysql:mysql /run/mysqld /var/lib/mysql /var/log/mysql || true
 
 if [[ ! -d /var/lib/mysql/mysql ]]; then
   echo "[INFO] 初始化 MariaDB 数据目录"
-  mariadb-install-db --user=mysql --datadir=/var/lib/mysql >/dev/null
+  if command -v mariadb-install-db >/dev/null 2>&1; then
+    mariadb-install-db --user=mysql --datadir=/var/lib/mysql >/dev/null
+  elif command -v mysql_install_db >/dev/null 2>&1; then
+    mysql_install_db --user=mysql --datadir=/var/lib/mysql >/dev/null
+  fi
 fi
 
 echo "[INFO] 后台启动 MariaDB"
@@ -33,8 +37,22 @@ ln -sf /proc/self/fd/1 /var/log/apache2/access.log
 ln -sf /proc/self/fd/2 /var/log/apache2/error.log
 
 START_CMD="{{START_CMD}}"
+DEFAULT_HTTPD_CMD=""
+if command -v apache2ctl >/dev/null 2>&1; then
+  DEFAULT_HTTPD_CMD="apache2ctl -D FOREGROUND"
+elif command -v httpd >/dev/null 2>&1; then
+  DEFAULT_HTTPD_CMD="httpd -D FOREGROUND"
+else
+  echo "[ERROR] 未检测到 apache2ctl/httpd，可用前台 Web 服务命令缺失" >&2
+  exit 1
+fi
+
 if [[ -z "${START_CMD}" ]]; then
-  START_CMD="apache2ctl -D FOREGROUND"
+  START_CMD="${DEFAULT_HTTPD_CMD}"
+fi
+
+if [[ "${START_CMD}" == "apache2ctl -D FOREGROUND" ]] && ! command -v apache2ctl >/dev/null 2>&1; then
+  START_CMD="${DEFAULT_HTTPD_CMD}"
 fi
 
 echo "[INFO] exec: ${START_CMD}"

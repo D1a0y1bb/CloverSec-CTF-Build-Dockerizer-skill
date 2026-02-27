@@ -30,4 +30,5 @@ COPY {{APP_SRC}} {{APP_DST}}
 
 {{> snippets/copy-flag-start.tpl }}
 {{> snippets/expose.tpl }}
+{{HEALTHCHECK_BLOCK}}
 {{> snippets/cmd-start.tpl }}

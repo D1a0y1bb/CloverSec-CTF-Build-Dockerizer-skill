@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "hello from pwn-alpine-tcpserver-basic"
+cat

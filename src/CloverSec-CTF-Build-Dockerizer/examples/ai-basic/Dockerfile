@@ -63,6 +63,9 @@ RUN chmod 555 /start.sh && chmod 444 /flag
 EXPOSE 5000
 
 
+# 可选健康检查。
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/5000'
+
 # 保持与平台一致的默认入口。
 # 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]
