@@ -42,6 +42,12 @@ jobs:
       - name: Validate examples
         run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 
+      - name: Validate autofix dry-run
+        run: |
+          EXAMPLE_DIR="src/CloverSec-CTF-Build-Dockerizer/examples/node-basic"
+          python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config "${EXAMPLE_DIR}/challenge.yaml" --output "${EXAMPLE_DIR}"
+          bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --fix "${EXAMPLE_DIR}/Dockerfile" "${EXAMPLE_DIR}/start.sh" "${EXAMPLE_DIR}/challenge.yaml"
+
       - name: Document guard
         run: bash scripts/doc_guard.sh
 
@@ -78,7 +84,7 @@ jobs:
         run: find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
 
       - name: Validate examples
-        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+        run: VALIDATE_ENFORCE_DIGEST=1 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 
       - name: Document guard
         run: bash scripts/doc_guard.sh
@@ -91,3 +97,10 @@ jobs:
 
       - name: Release build
         run: bash scripts/release_build.sh
+
+      - name: Assert SBOM artifacts
+        run: |
+          version="$(tr -d '[:space:]' VERSION)"
+          test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.sbom.spdx.json"
+          test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.sbom.cdx.json"
+          test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.deps.txt"

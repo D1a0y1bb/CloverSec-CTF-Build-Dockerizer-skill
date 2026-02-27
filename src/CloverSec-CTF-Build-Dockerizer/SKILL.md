@@ -47,6 +47,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - 栈默认值：`src/CloverSec-CTF-Build-Dockerizer/data/stacks.yaml`
 - 推断规则：`src/CloverSec-CTF-Build-Dockerizer/data/patterns.yaml`
 - 可配置校验：`src/CloverSec-CTF-Build-Dockerizer/data/validate_rules.yaml`
+- digest 放行白名单：`src/CloverSec-CTF-Build-Dockerizer/data/base_image_allowlist.yaml`
 - 平台契约：`src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
 - 栈手册：`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
 - 故障排查：`src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md`
@@ -112,7 +113,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG check 脚本契约（v1.4.0）
+### RDG check 脚本契约（v1.4.0-r1）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -136,6 +137,17 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `NPM_INSTALL_BLOCK`
 - `PIP_REQUIREMENTS_BLOCK`
 - `HEALTHCHECK_BLOCK`
+- `STACK_FLAG_BLOCK`
+
+## validate 自动修复与发布门禁（v1.4.0-r1）
+
+- `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
+  - 仅预览安全自动修复，不落盘。
+- `bash .../validate.sh --fix-write Dockerfile start.sh challenge.yaml`
+  - 应用安全自动修复后继续校验。
+- `bash .../validate.sh --fix --fix-loopback ...`
+  - 允许把显式 loopback 绑定参数（如 `--host 127.0.0.1`）改写为 `0.0.0.0`。
+- 发布链路可设置 `VALIDATE_ENFORCE_DIGEST=1`，触发基础镜像 digest 强门禁（官方白名单 tag-only 放行）。
 
 ## 平台契约解释（执行时必须牢记）
 

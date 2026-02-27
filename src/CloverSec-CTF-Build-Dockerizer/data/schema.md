@@ -145,6 +145,10 @@ challenge:
 - `examples/ai-transformers-basic/challenge.yaml`
 - `examples/rdg-php-hardening-basic/challenge.yaml`
 - `examples/rdg-python-ssti-basic/challenge.yaml`
+- `examples/node-multiport-basic/challenge.yaml`
+- `examples/python-supervisor-basic/challenge.yaml`
+- `examples/pwn-socat-basic/challenge.yaml`
+- `examples/tomcat-context-basic/challenge.yaml`
 
 兼容示例：
 
@@ -154,3 +158,10 @@ challenge:
 - `examples/java/challenge.yaml`
 - `examples/tomcat/challenge.yaml`
 - `examples/lamp/challenge.yaml`
+
+## 校验器附加行为（v1.4.0-r1）
+
+- `validate.sh --fix`：仅预览安全自动修复（dry-run）。
+- `validate.sh --fix-write`：应用安全自动修复并继续校验。
+- `validate.sh --fix-loopback`：允许修复显式 loopback 绑定参数到 `0.0.0.0`。
+- `VALIDATE_ENFORCE_DIGEST=1`：启用发布级 digest 门禁；非 digest 且非官方白名单镜像会报 `ERROR`。

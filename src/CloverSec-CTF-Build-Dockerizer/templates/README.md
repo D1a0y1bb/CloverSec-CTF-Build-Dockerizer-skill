@@ -22,6 +22,9 @@
 
 通用片段位于 `snippets/`：
 
+- `docker-common-prolog.tpl`：统一 `FROM` 头部
+- `docker-common-epilog.tpl`：统一 `flag/expose/healthcheck/cmd` 尾部
+- `run-bash-bootstrap.tpl`：统一 bash 引导安装分支
 - `copy-flag-start.tpl`：写入 `/start.sh` 与 `/flag` 并设置权限
 - `expose.tpl`：渲染 `EXPOSE` 指令
 - `healthcheck.tpl`：渲染 Docker `HEALTHCHECK` 指令
@@ -36,8 +39,9 @@
 说明：
 
 - RDG 模板支持 `challenge.rdg.include_flag_artifact=false`，该模式下会改为仅写入 `/start.sh`，不再强制渲染 `/flag` 片段。
-- 自 `v1.4.0` 起，所有栈模板支持 `{{HEALTHCHECK_BLOCK}}` 注入，可通过 `challenge.healthcheck.enabled=false` 显式关闭。
-- `pwn` 与 `lamp` 模板已统一支持 Debian/Ubuntu 与 Alpine 双分支安装策略。
+- 自 `v1.4.0-r1` 起，9 栈 Dockerfile 统一使用 prolog/epilog 组合片段，减少重复模板维护成本。
+- 所有栈模板支持 `{{HEALTHCHECK_BLOCK}}` 注入，可通过 `challenge.healthcheck.enabled=false` 显式关闭。
+- `pwn` 与 `lamp` 模板支持 Debian/Ubuntu 与 Alpine 双分支安装策略；`pwn` 同时支持 `xinetd/tcpserver/socat` 前台路径。
 
 ## include 语法
 

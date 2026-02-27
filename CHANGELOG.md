@@ -2,6 +2,47 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.4.0-r1 - 2026-02-27
+
+### 新增
+
+- 新增模板组合片段：
+  - `templates/snippets/docker-common-prolog.tpl`
+  - `templates/snippets/docker-common-epilog.tpl`
+  - `templates/snippets/run-bash-bootstrap.tpl`
+- 新增 `validate.sh` 自动修复模式：
+  - `--fix`（dry-run）
+  - `--fix-write`（落盘）
+  - `--fix-loopback`（显式允许 loopback 参数改写）
+- 新增发布级基础镜像白名单：`data/base_image_allowlist.yaml`。
+- 新增 SBOM 生成脚本：`scripts/generate_sbom.sh`（`syft` 优先，失败回退 `docker sbom`，兜底 placeholder）。
+- 新增回归样例：
+  - `examples/node-multiport-basic`
+  - `examples/python-supervisor-basic`
+  - `examples/pwn-socat-basic`
+  - `examples/tomcat-context-basic`
+
+### 变更
+
+- 9 栈 Dockerfile 模板统一接入可组合横切层，减少重复模板逻辑，保留栈特有实现块。
+- `pwn` 模板与校验升级为 `xinetd/tcpserver/socat` 三路径兼容。
+- `smoke_test.sh` 新增每示例可选 `smoke_assert.sh` 自动断言入口。
+- `release_build.sh` 在发布检查阶段启用 `VALIDATE_ENFORCE_DIGEST=1`，并自动产出 SBOM 与依赖清单资产。
+- `publish_release.sh` 升级为多资产上传（zip + SPDX + CycloneDX + deps），保持 immutable-compatible 流程。
+- CI 同步增强：
+  - PR `fast-check` 新增 `validate --fix` dry-run 校验
+  - tag/手动全检启用 digest 门禁
+  - release-full-check 新增 SBOM 产物断言
+
+### 验收要点
+
+- `npx -y skills add . --list` 安装识别入口保持不变。
+- 发布资产新增：
+  - `CloverSec-CTF-Build-Dockerizer-v1.4.0-r1.zip`
+  - `CloverSec-CTF-Build-Dockerizer-v1.4.0-r1.sbom.spdx.json`
+  - `CloverSec-CTF-Build-Dockerizer-v1.4.0-r1.sbom.cdx.json`
+  - `CloverSec-CTF-Build-Dockerizer-v1.4.0-r1.deps.txt`
+
 ## v1.4.0 - 2026-02-27
 
 ### 新增

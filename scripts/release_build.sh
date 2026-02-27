@@ -7,6 +7,7 @@ PACKAGE_NAME="CloverSec-CTF-Build-Dockerizer"
 VERSION_FILE="${ROOT_DIR}/VERSION"
 SRC_SKILL_DIR="${ROOT_DIR}/src/${SKILL_SOURCE_NAME}"
 DIST_DIR="${ROOT_DIR}/dist"
+GENERATE_SBOM_SCRIPT="${ROOT_DIR}/scripts/generate_sbom.sh"
 SKIP_CHECKS="false"
 RELEASE_VERSION=""
 PACKAGE_BASENAME=""
@@ -20,9 +21,12 @@ usage() {
 
 说明：
   - 版本号读取自根目录 VERSION（例如 v1.2.0）
-  - 生成带版本号的两个产物：
+  - 生成带版本号的产物：
       dist/CloverSec-CTF-Build-Dockerizer-<VERSION>/
       dist/CloverSec-CTF-Build-Dockerizer-<VERSION>.zip
+      dist/CloverSec-CTF-Build-Dockerizer-<VERSION>.sbom.spdx.json
+      dist/CloverSec-CTF-Build-Dockerizer-<VERSION>.sbom.cdx.json
+      dist/CloverSec-CTF-Build-Dockerizer-<VERSION>.deps.txt
   - zip 为单目录分发，不包含 .claude/.codex 双树
   - 技能根目录不包含 README.md（避免部分 Agent 误识别）
   - 包内排除 internal、.DS_Store、__pycache__、*.pyc
@@ -83,6 +87,11 @@ if ! command -v zip >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ ! -x "${GENERATE_SBOM_SCRIPT}" ]]; then
+  echo "[ERROR] 缺少 SBOM 生成脚本: ${GENERATE_SBOM_SCRIPT}" >&2
+  exit 1
+fi
+
 run_checks() {
   echo "[INFO] 执行发布前检查..."
 
@@ -92,8 +101,8 @@ run_checks() {
   echo "[INFO] Shell 语法检查"
   find "${ROOT_DIR}/scripts" "${SRC_SKILL_DIR}/scripts" -name '*.sh' -print0 | xargs -0 -n1 bash -n
 
-  echo "[INFO] 示例静态回归"
-  bash "${SRC_SKILL_DIR}/scripts/validate_examples.sh"
+  echo "[INFO] 示例静态回归（启用发布级 digest 门禁）"
+  VALIDATE_ENFORCE_DIGEST=1 bash "${SRC_SKILL_DIR}/scripts/validate_examples.sh"
 
   echo "[INFO] 公开文档隐私扫描"
   if rg -n --hidden --glob '!.git' --glob '!internal/**' '/[Uu]sers/|yuque\\.com/[A-Za-z0-9_-]+|By\[@' \
@@ -201,6 +210,11 @@ if [[ ! -d "${RELEASE_ROOT}" ]]; then
 fi
 
 assert_zip_layout "${ZIP_PATH}"
+
+echo "[INFO] 生成 SBOM 与依赖清单..."
+bash "${GENERATE_SBOM_SCRIPT}" \
+  --source-dir "${RELEASE_ROOT}" \
+  --output-prefix "${DIST_DIR}/${PACKAGE_BASENAME}"
 
 echo "[OK] 发布目录已生成: ${RELEASE_ROOT}"
 echo "[OK] 发布包已生成: ${ZIP_PATH}"

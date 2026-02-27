@@ -23,11 +23,13 @@ OWNER_REPO=""
 RELEASE_ID=""
 RELEASE_HTML_URL=""
 ASSET_DOWNLOAD_URL=""
+ASSET_DOWNLOAD_URLS=()
 RELEASE_IS_DRAFT=""
 RELEASE_IS_IMMUTABLE=""
 RELEASE_TAG_NAME=""
 AUTH_ARGS=()
 PUBLISH_STAGE_PATHS=()
+ASSET_UPLOAD_PATHS=()
 
 log() {
   echo "[INFO] $*"
@@ -53,7 +55,7 @@ What this script does:
   3) Commit and push current branch
   4) Create/push git tag from VERSION
   5) Create or update GitHub Release (immutable-friendly: draft first)
-  6) Upload dist/CloverSec-CTF-Build-Dockerizer-<VERSION>.zip as release asset
+  6) Upload zip + sbom/deps assets from dist/ as release assets
   7) Publish draft release
 
 Options:
@@ -181,6 +183,19 @@ build_release_zip() {
 
   ZIP_PATH="${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.zip"
   [[ -f "${ZIP_PATH}" ]] || die "Release zip not found: ${ZIP_PATH}"
+
+  ASSET_UPLOAD_PATHS=("${ZIP_PATH}")
+  local extra_asset
+  for extra_asset in \
+    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.sbom.spdx.json" \
+    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.sbom.cdx.json" \
+    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.deps.txt"; do
+    if [[ -f "${extra_asset}" ]]; then
+      ASSET_UPLOAD_PATHS+=("${extra_asset}")
+    else
+      warn "Optional release asset not found, skip upload: ${extra_asset}"
+    fi
+  done
 }
 
 is_blocked_publish_path() {
@@ -591,19 +606,27 @@ PY
   rm -f "${payload_file}" "${response_file}"
 }
 
-upload_release_asset() {
+upload_asset_file() {
+  local asset_path="$1"
   local asset_name
+  local content_type
   local get_release_file
   local code
   local existing_asset_id
   local existing_asset_url
   local upload_response
   local upload_url
+  local uploaded_url
 
-  [[ "${SKIP_UPLOAD}" == "false" ]] || { log "Skipped asset upload (--skip-upload)"; return 0; }
-  [[ -f "${ZIP_PATH}" ]] || die "Cannot upload missing asset: ${ZIP_PATH}"
+  [[ -f "${asset_path}" ]] || die "Cannot upload missing asset: ${asset_path}"
 
-  asset_name="$(basename "${ZIP_PATH}")"
+  asset_name="$(basename "${asset_path}")"
+  case "${asset_name}" in
+    *.zip) content_type="application/zip" ;;
+    *.json) content_type="application/json" ;;
+    *.txt) content_type="text/plain" ;;
+    *) content_type="application/octet-stream" ;;
+  esac
 
   get_release_file="$(mktemp)"
   code="$(api_request "GET" "https://api.github.com/repos/${OWNER_REPO}/releases/${RELEASE_ID}" "${get_release_file}")"
@@ -617,7 +640,9 @@ upload_release_asset() {
   existing_asset_url="$(json_read "${get_release_file}" "asset.url:${asset_name}")"
   if [[ -n "${existing_asset_id}" ]]; then
     if [[ "${RELEASE_IS_IMMUTABLE}" == "true" && "${RELEASE_IS_DRAFT}" != "true" ]]; then
-      ASSET_DOWNLOAD_URL="${existing_asset_url}"
+      if [[ -n "${existing_asset_url}" ]]; then
+        ASSET_DOWNLOAD_URLS+=("${existing_asset_url}")
+      fi
       log "Immutable release already contains asset ${asset_name}; keeping existing asset"
       rm -f "${get_release_file}"
       return 0
@@ -634,11 +659,28 @@ upload_release_asset() {
 
   upload_response="$(mktemp)"
   upload_url="https://uploads.github.com/repos/${OWNER_REPO}/releases/${RELEASE_ID}/assets?name=${asset_name}"
-  code="$(api_request "POST" "${upload_url}" "${upload_response}" "${ZIP_PATH}" "application/zip")"
+  code="$(api_request "POST" "${upload_url}" "${upload_response}" "${asset_path}" "${content_type}")"
   [[ "${code}" == "201" ]] || die "Asset upload failed (HTTP ${code}): $(head -c 500 "${upload_response}")"
 
-  ASSET_DOWNLOAD_URL="$(json_read "${upload_response}" "asset.browser_download_url")"
+  uploaded_url="$(json_read "${upload_response}" "asset.browser_download_url")"
+  if [[ -n "${uploaded_url}" ]]; then
+    ASSET_DOWNLOAD_URLS+=("${uploaded_url}")
+    if [[ -z "${ASSET_DOWNLOAD_URL}" && "${asset_name}" == *.zip ]]; then
+      ASSET_DOWNLOAD_URL="${uploaded_url}"
+    fi
+  fi
   rm -f "${get_release_file}" "${upload_response}"
+}
+
+upload_release_assets() {
+  [[ "${SKIP_UPLOAD}" == "false" ]] || { log "Skipped asset upload (--skip-upload)"; return 0; }
+  [[ ${#ASSET_UPLOAD_PATHS[@]} -gt 0 ]] || die "No release assets prepared for upload."
+
+  local asset_path
+  for asset_path in "${ASSET_UPLOAD_PATHS[@]}"; do
+    log "Uploading release asset: ${asset_path}"
+    upload_asset_file "${asset_path}"
+  done
 }
 
 publish_release_if_needed() {
@@ -701,7 +743,7 @@ main() {
   resolve_owner_repo
   setup_auth
   create_or_prepare_release
-  upload_release_asset
+  upload_release_assets
   publish_release_if_needed
 
   echo "[OK] Publish complete"
@@ -709,6 +751,12 @@ main() {
   echo "[OK] Release: ${RELEASE_HTML_URL}"
   if [[ -n "${ASSET_DOWNLOAD_URL}" ]]; then
     echo "[OK] Asset: ${ASSET_DOWNLOAD_URL}"
+  fi
+  if [[ ${#ASSET_DOWNLOAD_URLS[@]} -gt 0 ]]; then
+    local asset_url
+    for asset_url in "${ASSET_DOWNLOAD_URLS[@]}"; do
+      echo "[OK] Asset URL: ${asset_url}"
+    done
   fi
 }
 

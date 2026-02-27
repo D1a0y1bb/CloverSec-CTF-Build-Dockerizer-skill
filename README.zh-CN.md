@@ -11,28 +11,28 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.4.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.4.0-r1</code></p>
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.4.0
+## What's New in v1.4.0-r1
 
-`v1.4.0` 是一次引擎级迭代，核心目标是把“隐含默认”升级为“可执行契约”。`healthcheck` 不再是文档字段，而是完整接入解析与渲染链路：支持 `challenge.healthcheck` 配置、支持按栈默认值回退、支持显式关闭并确保行为可预期。
+`v1.4.0-r1` 是基于 `v1.4.0` 的工程化补丁版本，核心目标是提升交付稳定性与发布可审计性。模板体系进一步收敛为可组合结构：9 栈 Dockerfile 统一复用 prolog/epilog 横切片段，栈模板只保留栈特有逻辑，减少复制粘贴式膨胀。
 
-运行时兼容方面，`pwn` 与 `lamp` 模板统一支持 Debian/Ubuntu 与 Alpine 双分支。Pwn 在 Alpine 下可回退到 `tcpserver`（`ucspi-tcp6`），Debian/Ubuntu 维持 `xinetd`；LAMP 则在两类发行版都能安装 Apache/PHP/MariaDB 并前台运行，降低用户自定义 `base_image` 时的爆炸概率。
+校验链路新增安全自动修复能力：`validate.sh --fix` 只做 dry-run 预览，`--fix-write` 才会落盘写回，`--fix-loopback` 用于显式启用 loopback 参数改写。Pwn 运行时同时支持 `xinetd/tcpserver/socat`，并补齐了对应端口一致性校验。
 
-校验与编排方面，`validate.sh` 新增条件化 localhost 门禁（支持 `allow_loopback_bind` 显式豁免，并可在“公网前置 + 回环辅服务”拓扑下 INFO 放行），新增后台 `&` 启动后脚本提前退出风险检测，以及“启动命令显式端口”与 `EXPOSE/challenge.expose_ports` 的一致性提示。`derive_config.py` 新增 `gates.requires_*`，并在低置信或无入口时输出“空启动候选”，避免误生成误执行。`patterns.yaml` 同步增强了 FastAPI/Poetry、NestJS/pnpm workspace、Spring Boot 动态 JAR 推断。
+供应链方面，发布流程新增 digest 门禁与 SBOM 资产：`release_build.sh` 会在发布校验阶段启用 `VALIDATE_ENFORCE_DIGEST=1`，非 digest 且不在官方白名单的基础镜像将报错；发布资产除 zip 外，还包含 `.sbom.spdx.json`、`.sbom.cdx.json`、`.deps.txt` 并由 `publish_release.sh` 一并上传。
 
 <details>
-<summary><b>v1.4.0 实施重点</b></summary>
+<summary><b>v1.4.0-r1 实施重点</b></summary>
 
-新增样例覆盖：`pwn-alpine-tcpserver-basic`、`lamp-alpine-basic`、`python-loopback-ssrf-basic`。对应覆盖了 Alpine 运行时分支、SSRF 回环豁免（`platform.allow_loopback_bind=true`）和 `healthcheck.enabled=false` 关闭路径。
+新增样例覆盖：`node-multiport-basic`、`python-supervisor-basic`、`pwn-socat-basic`、`tomcat-context-basic`。`smoke_test.sh` 支持按示例自动执行 `smoke_assert.sh` 断言脚本，用于多端口/上下文路径等边界验证。
 
 </details>
 
@@ -236,7 +236,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.4.0
+bash scripts/publish_release.sh --version v1.4.0-r1
 ```
 
 ## 更新记录

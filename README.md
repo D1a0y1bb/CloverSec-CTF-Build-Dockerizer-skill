@@ -12,28 +12,28 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.4.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.4.0-r1</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
-## What's New in v1.4.0
+## What's New in v1.4.0-r1
 
-`v1.4.0` is an engine-level iteration focused on turning implicit assumptions into explicit contracts. The healthcheck field is now truly implemented: `challenge.healthcheck` is parsed, validated, and rendered into Docker `HEALTHCHECK`, with stack defaults from `stacks.yaml` and an explicit disable path.
+`v1.4.0-r1` is a hardening patch on top of `v1.4.0`, focused on delivery reliability and release auditability. The template system is now more composable: all 9 stack Dockerfiles share common prolog/epilog snippets so stack templates only keep stack-specific logic. This reduces copy-paste drift when adding or changing stack behavior.
 
-Runtime compatibility is also tightened. `pwn` and `lamp` templates now support both Debian/Ubuntu and Alpine branches. Pwn can run with `xinetd` or fallback `tcpserver` (`ucspi-tcp6`) depending on base image capabilities, while LAMP can bootstrap Apache/PHP/MariaDB in both package ecosystems. This reduces base-image fragility when users override `base_image`.
+Validation now supports a safe autofix path. `validate.sh --fix` previews low-risk patches (dry-run), while `--fix-write` applies them explicitly; `--fix-loopback` enables optional loopback host rewrites for explicit host arguments. Pwn runtime support is extended to `xinetd/tcpserver/socat`, and new regression examples cover multi-port services, supervisor mode, socat, and Tomcat custom context paths.
 
-Validation and orchestration are hardened for real delivery. `validate.sh` adds conditional localhost gates (`allow_loopback_bind` override + public-frontend-aware INFO pass), background-process exit-risk detection, and explicit start-port consistency hints against `EXPOSE` and `challenge.expose_ports`. `derive_config.py` now outputs `gates.requires_*` signals and can emit an empty start candidate for low-confidence/no-entry projects, preventing accidental auto-generation from weak evidence. Pattern coverage now includes FastAPI/Poetry, NestJS/pnpm workspace, and Spring Boot dynamic JAR paths.
+Supply-chain controls are tightened for release flow. `release_build.sh` now enables `VALIDATE_ENFORCE_DIGEST=1`; tag-only base images are blocked unless matched by `data/base_image_allowlist.yaml`. Release artifacts now include SBOM and dependency outputs (`.sbom.spdx.json`, `.sbom.cdx.json`, `.deps.txt`), uploaded alongside the zip by `publish_release.sh` in immutable-compatible mode.
 
 <details>
-<summary><b>v1.4.0 implementation highlights</b></summary>
+<summary><b>v1.4.0-r1 implementation highlights</b></summary>
 
-New example coverage is added for `pwn-alpine-tcpserver-basic`, `lamp-alpine-basic`, and `python-loopback-ssrf-basic`. These examples validate Alpine runtime branches, SSRF loopback exemption (`platform.allow_loopback_bind=true`), and healthcheck disable behavior (`healthcheck.enabled=false`).
+New example coverage is added for `node-multiport-basic`, `python-supervisor-basic`, `pwn-socat-basic`, and `tomcat-context-basic`. `smoke_test.sh` now supports optional per-example `smoke_assert.sh` hooks for boundary assertions.
 
 </details>
 
@@ -237,7 +237,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 bash scripts/release_build.sh
 
 # One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.4.0
+bash scripts/publish_release.sh --version v1.4.0-r1
 ```
 
 ## Changelog

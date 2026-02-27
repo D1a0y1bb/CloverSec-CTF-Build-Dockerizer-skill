@@ -2,10 +2,12 @@
 
 本文档提供 9 个技术栈的最小可用配置、常见变更和注意事项。
 
-通用补充（v1.4.0）：
+通用补充（v1.4.0-r1）：
 
 - 所有栈支持 `challenge.healthcheck`，可渲染 Docker `HEALTHCHECK`，并可通过 `healthcheck.enabled: false` 显式关闭。
 - localhost/127.0.0.1 监听默认会触发门禁；若题型确实需要回环监听（例如 SSRF/内网链路），请设置 `challenge.platform.allow_loopback_bind: true`。
+- `validate.sh` 新增 `--fix/--fix-write` 安全自动修复模式，可先 dry-run 预览补丁，再按需写回。
+- 发布链路可启用 `VALIDATE_ENFORCE_DIGEST=1`，对基础镜像执行 digest 门禁（官方白名单支持 tag-only 放行）。
 
 ## 目录
 
@@ -196,7 +198,7 @@ challenge:
 
 ---
 
-## 7) Pwn (xinetd)
+## 7) Pwn (xinetd/tcpserver/socat)
 
 最小 challenge.yaml 片段：
 
@@ -217,12 +219,12 @@ challenge:
 
 - 使用 `ctf.xinetd` 明确端口、二进制路径和资源限制。
 - 题目若读取 `/home/ctf/flag`，在 `start.sh` 中增加 `/flag` 同步逻辑。
-- Alpine 基础镜像下可自动回退到 `tcpserver`（`ucspi-tcp6`），Debian/Ubuntu 默认使用 `xinetd`。
+- Alpine 基础镜像下可自动回退到 `tcpserver`（`ucspi-tcp6`），Debian/Ubuntu 默认使用 `xinetd`；两者都不可用时可回退 `socat` 前台模式。
 
 常见错误：
 
-- `xinetd` 或 `tcpserver` 以后台模式运行，导致容器主进程退出。
-- `ctf.xinetd`（或 tcpserver 实际监听端口）与 Dockerfile `EXPOSE` 不一致。
+- `xinetd`/`tcpserver`/`socat` 以后台模式运行，导致容器主进程退出。
+- `ctf.xinetd`（或 tcpserver/socat 实际监听端口）与 Dockerfile `EXPOSE` 不一致。
 
 ---
 
