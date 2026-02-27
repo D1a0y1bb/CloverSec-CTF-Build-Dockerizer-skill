@@ -100,7 +100,8 @@ jobs:
 
       - name: Assert SBOM artifacts
         run: |
-          version="$(tr -d '[:space:]' VERSION)"
+          version="$(tr -d '[:space:]' < VERSION)"
+          test -n "${version}"
           test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.sbom.spdx.json"
           test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.sbom.cdx.json"
           test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.deps.txt"
