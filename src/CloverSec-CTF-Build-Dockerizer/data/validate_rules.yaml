@@ -58,15 +58,15 @@ rules:
     level: ERROR
     scope: start.sh
     expect: present
-    when: "xinetd|ctf\\.xinetd|tcpserver"
-    pattern: "exec[[:space:]]+.*(xinetd[[:space:]]+.*-dontfork|tcpserver)"
-    message: "Pwn 场景必须以前台方式启动 xinetd 或 tcpserver。修复：`exec /usr/sbin/xinetd -dontfork` 或 `exec tcpserver ...`。"
+    when: "xinetd|ctf\\.xinetd|tcpserver|socat"
+    pattern: "exec[[:space:]]+.*(xinetd[[:space:]]+.*-dontfork|tcpserver|socat)"
+    message: "Pwn 场景必须以前台方式启动 xinetd/tcpserver/socat。修复：`exec /usr/sbin/xinetd -dontfork`、`exec tcpserver ...` 或 `exec socat ...`。"
 
   - id: pwn-port-expose-required
     level: ERROR
     scope: Dockerfile
     expect: present
-    when: "xinetd|ctf\\.xinetd|tcpserver"
+    when: "xinetd|ctf\\.xinetd|tcpserver|socat"
     pattern: "^[[:space:]]*EXPOSE[[:space:]]+[0-9]"
     message: "Pwn 场景必须显式暴露服务端口。修复：添加 `EXPOSE <pwn_port>`。"
 

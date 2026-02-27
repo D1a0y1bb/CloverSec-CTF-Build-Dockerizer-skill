@@ -1,0 +1,11 @@
+version: 1
+official_allowlist:
+  - '^node:[0-9]+(?:\.[0-9]+)?-(?:alpine|slim|bookworm|bullseye)$'
+  - '^php:[0-9]+(?:\.[0-9]+)?-apache$'
+  - '^python:[0-9]+(?:\.[0-9]+)?-(?:slim|alpine|bookworm)$'
+  - '^eclipse-temurin:[0-9]+(?:\.[0-9]+)?-jre-(?:jammy|bookworm)$'
+  - '^tomcat:[0-9]+(?:\.[0-9]+)?-jre[0-9]+-temurin-(?:jammy|bookworm)$'
+  - '^debian:(?:bookworm|bullseye|buster)(?:-slim)?$'
+  - '^ubuntu:(?:20\.04|22\.04|24\.04)$'
+  - '^alpine:[0-9]+(?:\.[0-9]+)?$'
+  - '^nginx:[0-9]+(?:\.[0-9]+)?-bookworm$'

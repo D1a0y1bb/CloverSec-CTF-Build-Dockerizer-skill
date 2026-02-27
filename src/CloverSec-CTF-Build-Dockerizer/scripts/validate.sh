@@ -4,32 +4,76 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 用法：
-  bash scripts/validate.sh Dockerfile start.sh [challenge.yaml]
+  bash scripts/validate.sh [--fix] [--fix-write] [--fix-loopback] Dockerfile start.sh [challenge.yaml]
 
 说明：
   - 先执行平台硬规则，再执行 data/validate_rules.yaml 可配置规则。
   - 输出分级检查结果：ERROR/WARN/INFO
   - 有 ERROR 时退出码为 1；否则退出 0
+  - --fix 仅预览安全自动修复（dry-run，不落盘）
+  - --fix-write 应用安全自动修复（落盘）并继续校验
+  - --fix-loopback 允许自动修复将显式 loopback 绑定参数改为 0.0.0.0
 USAGE
 }
 
-if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
-  usage
-  exit 0
-fi
+AUTOFIX_MODE="false"
+AUTOFIX_WRITE="false"
+AUTOFIX_LOOPBACK="false"
+POSITIONAL_ARGS=()
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --fix)
+      AUTOFIX_MODE="true"
+      shift
+      ;;
+    --fix-write)
+      AUTOFIX_MODE="true"
+      AUTOFIX_WRITE="true"
+      shift
+      ;;
+    --fix-loopback)
+      AUTOFIX_LOOPBACK="true"
+      shift
+      ;;
+    --)
+      shift
+      while [[ $# -gt 0 ]]; do
+        POSITIONAL_ARGS+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      echo "[ERROR] 未知参数: $1" >&2
+      usage
+      exit 2
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [[ ${#POSITIONAL_ARGS[@]} -lt 2 || ${#POSITIONAL_ARGS[@]} -gt 3 ]]; then
   usage
   exit 2
 fi
 
-DOCKERFILE="$1"
-START_SH="$2"
-CHALLENGE_YAML="${3:-}"
+DOCKERFILE="${POSITIONAL_ARGS[0]}"
+START_SH="${POSITIONAL_ARGS[1]}"
+CHALLENGE_YAML="${POSITIONAL_ARGS[2]:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RULES_FILE="${SKILL_ROOT}/data/validate_rules.yaml"
+ALLOWLIST_FILE="${SKILL_ROOT}/data/base_image_allowlist.yaml"
+AUTOFIX_SCRIPT="${SCRIPT_DIR}/autofix.py"
+VALIDATE_ENFORCE_DIGEST="${VALIDATE_ENFORCE_DIGEST:-0}"
 
 RDG_ENABLE_TTYD_CFG="true"
 RDG_ENABLE_SSHD_CFG="true"
@@ -57,6 +101,25 @@ fi
 if [[ ! -f "$RULES_FILE" ]]; then
   echo "[ERROR] 规则文件不存在: $RULES_FILE" >&2
   exit 2
+fi
+
+if [[ "$AUTOFIX_MODE" == "true" ]]; then
+  if [[ ! -x "$AUTOFIX_SCRIPT" ]]; then
+    echo "[ERROR] autofix 脚本不存在或不可执行: $AUTOFIX_SCRIPT" >&2
+    exit 2
+  fi
+  autofix_args=(--dockerfile "$DOCKERFILE" --start-sh "$START_SH")
+  if [[ -n "$CHALLENGE_YAML" ]]; then
+    autofix_args+=(--challenge "$CHALLENGE_YAML")
+  fi
+  if [[ "$AUTOFIX_WRITE" == "true" ]]; then
+    autofix_args+=(--write)
+  fi
+  if [[ "$AUTOFIX_LOOPBACK" == "true" ]]; then
+    autofix_args+=(--loopback)
+  fi
+  echo "[INFO] 执行 autofix（mode=$([[ "$AUTOFIX_WRITE" == "true" ]] && echo write || echo dry-run)）"
+  python3 "$AUTOFIX_SCRIPT" "${autofix_args[@]}"
 fi
 
 ERROR_COUNT=0
@@ -105,6 +168,60 @@ extract_base_image() {
   else
     echo ""
   fi
+}
+
+is_digest_pinned_image() {
+  local image_ref="$1"
+  [[ "$image_ref" == *"@sha256:"* ]]
+}
+
+is_allowlisted_base_image() {
+  local image_ref="$1"
+
+  if [[ ! -f "$ALLOWLIST_FILE" ]]; then
+    return 1
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 1
+  fi
+
+  python3 - "$ALLOWLIST_FILE" "$image_ref" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+allowlist_path = Path(sys.argv[1])
+image_ref = sys.argv[2].strip()
+
+try:
+    import yaml
+except ModuleNotFoundError:
+    raise SystemExit(1)
+
+try:
+    raw = yaml.safe_load(allowlist_path.read_text(encoding="utf-8")) or {}
+except Exception:
+    raise SystemExit(1)
+
+patterns = raw.get("official_allowlist", [])
+if not isinstance(patterns, list):
+    raise SystemExit(1)
+
+for item in patterns:
+    if not isinstance(item, str):
+        continue
+    item = item.strip()
+    if not item:
+        continue
+    try:
+        if re.search(item, image_ref):
+            raise SystemExit(0)
+    except re.error:
+        continue
+
+raise SystemExit(1)
+PY
 }
 
 is_multiservice_start() {
@@ -176,6 +293,12 @@ extract_tcpserver_port_from_start() {
   grep -Eio 'tcpserver[[:space:]]+(-[[:alnum:]]+[[:space:]]+)*((0\.0\.0\.0|127\.0\.0\.1|localhost)[[:space:]]+)?[0-9]{1,5}' "$START_SH" \
     | head -n1 \
     | grep -Eo '[0-9]{1,5}$' || true
+}
+
+extract_socat_port_from_start() {
+  grep -Eio 'socat[[:space:]]+[^[:space:]]*TCP-LISTEN:[0-9]{1,5}' "$START_SH" \
+    | head -n1 \
+    | sed -E 's/.*TCP-LISTEN:([0-9]{1,5}).*/\1/' || true
 }
 
 escape_regex() {
@@ -332,7 +455,7 @@ infer_stack_hint() {
     return
   fi
 
-  if contains_re "$START_SH" 'xinetd|ctf\.xinetd|tcpserver' || contains_re "$DOCKERFILE" 'xinetd|ucspi-tcp6|tcpserver'; then
+  if contains_re "$START_SH" 'xinetd|ctf\.xinetd|tcpserver|socat' || contains_re "$DOCKERFILE" 'xinetd|ucspi-tcp6|tcpserver|socat'; then
     echo "pwn"
     return
   fi
@@ -633,6 +756,24 @@ run_dynamic_checks() {
     log_result INFO "检测到栈提示: ${stack_hint}"
   fi
 
+  local base_image
+  base_image="$(extract_base_image)"
+  if [[ -n "$base_image" ]]; then
+    if is_digest_pinned_image "$base_image"; then
+      log_result INFO "基础镜像已使用 digest 固定: ${base_image}"
+    elif is_allowlisted_base_image "$base_image"; then
+      log_result INFO "基础镜像命中官方白名单（tag-only 放行）: ${base_image}"
+    else
+      if [[ "$VALIDATE_ENFORCE_DIGEST" == "1" ]]; then
+        log_result ERROR "发布门禁要求基础镜像使用 digest（当前: ${base_image}）。修复：将 base_image 改为 image:tag@sha256:<digest>。"
+      else
+        log_result WARN "基础镜像未使用 digest 固定（当前: ${base_image}）。发布前建议 pin digest。"
+      fi
+    fi
+  else
+    log_result WARN "未检测到基础镜像 FROM，跳过 digest 校验"
+  fi
+
   local has_public_frontend=0
   if has_public_frontend_entry; then
     has_public_frontend=1
@@ -690,12 +831,19 @@ run_dynamic_checks() {
   fi
 
   if [[ "$stack_hint" == "pwn" ]]; then
+    local configured_start_cmd=""
+    if [[ -n "$CHALLENGE_YAML" && -f "$CHALLENGE_YAML" ]]; then
+      configured_start_cmd="$(parse_challenge_key_value "$CHALLENGE_YAML" "cmd" "")"
+    fi
+
     if contains_re "$START_SH" 'exec[[:space:]]+.*xinetd[[:space:]]+.*-dontfork'; then
       log_result INFO "Pwn 场景已使用 xinetd 前台模式（exec ... -dontfork）"
     elif contains_re "$START_SH" 'exec[[:space:]]+.*tcpserver'; then
       log_result INFO "Pwn 场景已使用 tcpserver 前台模式"
+    elif contains_re "$START_SH" 'exec[[:space:]]+.*socat'; then
+      log_result INFO "Pwn 场景已使用 socat 前台模式"
     else
-      log_result ERROR "Pwn 场景未检测到 xinetd/tcpserver 前台启动。修复：使用 exec /usr/sbin/xinetd -dontfork 或 exec tcpserver ...。"
+      log_result ERROR "Pwn 场景未检测到 xinetd/tcpserver/socat 前台启动。修复：使用 exec /usr/sbin/xinetd -dontfork、exec tcpserver ... 或 exec socat ...。"
     fi
 
     if [[ ${#docker_ports[@]} -eq 0 ]]; then
@@ -721,9 +869,34 @@ run_dynamic_checks() {
         log_result ERROR "ctf.xinetd 端口 ${xport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${xport}。"
       fi
     else
+      local prefer_socat=0
+      local prefer_tcpserver=0
+      if [[ "${configured_start_cmd}" == *"socat"* ]]; then
+        prefer_socat=1
+      elif [[ "${configured_start_cmd}" == *"tcpserver"* ]]; then
+        prefer_tcpserver=1
+      fi
+
+      local sport
       local tport
+      sport="$(extract_socat_port_from_start)"
       tport="$(extract_tcpserver_port_from_start)"
-      if [[ -n "$tport" ]]; then
+
+      if [[ $prefer_socat -eq 1 && -n "$sport" ]]; then
+        local sfound=0
+        local sp
+        for sp in "${docker_ports[@]}"; do
+          if [[ "$sp" == "$sport" ]]; then
+            sfound=1
+            break
+          fi
+        done
+        if [[ $sfound -eq 1 ]]; then
+          log_result INFO "Pwn 场景 EXPOSE 与 socat 监听端口一致（${sport}）"
+        else
+          log_result ERROR "socat 监听端口 ${sport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${sport}。"
+        fi
+      elif [[ $prefer_tcpserver -eq 1 && -n "$tport" ]]; then
         local tfound=0
         local tp
         for tp in "${docker_ports[@]}"; do
@@ -736,6 +909,34 @@ run_dynamic_checks() {
           log_result INFO "Pwn 场景 EXPOSE 与 tcpserver 端口一致（${tport}）"
         else
           log_result ERROR "tcpserver 端口 ${tport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${tport}。"
+        fi
+      elif [[ -n "$tport" ]]; then
+        local tfound=0
+        local tp
+        for tp in "${docker_ports[@]}"; do
+          if [[ "$tp" == "$tport" ]]; then
+            tfound=1
+            break
+          fi
+        done
+        if [[ $tfound -eq 1 ]]; then
+          log_result INFO "Pwn 场景 EXPOSE 与 tcpserver 端口一致（${tport}）"
+        else
+          log_result ERROR "tcpserver 端口 ${tport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${tport}。"
+        fi
+      elif [[ -n "$sport" ]]; then
+        local sfound=0
+        local sp
+        for sp in "${docker_ports[@]}"; do
+          if [[ "$sp" == "$sport" ]]; then
+            sfound=1
+            break
+          fi
+        done
+        if [[ $sfound -eq 1 ]]; then
+          log_result INFO "Pwn 场景 EXPOSE 与 socat 监听端口一致（${sport}）"
+        else
+          log_result ERROR "socat 监听端口 ${sport} 未在 EXPOSE 中声明。修复：补充 EXPOSE ${sport}。"
         fi
       fi
     fi
