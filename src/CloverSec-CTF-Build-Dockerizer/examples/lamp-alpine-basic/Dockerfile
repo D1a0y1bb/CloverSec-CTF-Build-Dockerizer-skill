@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
-# LAMP 最小模板：Apache + PHP + MariaDB（同容器多服务）
 FROM alpine:3.20
 
+
+# LAMP 最小模板：Apache + PHP + MariaDB（同容器多服务）
 # 安装 bash 与核心服务，兼容 Debian/Ubuntu 与 Alpine。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
@@ -39,7 +40,6 @@ COPY flag /flag
 
 # /start.sh 必须可执行；/flag 必须可读（平台启动后会写入动态 flag）
 RUN chmod 555 /start.sh && chmod 444 /flag
-
 # 对外暴露端口（至少一个）
 EXPOSE 80
 

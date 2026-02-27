@@ -1,17 +1,7 @@
-# syntax=docker/dockerfile:1
-# AI 最小模板：默认 CPU 推理服务，优先 gunicorn 前台运行
-FROM {{BASE_IMAGE}}
+{{> snippets/docker-common-prolog.tpl }}
 
-# 平台动态 flag 注入要求 /bin/bash，需兼容 apt/apk 两类基础镜像。
-RUN set -eux; \
-    if command -v apk >/dev/null 2>&1; then \
-      {{> snippets/apk-install-bash.tpl }}; \
-    elif command -v apt-get >/dev/null 2>&1; then \
-      {{> snippets/apt-install-bash.tpl }}; \
-    else \
-      echo "[ERROR] 当前基础镜像不支持 apk/apt-get，无法安装 bash" >&2; \
-      exit 1; \
-    fi
+# AI 最小模板：默认 CPU 推理服务，优先 gunicorn 前台运行
+{{> snippets/run-bash-bootstrap.tpl }}
 
 # 可选运行时依赖安装。
 RUN set -eux; \
@@ -40,14 +30,4 @@ ENV OPENBLAS_NUM_THREADS=1 \
 # Python 依赖安装必须使用 --no-cache-dir 以控制镜像体积。
 {{PIP_REQUIREMENTS_BLOCK}}
 
-# 平台硬约束文件。
-{{> snippets/copy-flag-start.tpl }}
-
-# 暴露服务端口（默认 5000）。
-{{> snippets/expose.tpl }}
-
-# 可选健康检查。
-{{HEALTHCHECK_BLOCK}}
-
-# 保持与平台一致的默认入口。
-{{> snippets/cmd-start.tpl }}
+{{> snippets/docker-common-epilog.tpl }}

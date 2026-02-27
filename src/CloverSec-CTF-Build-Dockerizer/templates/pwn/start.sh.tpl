@@ -62,21 +62,17 @@ if [[ "${TCP_SERVER}" == "/bin/sh" && -z "${TCP_ARGS}" ]]; then
 fi
 
 START_CMD="{{START_CMD}}"
-
-if command -v xinetd >/dev/null 2>&1; then
-  if [[ -z "${START_CMD}" || "${START_CMD}" == *"xinetd"* ]]; then
-    START_CMD="/usr/sbin/xinetd -dontfork"
-  fi
-  echo "[INFO] exec: ${START_CMD}"
+if [[ -n "${START_CMD}" ]]; then
+  echo "[INFO] exec explicit start cmd: ${START_CMD}"
   exec bash -lc "${START_CMD}"
 fi
 
-if command -v tcpserver >/dev/null 2>&1; then
-  if [[ -n "${START_CMD}" && "${START_CMD}" != *"xinetd"* ]]; then
-    echo "[INFO] exec custom start cmd (tcpserver path): ${START_CMD}"
-    exec bash -lc "${START_CMD}"
-  fi
+if command -v xinetd >/dev/null 2>&1; then
+  echo "[INFO] exec: /usr/sbin/xinetd -dontfork"
+  exec /usr/sbin/xinetd -dontfork
+fi
 
+if command -v tcpserver >/dev/null 2>&1; then
   if [[ -n "${TCP_ARGS}" ]]; then
     echo "[INFO] exec: tcpserver -v 0.0.0.0 ${TCP_PORT} ${TCP_SERVER} ${TCP_ARGS}"
     exec sh -lc "exec tcpserver -v 0.0.0.0 ${TCP_PORT} ${TCP_SERVER} ${TCP_ARGS}"
@@ -86,5 +82,14 @@ if command -v tcpserver >/dev/null 2>&1; then
   exec tcpserver -v 0.0.0.0 "${TCP_PORT}" "${TCP_SERVER}"
 fi
 
-echo "[ERROR] 当前镜像缺少 xinetd/tcpserver，无法启动 Pwn 服务" >&2
+if command -v socat >/dev/null 2>&1; then
+  SOCAT_CMD="${TCP_SERVER}"
+  if [[ -n "${TCP_ARGS}" ]]; then
+    SOCAT_CMD="${SOCAT_CMD} ${TCP_ARGS}"
+  fi
+  echo "[INFO] exec: socat TCP-LISTEN:${TCP_PORT},fork,reuseaddr SYSTEM:\"${SOCAT_CMD}\""
+  exec sh -lc "exec socat TCP-LISTEN:${TCP_PORT},fork,reuseaddr SYSTEM:\"${SOCAT_CMD}\""
+fi
+
+echo "[ERROR] 当前镜像缺少 xinetd/tcpserver/socat，无法启动 Pwn 服务" >&2
 exit 1

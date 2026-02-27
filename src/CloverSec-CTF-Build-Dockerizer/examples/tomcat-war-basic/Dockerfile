@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-# Tomcat(WAR) 最小模板：适用于 ROOT.war 或 webapps 目录部署
 FROM tomcat:9.0-jre17-temurin-jammy
 
-# 安装 bash，保障平台动态 flag 脚本执行能力。
+
+# Tomcat(WAR) 最小模板：适用于 ROOT.war 或 webapps 目录部署
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates; \
@@ -12,6 +12,7 @@ RUN set -eux; \
       echo "[ERROR] 当前基础镜像不支持 apk/apt-get，无法安装 bash" >&2; \
       exit 1; \
     fi
+
 
 RUN set -eux; \
     :
@@ -33,7 +34,6 @@ COPY flag /flag
 
 # /start.sh 必须可执行；/flag 必须可读（平台启动后会写入动态 flag）
 RUN chmod 555 /start.sh && chmod 444 /flag
-
 # 对外暴露端口（至少一个）
 EXPOSE 8080
 

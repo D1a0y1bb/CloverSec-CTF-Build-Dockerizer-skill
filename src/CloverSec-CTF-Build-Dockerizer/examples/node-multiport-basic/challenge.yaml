@@ -1,0 +1,34 @@
+challenge:
+  name: "node-multiport-basic"
+  stack: "node"
+  base_image: "node:20-alpine"
+  workdir: "/app"
+  app_src: "."
+  app_dst: "/app"
+  expose_ports:
+    - "3000"
+    - "3001"
+  start:
+    mode: "cmd"
+    cmd: "node server.js"
+    service_name: ""
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/3000'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
+  extra:
+    env:
+      NODE_ENV: "production"
+    copy: []
+    user: ""

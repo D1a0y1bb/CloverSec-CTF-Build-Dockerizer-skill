@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
-# RDG 强化模板：ttyd + sshd 双通道，默认 check-service 判定链路。
 FROM php:8.2-apache
 
+
+# RDG 强化模板：ttyd + sshd 双通道，默认 check-service 判定链路。
 # 平台契约与 RDG 依赖：bash/ca-certificates + sshd + 用户管理工具。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \

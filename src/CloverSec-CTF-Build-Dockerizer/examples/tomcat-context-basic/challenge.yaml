@@ -1,0 +1,32 @@
+challenge:
+  name: "tomcat-context-basic"
+  stack: "tomcat"
+  base_image: "tomcat:9.0-jre17-temurin-jammy"
+  workdir: "/usr/local/tomcat"
+  app_src: "webapps"
+  app_dst: "/usr/local/tomcat/webapps"
+  expose_ports:
+    - "8080"
+  start:
+    mode: "cmd"
+    cmd: "catalina.sh run"
+    service_name: ""
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/8080'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
+  extra:
+    env: {}
+    copy: []
+    user: ""

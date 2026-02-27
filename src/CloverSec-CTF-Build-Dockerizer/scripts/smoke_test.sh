@@ -234,6 +234,28 @@ while IFS= read -r dir; do
   echo "[INFO] 容器运行正常，日志前 50 行："
   echo "$logs_out"
 
+  host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
+  if [[ -z "${host_port}" ]]; then
+    echo "[WARN] 无法解析宿主端口映射: ${name} ${container_port}/tcp"
+  fi
+
+  assert_script="${dir}/smoke_assert.sh"
+  if [[ -f "${assert_script}" ]]; then
+    if [[ -z "${host_port}" ]]; then
+      echo "[ERROR] 需要执行 smoke_assert.sh 但端口映射解析失败: ${name}"
+      FAIL_LIST+=("${name}:assert-port-resolve")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
+    echo "[INFO] 执行自定义断言脚本: ${assert_script}"
+    if ! bash "${assert_script}" "${cid}" "${host_port}" "${container_port}"; then
+      echo "[ERROR] smoke_assert.sh 失败: ${name}"
+      FAIL_LIST+=("${name}:smoke-assert")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
+  fi
+
   stack_id="$(get_stack_id "$challenge_yaml")"
   if [[ "${stack_id}" == "rdg" ]]; then
     check_script="${dir}/check/check.sh"
@@ -244,7 +266,6 @@ while IFS= read -r dir; do
       continue
     fi
 
-    host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
     if [[ -z "${host_port}" ]]; then
       echo "[ERROR] 无法解析 RDG 检查端口映射: ${name} ${container_port}/tcp"
       FAIL_LIST+=("${name}:check-port-resolve")

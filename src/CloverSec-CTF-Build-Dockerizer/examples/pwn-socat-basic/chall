@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "welcome to pwn-socat-basic"
+echo "type something and press enter"
+read -r input || true
+echo "echo:${input:-empty}"

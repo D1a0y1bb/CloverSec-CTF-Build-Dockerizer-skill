@@ -17,6 +17,10 @@
   - `rdg-python-ssti-basic/`
   - `lamp-alpine-basic/`
   - `python-loopback-ssrf-basic/`
+  - `node-multiport-basic/`
+  - `python-supervisor-basic/`
+  - `pwn-socat-basic/`
+  - `tomcat-context-basic/`
 - 兼容目录（保留历史路径）：
   - `node/`
   - `php/`
@@ -32,3 +36,4 @@
 - `README.md`：本目录的快速运行说明
 - 可选渲染产物：`Dockerfile`、`start.sh`、`flag`
 - RDG 示例额外包含：`check/check.sh`（check-service 真实检查脚本）
+- 可选冒烟断言：`smoke_assert.sh`（由 `smoke_test.sh` 自动调用）

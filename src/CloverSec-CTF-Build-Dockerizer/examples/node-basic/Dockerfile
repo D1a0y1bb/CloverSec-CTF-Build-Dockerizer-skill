@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
-# Node.js 最小模板：适用于原生 HTTP/Express/Koa/Fastify 等 Web 题目
 FROM node:20-alpine
 
-# 平台会执行 /bin/bash /changeflag.sh，必须保障 /bin/bash 存在。
+
+# Node.js 最小模板：适用于原生 HTTP/Express/Koa/Fastify 等 Web 题目
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates; \
@@ -13,7 +13,8 @@ RUN set -eux; \
       exit 1; \
     fi
 
-# 可选运行时依赖（无额外依赖时渲染为 :）。 
+
+# 可选运行时依赖（无额外依赖时渲染为 :）。
 RUN set -eux; \
     :
 
@@ -42,23 +43,15 @@ RUN set -eux; \
       echo "[INFO] 未检测到 package.json，跳过 npm 安装"; \
     fi
 
-# 平台硬约束文件。
 # ---- 平台硬约束：/start.sh 与 /flag 必须位于容器根目录 ----
 COPY start.sh /start.sh
 COPY flag /flag
 
 # /start.sh 必须可执行；/flag 必须可读（平台启动后会写入动态 flag）
 RUN chmod 555 /start.sh && chmod 444 /flag
-
-
-# 声明端口，便于平台映射与排障。
 # 对外暴露端口（至少一个）
 EXPOSE 3000
 
-
-# 可选健康检查。
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/3000'
-
-# 默认入口保持与平台一致。
 # 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

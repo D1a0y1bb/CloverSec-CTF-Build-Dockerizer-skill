@@ -1,0 +1,35 @@
+challenge:
+  name: "python-supervisor-basic"
+  stack: "python"
+  base_image: "python:3.11-slim"
+  workdir: "/app"
+  app_src: "."
+  app_dst: "/app"
+  expose_ports:
+    - "5000"
+    - "5001"
+  start:
+    mode: "supervisor"
+    cmd: "supervisord -n -c /app/supervisord.conf"
+    service_name: "supervisord"
+  runtime_deps:
+    - "supervisor"
+  build_deps: []
+  flag:
+    path: "/flag"
+    permission: "444"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/5000'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
+  extra:
+    env:
+      PYTHONUNBUFFERED: "1"
+    copy: []
+    user: ""

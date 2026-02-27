@@ -1,7 +1,6 @@
-# syntax=docker/dockerfile:1
-# LAMP 最小模板：Apache + PHP + MariaDB（同容器多服务）
-FROM {{BASE_IMAGE}}
+{{> snippets/docker-common-prolog.tpl }}
 
+# LAMP 最小模板：Apache + PHP + MariaDB（同容器多服务）
 # 安装 bash 与核心服务，兼容 Debian/Ubuntu 与 Alpine。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
@@ -30,7 +29,4 @@ COPY {{APP_SRC}} {{APP_DST}}
 
 {{> snippets/env.tpl }}
 
-{{> snippets/copy-flag-start.tpl }}
-{{> snippets/expose.tpl }}
-{{HEALTHCHECK_BLOCK}}
-{{> snippets/cmd-start.tpl }}
+{{> snippets/docker-common-epilog.tpl }}

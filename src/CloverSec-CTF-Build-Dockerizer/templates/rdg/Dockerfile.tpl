@@ -1,7 +1,6 @@
-# syntax=docker/dockerfile:1
-# RDG 强化模板：ttyd + sshd 双通道，默认 check-service 判定链路。
-FROM {{BASE_IMAGE}}
+{{> snippets/docker-common-prolog.tpl }}
 
+# RDG 强化模板：ttyd + sshd 双通道，默认 check-service 判定链路。
 # 平台契约与 RDG 依赖：bash/ca-certificates + sshd + 用户管理工具。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
@@ -103,7 +102,4 @@ RUN set -eux; \
       > /etc/ssh/sshd_config; \
     fi
 
-{{RDG_FLAG_DOCKER_BLOCK}}
-{{> snippets/expose.tpl }}
-{{HEALTHCHECK_BLOCK}}
-{{> snippets/cmd-start.tpl }}
+{{> snippets/docker-common-epilog.tpl }}

@@ -1,0 +1,31 @@
+challenge:
+  name: pwn-socat-basic
+  stack: pwn
+  base_image: debian:bookworm-slim
+  workdir: /home/ctf
+  app_src: .
+  app_dst: /home/ctf
+  expose_ports:
+    - "10001"
+  start:
+    mode: cmd
+    cmd: "socat TCP-LISTEN:10001,reuseaddr,fork EXEC:/home/ctf/chall,pty,stderr,setsid,sigint,sane"
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: /flag
+    permission: "444"
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/10001'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
+  extra:
+    env: {}
+    copy: []
+    user: ""

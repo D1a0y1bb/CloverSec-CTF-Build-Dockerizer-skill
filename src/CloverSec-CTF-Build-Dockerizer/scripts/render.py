@@ -577,6 +577,7 @@ def render_files(context: Dict[str, Any]) -> None:
         "RDG_SCORING_MODE": context.get("rdg_scoring_mode", "check_service"),
         "RDG_CHECK_ENABLED": "true" if context.get("rdg_check_enabled", True) else "false",
         "RDG_CHECK_SCRIPT_PATH": context.get("rdg_check_script_path", "check/check.sh"),
+        "STACK_FLAG_BLOCK": flag_docker_block,
         "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
         "RDG_FLAG_START_BLOCK": flag_start_block,
         "HEALTHCHECK_BLOCK": healthcheck_block,
