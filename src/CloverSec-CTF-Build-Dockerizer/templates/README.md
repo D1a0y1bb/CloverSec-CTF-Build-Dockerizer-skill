@@ -24,6 +24,7 @@
 
 - `copy-flag-start.tpl`：写入 `/start.sh` 与 `/flag` 并设置权限
 - `expose.tpl`：渲染 `EXPOSE` 指令
+- `healthcheck.tpl`：渲染 Docker `HEALTHCHECK` 指令
 - `workdir.tpl`：渲染 `WORKDIR`
 - `apt-install-bash.tpl`：Debian/Ubuntu 安装 bash + 清理 apt 缓存
 - `apk-install-bash.tpl`：Alpine 安装 bash（`--no-cache`）
@@ -32,7 +33,11 @@
 - `start-header.tpl`：统一 shebang 与 `set -euo pipefail`
 - `ensure-flag.tpl`：启动前确保 `/flag` 可读
 
-说明：RDG 模板支持 `challenge.rdg.include_flag_artifact=false`，该模式下会改为仅写入 `/start.sh`，不再强制渲染 `/flag` 片段。
+说明：
+
+- RDG 模板支持 `challenge.rdg.include_flag_artifact=false`，该模式下会改为仅写入 `/start.sh`，不再强制渲染 `/flag` 片段。
+- 自 `v1.4.0` 起，所有栈模板支持 `{{HEALTHCHECK_BLOCK}}` 注入，可通过 `challenge.healthcheck.enabled=false` 显式关闭。
+- `pwn` 与 `lamp` 模板已统一支持 Debian/Ubuntu 与 Alpine 双分支安装策略。
 
 ## include 语法
 

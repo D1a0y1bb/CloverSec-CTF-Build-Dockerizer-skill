@@ -87,6 +87,13 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.flag.permission` | 否 | `444` | `444` | 平台契约字段 |
 | `challenge.platform.entrypoint` | 否 | `/start.sh` | `/start.sh` | 平台契约字段 |
 | `challenge.platform.require_bash` | 否 | `true` | `true` | 平台契约字段 |
+| `challenge.platform.allow_loopback_bind` | 否 | `false` | `true` | localhost 监听门禁豁免（SSRF/内网链路） |
+| `challenge.healthcheck.enabled` | 否 | `true` | `false` | 控制是否渲染 `HEALTHCHECK` |
+| `challenge.healthcheck.cmd` | 否 | `stacks.yaml` | `bash -lc 'echo > /dev/tcp/127.0.0.1/80'` | `HEALTHCHECK CMD` |
+| `challenge.healthcheck.interval` | 否 | `30s` | `30s` | `HEALTHCHECK --interval` |
+| `challenge.healthcheck.timeout` | 否 | `5s` | `5s` | `HEALTHCHECK --timeout` |
+| `challenge.healthcheck.retries` | 否 | `3` | `5` | `HEALTHCHECK --retries` |
+| `challenge.healthcheck.start_period` | 否 | `10s` | `20s` | `HEALTHCHECK --start-period` |
 | `challenge.extra.env` | 否 | `{}` | `{NODE_ENV: production}` | `{{ENV_BLOCK}}` |
 | `challenge.extra.copy` | 否 | `[]` | `[{from:a,to:b}]` | `{{COPY_APP}}` |
 | `challenge.extra.user` | 否 | 空 | `www-data` | 当前不直接渲染 |
@@ -105,7 +112,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG check 脚本契约（v1.3.6）
+### RDG check 脚本契约（v1.4.0）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -128,6 +135,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `ENV_BLOCK`
 - `NPM_INSTALL_BLOCK`
 - `PIP_REQUIREMENTS_BLOCK`
+- `HEALTHCHECK_BLOCK`
 
 ## 平台契约解释（执行时必须牢记）
 
@@ -172,6 +180,11 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-di
 
 每项必须附带 evidence（命中文件/规则）。
 若输出包含 `config_proposal` 字段，优先直接用于 Step 1 的 YAML 确认块渲染。
+若输出包含 `gates` 字段，必须优先执行门禁提示：
+
+- `requires_explicit_stack_confirm=true`：禁止直接进入 Step 2，Q1 必须让用户显式确认 stack。
+- `requires_start_cmd_confirm=true`：Q4 必须要求用户给出最终 start 命令，禁止默认回车直过。
+- `requires_port_confirm=true`：Q2 必须要求用户确认端口，不得“默认视为正确”。
 
 ### Step 1（仅问 5 个确认问题）
 
@@ -238,9 +251,17 @@ CONFIG PROPOSAL:
   platform:
     entrypoint: "/start.sh"
     require_bash: true
+    allow_loopback_bind: false
   flag:
     path: "/flag"
     permission: "444"
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 3
+    start_period: "10s"
   rdg:
     enable_ttyd: true
     ttyd_port: "8022"
@@ -320,13 +341,17 @@ AI 必须输出：
 1. 栈侦测置信度 `<0.6`：
    - 仍给默认值
    - 但 Q1 必须强提示“请确认技术栈”
+   - 若 `gates.requires_explicit_stack_confirm=true`，禁止直接进入 Step 2
 
 2. 找不到可用入口文件：
+   - `start_cmd_candidates` 必须包含一个空值候选（`cmd: ""`）并给出错误提示
    - Q4 强提示“必须确认/填写启动命令”
+   - 若 `gates.requires_start_cmd_confirm=true`，用户未明确确认前不得 render
 
 3. 端口为空：
    - 回退栈默认端口
    - Q2 强提示“请确认端口”
+   - 若 `gates.requires_port_confirm=true`，用户必须显式确认端口后才能进入 Step 2
 
 ## 手动模式（备用）
 
@@ -502,26 +527,26 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/start.sh.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/README.md`
 
-### Pwn (xinetd)
+### Pwn (xinetd/tcpserver)
 
 适用：
 
 - Jeopardy 模式二进制远程交互题目
-- 以 xinetd 托管挑战进程
+- 以 xinetd 或 tcpserver 托管挑战进程
 
 默认：
 
 - 端口 `10000`
-- 启动命令 `/usr/sbin/xinetd -dontfork`
+- 启动命令 `/usr/sbin/xinetd -dontfork`（Alpine 可回退 tcpserver）
 
 最小启动命令范式：
 
-- `exec /usr/sbin/xinetd -dontfork`
+- `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...`
 
 可选变体：
 
 - 在 `start.sh` 启动前将 `/flag` 同步到 `/home/ctf/flag`
-- 根据 `ctf.xinetd` 动态调整端口与 server_args
+- 根据 `ctf.xinetd` 动态调整端口与 server_args；无 xinetd 时回退 tcpserver
 
 模板路径：
 

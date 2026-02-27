@@ -11,26 +11,28 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.3.6--r1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.3.6-r1"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0"><img src="https://img.shields.io/badge/release-zip-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.3.6-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.4.0</code></p>
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.3.6-r1
+## What's New in v1.4.0
 
-`v1.3.6-r1` 是基于 `v1.3.6` 的质量补丁，不改变 RDG 既有交付契约，重点收敛三类会影响发布可信度的问题：AI 规则误触发、冒烟依赖静默降级、README 治理脚本对新版格式的不兼容。
+`v1.4.0` 是一次引擎级迭代，核心目标是把“隐含默认”升级为“可执行契约”。`healthcheck` 不再是文档字段，而是完整接入解析与渲染链路：支持 `challenge.healthcheck` 配置、支持按栈默认值回退、支持显式关闭并确保行为可预期。
 
-规则层面，`validate_rules.yaml` 里两条 AI 建议规则只在命中 `gunicorn|uvicorn|transformers` 时触发，普通 RDG/Python 题目不再被误报。执行层面，`smoke_test.sh` 在启动前强制检查 `python3` 能否导入 `yaml`，缺失时直接 `exit 2` 并给出安装提示，彻底去掉“默认值回退导致假通过”的路径。文档治理层面，`doc_guard.sh` 新增多格式 VERSION 提取能力，并把 Phase 检查改成“仅在 README 启用模板时才执行”，避免无效告警。
+运行时兼容方面，`pwn` 与 `lamp` 模板统一支持 Debian/Ubuntu 与 Alpine 双分支。Pwn 在 Alpine 下可回退到 `tcpserver`（`ucspi-tcp6`），Debian/Ubuntu 维持 `xinetd`；LAMP 则在两类发行版都能安装 Apache/PHP/MariaDB 并前台运行，降低用户自定义 `base_image` 时的爆炸概率。
+
+校验与编排方面，`validate.sh` 新增条件化 localhost 门禁（支持 `allow_loopback_bind` 显式豁免，并可在“公网前置 + 回环辅服务”拓扑下 INFO 放行），新增后台 `&` 启动后脚本提前退出风险检测，以及“启动命令显式端口”与 `EXPOSE/challenge.expose_ports` 的一致性提示。`derive_config.py` 新增 `gates.requires_*`，并在低置信或无入口时输出“空启动候选”，避免误生成误执行。`patterns.yaml` 同步增强了 FastAPI/Poetry、NestJS/pnpm workspace、Spring Boot 动态 JAR 推断。
 
 <details>
-<summary><b>v1.3.6-r1 补丁验证结果</b></summary>
+<summary><b>v1.4.0 实施重点</b></summary>
 
-本补丁在全量回归下已验证通过：shell 语法检查通过、Python 编译检查通过、`validate_examples.sh` 与 `smoke_test.sh` 均为 `18/18`，`rdg-python-ssti-basic` 的 AI 误报告警归零；同时在模拟缺少 PyYAML 的环境下，`smoke_test.sh` 能按预期快速失败并返回 `exit 2`。
+新增样例覆盖：`pwn-alpine-tcpserver-basic`、`lamp-alpine-basic`、`python-loopback-ssrf-basic`。对应覆盖了 Alpine 运行时分支、SSRF 回环豁免（`platform.allow_loopback_bind=true`）和 `healthcheck.enabled=false` 关闭路径。
 
 </details>
 
@@ -185,7 +187,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 
 ## 平台硬约束
 
-交付镜像必须满足以下平台契约：平台固定通过 `/start.sh` 启动容器；镜像内必须可用 `/bin/bash`；`Dockerfile` 必须声明 `EXPOSE`；并且禁止使用 `sleep infinity` 这类空转保活方式。`/flag` 默认仍为硬约束，但 RDG 可在 `include_flag_artifact=false` 时显式放行（适配 check-service 判定）。
+交付镜像必须满足以下平台契约：平台固定通过 `/start.sh` 启动容器；镜像内必须可用 `/bin/bash`；`Dockerfile` 必须声明 `EXPOSE`；并且禁止使用 `sleep infinity` 这类空转保活方式。`/flag` 默认仍为硬约束，但 RDG 可在 `include_flag_artifact=false` 时显式放行（适配 check-service 判定）。从 `v1.4.0` 开始，localhost 监听默认进入门禁检查，特殊 SSRF/内网链路题型可通过 `challenge.platform.allow_loopback_bind=true` 显式豁免。
 
 详细契约文档见：[platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
 
@@ -199,7 +201,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 | java | 8080 | `exec java -jar app.jar` |
 | tomcat | 8080 | `exec catalina.sh run` |
 | lamp | 80 | 数据库后台 + Apache 前台 |
-| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` |
+| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` |
 | ai | 5000 | `exec gunicorn ...` |
 | rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
 
@@ -234,7 +236,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.3.6-r1
+bash scripts/publish_release.sh --version v1.4.0
 ```
 
 ## 更新记录

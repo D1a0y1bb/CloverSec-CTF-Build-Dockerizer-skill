@@ -10,10 +10,13 @@
   - `tomcat-war-basic/`
   - `lamp-basic/`
   - `pwn-basic/`
+  - `pwn-alpine-tcpserver-basic/`
   - `ai-basic/`
   - `ai-transformers-basic/`
   - `rdg-php-hardening-basic/`
   - `rdg-python-ssti-basic/`
+  - `lamp-alpine-basic/`
+  - `python-loopback-ssrf-basic/`
 - 兼容目录（保留历史路径）：
   - `node/`
   - `php/`

@@ -2,6 +2,39 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.4.0 - 2026-02-27
+
+### 新增
+
+- 新增 `challenge.healthcheck` 契约并落地渲染：支持 `enabled/cmd/interval/timeout/retries/start_period`，可在 Dockerfile 中生成可禁用的 `HEALTHCHECK`。
+- 新增 `challenge.platform.allow_loopback_bind`（默认 `false`），用于 SSRF/内网链路题型显式放行 localhost 监听门禁。
+- 新增推断与门禁字段：`derive_config.py` 输出 `gates.requires_explicit_stack_confirm`、`gates.requires_start_cmd_confirm`、`gates.requires_port_confirm`。
+- 新增回归样例：
+  - `examples/pwn-alpine-tcpserver-basic`
+  - `examples/lamp-alpine-basic`
+  - `examples/python-loopback-ssrf-basic`
+
+### 变更
+
+- `render.py`、`parse_config_block.py`、`schema.md` 全链路接入 healthcheck 与 loopback 配置解析。
+- `pwn` 模板改为 Debian/Ubuntu + Alpine 双分支：Debian/Ubuntu 使用 `xinetd`，Alpine 使用 `tcpserver`（`ucspi-tcp6`）回退路径。
+- `lamp` 模板改为 Debian/Ubuntu + Alpine 双分支：统一 Apache/PHP/MariaDB 安装并在 start 脚本中自动选择 `apache2ctl` 或 `httpd` 前台命令。
+- `validate.sh` 工程化增强：
+  - localhost/127.0.0.1 条件门禁（支持豁免与“公网前置+回环辅服务”INFO 放行）
+  - 后台 `&` 启动后无前台阻塞进程的 ERROR 检测
+  - 启动命令显式端口与 `EXPOSE`/`challenge.expose_ports` 一致性提示
+  - Pwn 校验兼容 `xinetd` 与 `tcpserver`
+- `patterns.yaml` 与 `utils.py` 增强内容匹配推断：
+  - Python：FastAPI/Uvicorn、Poetry 信号
+  - Node：NestJS、pnpm workspace、monorepo 结构
+  - Java：Spring Boot 依赖与动态 JAR 路径（`target/*.jar`、`build/libs/*.jar`）
+- `derive_config.py` 低置信/无入口路径加入“空启动候选 + 必填提示”，避免误生成误执行。
+
+### 文档
+
+- README（中英）同步到 `v1.4.0`，补充 healthcheck 落地、双分支运行时兼容、localhost 条件门禁与推断增强说明。
+- `stack_cookbook.md`、`data/README.md`、`templates/README.md`、`SKILL.md` 同步更新新字段与新策略。
+
 ## v1.3.6-r1 - 2026-02-25
 
 ### 变更

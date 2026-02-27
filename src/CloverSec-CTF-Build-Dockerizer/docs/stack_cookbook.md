@@ -2,6 +2,11 @@
 
 本文档提供 9 个技术栈的最小可用配置、常见变更和注意事项。
 
+通用补充（v1.4.0）：
+
+- 所有栈支持 `challenge.healthcheck`，可渲染 Docker `HEALTHCHECK`，并可通过 `healthcheck.enabled: false` 显式关闭。
+- localhost/127.0.0.1 监听默认会触发门禁；若题型确实需要回环监听（例如 SSRF/内网链路），请设置 `challenge.platform.allow_loopback_bind: true`。
+
 ## 目录
 
 1. Node
@@ -99,6 +104,7 @@ challenge:
 
 - 忘记 `pip --no-cache-dir`。
 - 应用只监听 `127.0.0.1`。
+- 若业务必须监听回环地址，未设置 `platform.allow_loopback_bind: true` 会触发校验 ERROR。
 
 ---
 
@@ -181,6 +187,7 @@ challenge:
 
 - 若需要数据库初始化：注入 `MYSQL_INIT_SQL_B64`。
 - 若必须暴露 3306，可追加 `expose_ports: ["80", "3306"]`。
+- 使用 Alpine 镜像时，模板会自动切换到 `httpd -D FOREGROUND` 前台命令路径。
 
 常见错误：
 
@@ -210,11 +217,12 @@ challenge:
 
 - 使用 `ctf.xinetd` 明确端口、二进制路径和资源限制。
 - 题目若读取 `/home/ctf/flag`，在 `start.sh` 中增加 `/flag` 同步逻辑。
+- Alpine 基础镜像下可自动回退到 `tcpserver`（`ucspi-tcp6`），Debian/Ubuntu 默认使用 `xinetd`。
 
 常见错误：
 
-- 使用 `xinetd` 后台模式导致容器退出。
-- `ctf.xinetd` 端口与 Dockerfile `EXPOSE` 不一致。
+- `xinetd` 或 `tcpserver` 以后台模式运行，导致容器主进程退出。
+- `ctf.xinetd`（或 tcpserver 实际监听端口）与 Dockerfile `EXPOSE` 不一致。
 
 ---
 
@@ -307,7 +315,7 @@ challenge:
 - 已有 JAR：Java
 - 已有 WAR：Tomcat
 - 必须同容器 DB：LAMP
-- 二进制远程交互题：Pwn (xinetd)
+- 二进制远程交互题：Pwn (xinetd/tcpserver)
 - AI Web 推理题：AI (CPU)
 - RDG Docker 模式题目：RDG (Docker)
 
