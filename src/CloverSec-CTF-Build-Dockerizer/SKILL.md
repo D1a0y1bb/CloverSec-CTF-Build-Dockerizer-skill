@@ -113,7 +113,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG check 脚本契约（v1.4.0-r1）
+### RDG check 脚本契约（v1.4.0-r2）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -139,7 +139,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `HEALTHCHECK_BLOCK`
 - `STACK_FLAG_BLOCK`
 
-## validate 自动修复与发布门禁（v1.4.0-r1）
+## validate 自动修复与发布门禁（v1.4.0-r2）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。
@@ -539,26 +539,26 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/start.sh.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/README.md`
 
-### Pwn (xinetd/tcpserver)
+### Pwn (xinetd/tcpserver/socat)
 
 适用：
 
 - Jeopardy 模式二进制远程交互题目
-- 以 xinetd 或 tcpserver 托管挑战进程
+- 以 xinetd、tcpserver 或 socat 托管挑战进程
 
 默认：
 
 - 端口 `10000`
-- 启动命令 `/usr/sbin/xinetd -dontfork`（Alpine 可回退 tcpserver）
+- 启动命令 `/usr/sbin/xinetd -dontfork`（Alpine 可回退 tcpserver，缺失时回退 socat）
 
 最小启动命令范式：
 
-- `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...`
+- `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` / `exec socat ...`
 
 可选变体：
 
 - 在 `start.sh` 启动前将 `/flag` 同步到 `/home/ctf/flag`
-- 根据 `ctf.xinetd` 动态调整端口与 server_args；无 xinetd 时回退 tcpserver
+- 根据 `ctf.xinetd` 动态调整端口与 server_args；无 xinetd 时回退 tcpserver，仍不可用时回退 socat
 
 模板路径：
 
@@ -592,6 +592,34 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - `src/CloverSec-CTF-Build-Dockerizer/templates/ai/Dockerfile.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/ai/start.sh.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/ai/README.md`
+
+### RDG (Docker)
+
+适用：
+
+- 防御修复型 Docker 题目（check-service 判定）
+- 需要 ttyd/sshd 登录通道与可选 flag 兼容路径
+
+默认：
+
+- 端口 `80/22/8022`（业务端口 + sshd + ttyd）
+- 启动命令按业务栈选择（如 `apache2-foreground` 或 `python app.py`）
+
+最小启动命令范式：
+
+- 双通道启用时：后台拉起 `sshd` 和 `ttyd`，前台 `exec` 业务主服务
+- 关闭登录通道时：`enable_ttyd=false` 与 `enable_sshd=false`，仅保留业务主服务前台运行
+
+可选变体：
+
+- `include_flag_artifact=false`：仅 check-service 判定，放行 `/flag` 产物约束
+- `check_enabled=true` + `check_script_path`：启用强门禁 check 脚本契约
+
+模板路径：
+
+- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/Dockerfile.tpl`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/start.sh.tpl`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/README.md`
 
 ## validate 规则速查
 

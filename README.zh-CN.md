@@ -11,26 +11,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.4.0-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.4.0-r2</code></p>
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.4.0-r1
+## What's New in v1.4.0-r2
 
-`v1.4.0-r1` 是基于 `v1.4.0` 的工程化补丁版本，核心目标是提升交付稳定性与发布可审计性。模板体系进一步收敛为可组合结构：9 栈 Dockerfile 统一复用 prolog/epilog 横切片段，栈模板只保留栈特有逻辑，减少复制粘贴式膨胀。
+`v1.4.0-r2` 是基于 `v1.4.0-r1` 的热修复版本，核心目标是恢复 CI 稳定性并收敛关键文档口径。GitHub Actions 的 `release-full-check` 已修复 `VERSION` 读取逻辑，避免因 `tr` 命令写法问题导致的 SBOM 断言误失败。
 
-校验链路新增安全自动修复能力：`validate.sh --fix` 只做 dry-run 预览，`--fix-write` 才会落盘写回，`--fix-loopback` 用于显式启用 loopback 参数改写。Pwn 运行时同时支持 `xinetd/tcpserver/socat`，并补齐了对应端口一致性校验。
+文档层面同步纠偏：Pwn 能力统一为 `xinetd/tcpserver/socat`，栈手册与 README 目录指引与实际实现保持一致，避免维护者因过时描述产生误判。
 
-供应链方面，发布流程新增 digest 门禁与 SBOM 资产：`release_build.sh` 会在发布校验阶段启用 `VALIDATE_ENFORCE_DIGEST=1`，非 digest 且不在官方白名单的基础镜像将报错；发布资产除 zip 外，还包含 `.sbom.spdx.json`、`.sbom.cdx.json`、`.deps.txt` 并由 `publish_release.sh` 一并上传。
+`v1.4.0-r1` 已引入的工程化能力保持不变：模板组合化、安全 autofix、digest 发布门禁、以及 zip + SBOM + deps 的完整发布资产链路。
 
 <details>
-<summary><b>v1.4.0-r1 实施重点</b></summary>
+<summary><b>v1.4.0-r2 实施重点</b></summary>
 
 新增样例覆盖：`node-multiport-basic`、`python-supervisor-basic`、`pwn-socat-basic`、`tomcat-context-basic`。`smoke_test.sh` 支持按示例自动执行 `smoke_assert.sh` 断言脚本，用于多端口/上下文路径等边界验证。
 
@@ -201,7 +201,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 | java | 8080 | `exec java -jar app.jar` |
 | tomcat | 8080 | `exec catalina.sh run` |
 | lamp | 80 | 数据库后台 + Apache 前台 |
-| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` |
+| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` / `exec socat ...` |
 | ai | 5000 | `exec gunicorn ...` |
 | rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
 
@@ -224,7 +224,8 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 │   ├── sync.sh
 │   ├── doc_guard.sh
 │   ├── release_build.sh
-│   └── publish_release.sh
+│   ├── publish_release.sh
+│   └── generate_sbom.sh
 ├── CHANGELOG.md
 └── VERSION
 ```
@@ -236,7 +237,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.4.0-r1
+bash scripts/publish_release.sh --version v1.4.0-r2
 ```
 
 ## 更新记录

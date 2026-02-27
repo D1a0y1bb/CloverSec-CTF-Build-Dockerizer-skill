@@ -12,26 +12,26 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.4.0-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.4.0-r2</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
-## What's New in v1.4.0-r1
+## What's New in v1.4.0-r2
 
-`v1.4.0-r1` is a hardening patch on top of `v1.4.0`, focused on delivery reliability and release auditability. The template system is now more composable: all 9 stack Dockerfiles share common prolog/epilog snippets so stack templates only keep stack-specific logic. This reduces copy-paste drift when adding or changing stack behavior.
+`v1.4.0-r2` is a hotfix release on top of `v1.4.0-r1`, focused on CI recovery and documentation consistency. The GitHub Actions `release-full-check` workflow now reads `VERSION` correctly during SBOM assertions, which resolves the false failure caused by incorrect `tr` invocation.
 
-Validation now supports a safe autofix path. `validate.sh --fix` previews low-risk patches (dry-run), while `--fix-write` applies them explicitly; `--fix-loopback` enables optional loopback host rewrites for explicit host arguments. Pwn runtime support is extended to `xinetd/tcpserver/socat`, and new regression examples cover multi-port services, supervisor mode, socat, and Tomcat custom context paths.
+This patch also aligns high-impact docs with actual runtime behavior: Pwn capability wording is unified to `xinetd/tcpserver/socat`; the stack guide no longer implies outdated Pwn coverage; and repository navigation now includes `scripts/generate_sbom.sh` so release responsibilities are explicit to maintainers.
 
-Supply-chain controls are tightened for release flow. `release_build.sh` now enables `VALIDATE_ENFORCE_DIGEST=1`; tag-only base images are blocked unless matched by `data/base_image_allowlist.yaml`. Release artifacts now include SBOM and dependency outputs (`.sbom.spdx.json`, `.sbom.cdx.json`, `.deps.txt`), uploaded alongside the zip by `publish_release.sh` in immutable-compatible mode.
+The hardening introduced in `v1.4.0-r1` remains intact: composable templates, safe autofix flow, digest gate in release checks, and SBOM/dependency assets uploaded in immutable-compatible release mode.
 
 <details>
-<summary><b>v1.4.0-r1 implementation highlights</b></summary>
+<summary><b>v1.4.0-r2 implementation highlights</b></summary>
 
 New example coverage is added for `node-multiport-basic`, `python-supervisor-basic`, `pwn-socat-basic`, and `tomcat-context-basic`. `smoke_test.sh` now supports optional per-example `smoke_assert.sh` hooks for boundary assertions.
 
@@ -202,7 +202,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 | java | 8080 | `exec java -jar app.jar` |
 | tomcat | 8080 | `exec catalina.sh run` |
 | lamp | 80 | DB background + Apache foreground |
-| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` |
+| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` / `exec socat ...` |
 | ai | 5000 | `exec gunicorn ...` |
 | rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
 
@@ -225,7 +225,8 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 │   ├── sync.sh
 │   ├── doc_guard.sh
 │   ├── release_build.sh
-│   └── publish_release.sh
+│   ├── publish_release.sh
+│   └── generate_sbom.sh
 ├── CHANGELOG.md
 └── VERSION
 ```
@@ -237,7 +238,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 bash scripts/release_build.sh
 
 # One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.4.0-r1
+bash scripts/publish_release.sh --version v1.4.0-r2
 ```
 
 ## Changelog

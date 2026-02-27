@@ -2,6 +2,28 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.4.0-r2 - 2026-02-27
+
+### 修复
+
+- 修复 GitHub Actions `release-full-check` 中 `VERSION` 读取命令，解决 `tr: extra operand 'VERSION'` 导致的 SBOM 断言误失败。
+- SBOM 断言步骤新增 `version` 非空检测，避免空值路径被误判通过。
+
+### 文档
+
+- `README.md` / `README.zh-CN.md`：
+  - 版本与发布命令升级到 `v1.4.0-r2`
+  - Pwn 启动能力口径统一为 `xinetd/tcpserver/socat`
+  - 仓库结构补充 `scripts/generate_sbom.sh`
+- `src/CloverSec-CTF-Build-Dockerizer/SKILL.md`：
+  - “9 栈最小模板库索引”补齐 RDG 专节
+  - Pwn 标题与描述升级为 `xinetd/tcpserver/socat`
+- `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`：
+  - 目录与快速选型中的 Pwn 口径统一为 `xinetd/tcpserver/socat`
+- `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md`：
+  - 新增 `autofix.py` 说明
+  - 明确根目录 `scripts/` 与引擎 `src/.../scripts/` 职责边界
+
 ## v1.4.0-r1 - 2026-02-27
 
 ### 新增

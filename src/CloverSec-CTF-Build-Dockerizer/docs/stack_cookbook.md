@@ -2,7 +2,7 @@
 
 本文档提供 9 个技术栈的最小可用配置、常见变更和注意事项。
 
-通用补充（v1.4.0-r1）：
+通用补充（v1.4.0-r2）：
 
 - 所有栈支持 `challenge.healthcheck`，可渲染 Docker `HEALTHCHECK`，并可通过 `healthcheck.enabled: false` 显式关闭。
 - localhost/127.0.0.1 监听默认会触发门禁；若题型确实需要回环监听（例如 SSRF/内网链路），请设置 `challenge.platform.allow_loopback_bind: true`。
@@ -17,7 +17,7 @@
 4. Java (JAR)
 5. Tomcat (WAR)
 6. LAMP
-7. Pwn (xinetd)
+7. Pwn (xinetd/tcpserver/socat)
 8. AI (CPU)
 9. RDG (Docker)
 
@@ -317,7 +317,7 @@ challenge:
 - 已有 JAR：Java
 - 已有 WAR：Tomcat
 - 必须同容器 DB：LAMP
-- 二进制远程交互题：Pwn (xinetd/tcpserver)
+- 二进制远程交互题：Pwn (xinetd/tcpserver/socat)
 - AI Web 推理题：AI (CPU)
 - RDG Docker 模式题目：RDG (Docker)
 
