@@ -122,7 +122,7 @@ stacks:
       多服务最小策略为 MariaDB 后台 + Apache 前台。默认不暴露 3306，需要时可在 expose_ports 中追加。
 
   - id: pwn
-    display_name: Pwn (xinetd)
+    display_name: Pwn (xinetd/tcpserver/socat)
     detect:
       any_of_files:
         - ctf.xinetd
@@ -139,7 +139,8 @@ stacks:
       start_cmd: "/usr/sbin/xinetd -dontfork"
       healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/10000'"
     notes: >
-      适用于 Jeopardy 模式 Pwn 题目，默认以 xinetd 前台方式启动。
+      适用于 Jeopardy 模式 Pwn 题目，默认以 xinetd 前台方式启动，
+      并可按基础镜像能力回退到 tcpserver/socat 前台路径。
       当前不覆盖 AWD/AWDP 赛制编排与批量攻防场景。
 
   - id: ai

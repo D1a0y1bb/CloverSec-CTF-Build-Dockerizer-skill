@@ -2,6 +2,42 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v1.5.0 - 2026-02-28
+
+### 新增
+
+- 新增运行时档位数据源：`src/CloverSec-CTF-Build-Dockerizer/data/runtime_profiles.yaml`（php/node/java）。
+- 新增文档：
+  - `src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md`
+  - `src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md`
+- 新增治理脚本 Python 主实现：
+  - `scripts/doc_guard.py`
+  - `scripts/release_build.py`
+  - `scripts/generate_sbom.py`
+  - `scripts/sync.py`
+  - `scripts/publish_guard.py`
+- 新增运行时推断回归脚本：`src/CloverSec-CTF-Build-Dockerizer/scripts/test_runtime_profiles.sh`。
+
+### 变更
+
+- `derive_config.py` 增加运行时档位输出：`runtime_profile_candidates`、`recommended_profile`、`recommended_base_image`、`runtime_profile_evidence`。
+- `render.py` 新增 `--runtime-profile`，并明确基础镜像优先级：`--base-image > --runtime-profile > challenge.base_image > infer/default`。
+- `validate.sh` 增加 legacy 运行时告警（WARN，不阻断）：`php:5.6/7.4`、`node:14/16`、`temurin:8`（含 digest 形式）。
+- 根目录治理 `.sh` 脚本改为 Python 兼容入口 wrapper，命令入口保持不变。
+- `publish_release.sh` 维持编排角色，版本读取与白名单路径判定下沉到 `publish_guard.py`。
+- `data/stacks.yaml` 与模板文档统一 Pwn 口径为 `xinetd/tcpserver/socat`。
+
+### 文档
+
+- `README.md` / `README.zh-CN.md` 升级到 `v1.5.0`，补充运行时兼容选择说明与 Python-first 治理脚本结构。
+- `beginner_guide.md`、`platform_contract.md`、`troubleshooting.md` 修复与实现不一致描述（RDG flag 可选、9 栈口径、运行时兼容路径）。
+- `SKILL.md` Step1 协议升级：Q1 明确“技术栈 + 运行时档位确认”（php/node/java）。
+
+### CI
+
+- `.github/workflows/ci.yml` 增加治理脚本 Python 入口自检（`--help`）。
+- 增加 runtime profile 推断回归步骤，防止规则回退。
+
 ## v1.4.0-r2 - 2026-02-27
 
 ### 修复

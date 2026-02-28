@@ -26,17 +26,21 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - 即使 Dockerfile 中已有 `CMD`，仍必须保证 `/start.sh` 独立可执行。
 - start.sh 必须是完整的启动入口，不能只做环境准备然后退出。
 
-## 3. 为什么 /flag 必须在容器根目录
+## 3. 为什么默认要求 /flag 在容器根目录
 
 平台会在容器启动后注入动态 flag。技能交付时需要提供固定路径的静态测试 flag 文件：
 
 - 路径：`/flag`
 - 权限：可读（建议 `444`）
 
-工程后果：
+工程后果（默认模式）：
 
-- Dockerfile 必须把 `flag` 拷贝到 `/flag`。
-- Dockerfile 必须设置 `/flag` 读权限。
+- Dockerfile 需要把 `flag` 拷贝到 `/flag`。
+- Dockerfile 需要设置 `/flag` 读权限。
+
+RDG 例外（显式配置）：
+
+- 当 `challenge.rdg.include_flag_artifact=false` 时，可关闭 `/flag` 产物链路，用于 check-service 判定题型。
 
 ## 4. 为什么必须安装 bash
 
@@ -109,11 +113,11 @@ LAMP 等多服务场景允许：
 
 ## 9. 输出契约
 
-每次渲染交付必须有：
+每次渲染交付默认必须有：
 
 - `Dockerfile`
 - `start.sh`
-- `flag`
+- `flag`（RDG 且 `include_flag_artifact=false` 可关闭）
 
 并满足：
 

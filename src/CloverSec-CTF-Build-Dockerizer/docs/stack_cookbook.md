@@ -2,12 +2,14 @@
 
 本文档提供 9 个技术栈的最小可用配置、常见变更和注意事项。
 
-通用补充（v1.4.0-r2）：
+通用补充（v1.5.0）：
 
 - 所有栈支持 `challenge.healthcheck`，可渲染 Docker `HEALTHCHECK`，并可通过 `healthcheck.enabled: false` 显式关闭。
 - localhost/127.0.0.1 监听默认会触发门禁；若题型确实需要回环监听（例如 SSRF/内网链路），请设置 `challenge.platform.allow_loopback_bind: true`。
 - `validate.sh` 新增 `--fix/--fix-write` 安全自动修复模式，可先 dry-run 预览补丁，再按需写回。
 - 发布链路可启用 `VALIDATE_ENFORCE_DIGEST=1`，对基础镜像执行 digest 门禁（官方白名单支持 tag-only 放行）。
+- `php/node/java` 支持运行时档位建议：`derive_config.py` 会输出 `runtime_profile_candidates`，也可在渲染时用 `--runtime-profile` 显式选择。
+- 命中 legacy 运行时镜像（例如 `php:5.6-apache` / `node:14-bullseye` / `eclipse-temurin:8-jre-jammy`）时，`validate.sh` 会给出 WARN（不阻断）。
 
 ## 目录
 

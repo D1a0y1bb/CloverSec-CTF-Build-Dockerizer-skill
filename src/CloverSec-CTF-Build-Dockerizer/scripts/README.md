@@ -15,6 +15,7 @@
 - `autofix.py`：`validate.sh --fix/--fix-write` 对应的安全自动修复执行器
 - `validate_examples.sh`：遍历 examples 全目录并做静态校验
 - `smoke_test.sh`：执行 render/validate/build/run 冒烟回归
+- `test_runtime_profiles.sh`：运行时档位推断回归（php/node/java）
 - `cleanup_test_containers.sh`：清理 `ctf-skill-test*` 容器和镜像
 - `utils.py`：模板 include、变量渲染、推断与通用函数
 

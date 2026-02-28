@@ -4,7 +4,7 @@
 
 1. 安装 Skill
 2. 在对话里正确触发 Skill
-3. 用最少交互生成可交付的 `Dockerfile + start.sh + flag`
+3. 用最少交互生成可交付的 `Dockerfile + start.sh + flag(可选)`
 4. 在真实业务场景中稳定复用
 
 ## 1. 先知道它能做什么
@@ -81,7 +81,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 ```text
 请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。
-先执行自动探测并输出 CONFIG PROPOSAL，我确认 OK 后你再自动生成 Dockerfile/start.sh/flag，并运行 validate。
+先执行自动探测并输出 CONFIG PROPOSAL，我确认 OK 后你再自动生成 Dockerfile/start.sh/flag(可选)，并运行 validate。
 ```
 
 ### 4.2 Claude 触发示例
@@ -109,7 +109,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 你只需要关注这 5 个确认项：
 
-1. 技术栈（node/php/python/java/tomcat/lamp/pwn/ai）
+1. 技术栈（node/php/python/java/tomcat/lamp/pwn/ai/rdg）+ 运行时档位（php/node/java）
 2. 容器端口
 3. `WORKDIR`
 4. 启动命令
@@ -121,7 +121,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 | 场景 | 触发语句（可直接发给 AI） | 期望输出 |
 |---|---|---|
-| 老题目没有 Dockerfile | “用 CloverSec-CTF-Build-Dockerizer 为当前目录生成交付文件，按 CONFIG PROPOSAL 流程走。” | 生成 `Dockerfile/start.sh/flag` |
+| 老题目没有 Dockerfile | “用 CloverSec-CTF-Build-Dockerizer 为当前目录生成交付文件，按 CONFIG PROPOSAL 流程走。” | 生成 `Dockerfile/start.sh/flag(可选)` |
 | 题目容器一启动就退出 | “用 CloverSec-CTF-Build-Dockerizer 重生 start.sh，并确保单服务用 exec 作为 PID1。” | `start.sh` 可持续运行且有日志 |
 | 平台报 `/bin/bash` 不存在 | “用 CloverSec-CTF-Build-Dockerizer 修复镜像，确保 /bin/bash 可用并通过 validate。” | Dockerfile 补齐 bash 安装 |
 | 平台动态 flag 写入失败 | “检查并修复 /flag 权限、路径与 start.sh 入口约束。” | `/flag` 在根目录且可读 |
@@ -171,5 +171,5 @@ docker logs -f "$(docker ps -q --filter ancestor=ctf-web-demo:latest | head -n 1
 1. 先跑安装命令（3.1 + 3.2 + 3.3 任选你需要的平台）
 2. 复制“触发示例”发给 Agent
 3. 收到 `CONFIG PROPOSAL` 后仅回复 `OK`
-4. 查看 `Dockerfile/start.sh/flag` 与 validate 结果
+4. 查看 `Dockerfile/start.sh/flag(可选)` 与 validate 结果
 5. 本地 `docker run ... /start.sh` 做最后验证

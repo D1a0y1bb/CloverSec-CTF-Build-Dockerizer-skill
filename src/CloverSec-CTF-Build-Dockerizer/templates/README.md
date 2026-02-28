@@ -42,6 +42,7 @@
 - 自 `v1.4.0-r1` 起，9 栈 Dockerfile 统一使用 prolog/epilog 组合片段，减少重复模板维护成本。
 - 所有栈模板支持 `{{HEALTHCHECK_BLOCK}}` 注入，可通过 `challenge.healthcheck.enabled=false` 显式关闭。
 - `pwn` 与 `lamp` 模板支持 Debian/Ubuntu 与 Alpine 双分支安装策略；`pwn` 同时支持 `xinetd/tcpserver/socat` 前台路径。
+- `php/node/java` 的 `BASE_IMAGE` 可由运行时档位映射（`data/runtime_profiles.yaml`）生成，`--base-image` 仍可最终覆盖。
 
 ## include 语法
 

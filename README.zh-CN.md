@@ -11,28 +11,31 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.5.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.5.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.4.0-r2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.5.0</code></p>
 
 四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
 
-## What's New in v1.4.0-r2
+## What's New in v1.5.0
 
-`v1.4.0-r2` 是基于 `v1.4.0-r1` 的热修复版本，核心目标是恢复 CI 稳定性并收敛关键文档口径。GitHub Actions 的 `release-full-check` 已修复 `VERSION` 读取逻辑，避免因 `tr` 命令写法问题导致的 SBOM 断言误失败。
+`v1.5.0` 是面向可维护性的收敛版本，核心目标是：文档/架构口径对齐、治理脚本 Python 主实现、以及 PHP/Node/Java 运行时版本可选择能力。
 
-文档层面同步纠偏：Pwn 能力统一为 `xinetd/tcpserver/socat`，栈手册与 README 目录指引与实际实现保持一致，避免维护者因过时描述产生误判。
+本版补齐了高影响文档缺口：Pwn 统一口径为 `xinetd/tcpserver/socat`，RDG 的 `/flag` 可选策略在 README/契约文档中一致呈现，并新增架构总览与目录指引文档用于维护导航。
 
-`v1.4.0-r1` 已引入的工程化能力保持不变：模板组合化、安全 autofix、digest 发布门禁、以及 zip + SBOM + deps 的完整发布资产链路。
+治理链路方面，`doc_guard/release_build/generate_sbom/sync` 已迁移为 Python 主实现，`.sh` 入口保留为兼容 wrapper；`publish_release.sh` 通过 `publish_guard.py` 承担版本读取和提交白名单判定，降低 shell 解析风险。
 
 <details>
-<summary><b>v1.4.0-r2 实施重点</b></summary>
+<summary><b>v1.5.0 实施重点</b></summary>
 
-新增样例覆盖：`node-multiport-basic`、`python-supervisor-basic`、`pwn-socat-basic`、`tomcat-context-basic`。`smoke_test.sh` 支持按示例自动执行 `smoke_assert.sh` 断言脚本，用于多端口/上下文路径等边界验证。
+- 新增 `data/runtime_profiles.yaml`，提供 php/node/java 运行时档位映射。
+- `derive_config.py` 输出运行时档位候选与推荐镜像证据。
+- `render.py` 支持 `--runtime-profile`，并保持 `base_image` 最终覆盖优先级。
+- legacy 运行时镜像在 `validate.sh` 输出 WARN（不阻断），用于题目兼容提醒。
 
 </details>
 
@@ -94,7 +97,7 @@ npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-ski
 ### Agent 快速编排
 
 ```text
-标准 Prompt：请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。先自动探测并输出 CONFIG PROPOSAL；我确认 OK 后，再生成 Dockerfile/start.sh/flag 并运行 validate。
+标准 Prompt：请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。先自动探测并输出 CONFIG PROPOSAL；我确认 OK 后，再生成 Dockerfile/start.sh/flag(可选) 并运行 validate。
 ```
 
 这个流程的价值在于先确认配置、再生成产物，避免 AI 直接跳过关键约束。你也可以使用更短的业务表达式触发同样流程，例如：
@@ -110,6 +113,16 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-di
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
+
+### 运行时兼容选择（PHP/Node/Java）
+
+当题目源码依赖特定老版本运行时时，可显式指定运行时档位：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --runtime-profile php74-apache --output .
+```
+
+`--base-image` 仍是最终覆盖手段；命中 legacy 档位时 `validate.sh` 会给出 WARN 提示（不阻断）。
 
 ## 自动化流程实录（本地化截图）
 
@@ -222,13 +235,25 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 │   └── docs/
 ├── scripts/
 │   ├── sync.sh
+│   ├── sync.py
 │   ├── doc_guard.sh
+│   ├── doc_guard.py
 │   ├── release_build.sh
+│   ├── release_build.py
 │   ├── publish_release.sh
-│   └── generate_sbom.sh
+│   ├── publish_guard.py
+│   ├── generate_sbom.sh
+│   └── generate_sbom.py
 ├── CHANGELOG.md
 └── VERSION
 ```
+
+## 设计文档导航
+
+- [架构总览](src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md)
+- [目录指引](src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md)
+- [平台契约](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
+- [栈配置手册](src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md)
 
 ## 发布流程
 
@@ -237,7 +262,7 @@ docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
 bash scripts/release_build.sh
 
 # 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.4.0-r2
+bash scripts/publish_release.sh --version v1.5.0
 ```
 
 ## 更新记录

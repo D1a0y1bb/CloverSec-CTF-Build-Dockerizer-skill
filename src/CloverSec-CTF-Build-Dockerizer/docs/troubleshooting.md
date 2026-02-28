@@ -87,6 +87,20 @@ python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirement
 - 优先 `npm ci`
 - 安装后 `npm cache clean --force`
 
+### 3.4 老题目在高版本运行时启动失败
+
+现象：
+
+- PHP/Node/Java 题目在默认镜像下报语法或依赖兼容错误。
+
+处理：
+
+- 优先在 AI 五问的 Q1 里确认“技术栈 + 运行时档位”。
+- 或手动覆盖：
+  - `render.py --runtime-profile <profile_id>`
+  - `challenge.base_image: <exact_image>`
+- 说明：命中 legacy 档位时，`validate.sh` 会给出 WARN（不阻断），用于提醒该镜像仅建议题目兼容使用。
+
 ---
 
 ## 4. 运行阶段

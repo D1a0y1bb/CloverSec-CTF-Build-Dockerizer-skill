@@ -1,8 +1,8 @@
-# Pwn(xinetd) 模板说明
+# Pwn(xinetd/tcpserver/socat) 模板说明
 
 ## 适用场景
 
-- CTF Jeopardy 模式 Pwn 题目（xinetd 托管二进制服务）。
+- CTF Jeopardy 模式 Pwn 题目（支持 xinetd/tcpserver/socat 前台托管）。
 - 需要统一满足平台 `/start.sh`、`/flag`、`/bin/bash` 约束的交付。
 
 > 说明：本模板不覆盖 AWD/AWDP 攻防编排。
@@ -11,7 +11,7 @@
 
 - 默认端口：`10000`
 - 默认工作目录：`/home/ctf`
-- 默认启动命令：`/usr/sbin/xinetd -dontfork`
+- 默认启动命令：`/usr/sbin/xinetd -dontfork`（可回退 `tcpserver` 或 `socat`）
 - 默认基础镜像：`debian:bookworm-slim`
 
 ## 变量说明

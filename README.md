@@ -12,28 +12,31 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.4.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.5.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.4.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.5.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.4.0-r2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v1.5.0</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
 
-## What's New in v1.4.0-r2
+## What's New in v1.5.0
 
-`v1.4.0-r2` is a hotfix release on top of `v1.4.0-r1`, focused on CI recovery and documentation consistency. The GitHub Actions `release-full-check` workflow now reads `VERSION` correctly during SBOM assertions, which resolves the false failure caused by incorrect `tr` invocation.
+`v1.5.0` is a convergence release focused on three axes: architecture/documentation consistency, Python-first governance tooling, and runtime compatibility choice for PHP/Node/Java challenge delivery.
 
-This patch also aligns high-impact docs with actual runtime behavior: Pwn capability wording is unified to `xinetd/tcpserver/socat`; the stack guide no longer implies outdated Pwn coverage; and repository navigation now includes `scripts/generate_sbom.sh` so release responsibilities are explicit to maintainers.
+The docs and contract set are now aligned with implementation details: Pwn wording is unified to `xinetd/tcpserver/socat`, RDG flag optionality (`include_flag_artifact=false`) is consistently documented, and architecture/directory guides are added for maintainers.
 
-The hardening introduced in `v1.4.0-r1` remains intact: composable templates, safe autofix flow, digest gate in release checks, and SBOM/dependency assets uploaded in immutable-compatible release mode.
+Release governance scripts are migrated to Python mainline (`doc_guard.py`, `release_build.py`, `generate_sbom.py`, `sync.py`) while keeping `.sh` entrypoints stable as compatibility wrappers. `publish_release.sh` now delegates high-risk parsing/staging checks to `publish_guard.py`.
 
 <details>
-<summary><b>v1.4.0-r2 implementation highlights</b></summary>
+<summary><b>v1.5.0 implementation highlights</b></summary>
 
-New example coverage is added for `node-multiport-basic`, `python-supervisor-basic`, `pwn-socat-basic`, and `tomcat-context-basic`. `smoke_test.sh` now supports optional per-example `smoke_assert.sh` hooks for boundary assertions.
+- Added runtime profile source `data/runtime_profiles.yaml` for `php/node/java`.
+- `derive_config.py` now emits runtime profile candidates and a recommended profile/base image.
+- `render.py` supports `--runtime-profile`, with deterministic precedence under `--base-image`.
+- `validate.sh` adds non-blocking WARN for legacy runtime images (compatibility-only signal).
 
 </details>
 
@@ -70,7 +73,7 @@ npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-ski
 ### Agent-Orchestrated Flow
 
 ```text
-Standard prompt: Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory. Run auto-detection and output CONFIG PROPOSAL first; after I reply OK, generate Dockerfile/start.sh/flag and run validate.
+Standard prompt: Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory. Run auto-detection and output CONFIG PROPOSAL first; after I reply OK, generate Dockerfile/start.sh/flag(optional) and run validate.
 ```
 
 This approach intentionally gates generation behind confirmation so stack assumptions and runtime contracts are aligned before artifacts are rendered. A shorter business prompt can trigger the same flow:
@@ -86,6 +89,16 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-di
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
+
+### Runtime Compatibility Selection (PHP/Node/Java)
+
+If the challenge source requires a specific runtime generation, select a profile explicitly:
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --runtime-profile php74-apache --output .
+```
+
+`--base-image` remains the final override path. Legacy profiles are allowed for compatibility and flagged by `validate.sh` as WARN.
 
 ## Workflow Screenshots (Localized Assets)
 
@@ -223,13 +236,25 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 │   └── docs/
 ├── scripts/
 │   ├── sync.sh
+│   ├── sync.py
 │   ├── doc_guard.sh
+│   ├── doc_guard.py
 │   ├── release_build.sh
+│   ├── release_build.py
 │   ├── publish_release.sh
-│   └── generate_sbom.sh
+│   ├── publish_guard.py
+│   ├── generate_sbom.sh
+│   └── generate_sbom.py
 ├── CHANGELOG.md
 └── VERSION
 ```
+
+## Design Docs
+
+- [Architecture Overview](src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md)
+- [Directory Guide](src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md)
+- [Platform Contract](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
+- [Stack Cookbook](src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md)
 
 ## Release Workflow
 
@@ -238,7 +263,7 @@ Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/do
 bash scripts/release_build.sh
 
 # One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.4.0-r2
+bash scripts/publish_release.sh --version v1.5.0
 ```
 
 ## Changelog

@@ -45,10 +45,13 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 
 - 输入 schema：`src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
 - 栈默认值：`src/CloverSec-CTF-Build-Dockerizer/data/stacks.yaml`
+- 运行时档位：`src/CloverSec-CTF-Build-Dockerizer/data/runtime_profiles.yaml`
 - 推断规则：`src/CloverSec-CTF-Build-Dockerizer/data/patterns.yaml`
 - 可配置校验：`src/CloverSec-CTF-Build-Dockerizer/data/validate_rules.yaml`
 - digest 放行白名单：`src/CloverSec-CTF-Build-Dockerizer/data/base_image_allowlist.yaml`
 - 平台契约：`src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
+- 架构总览：`src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md`
+- 目录指引：`src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md`
 - 栈手册：`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
 - 故障排查：`src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md`
 - 新手指南（安装/触发/场景）：`src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`
@@ -204,9 +207,9 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-di
 
 AI 必须按固定顺序提问，且每题都带默认值：
 
-Q1 技术栈 
-默认：`<stack_guess.id>` 
-可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg`
+Q1 技术栈 + 运行时档位（仅 php/node/java 显示档位候选）
+默认：`<stack_guess.id> + <recommended_profile>`
+可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg` + runtime profile 候选（若有）
 
 Q2 容器端口 
 默认：`<port_guess.ports>` 
@@ -237,7 +240,7 @@ Q5 代码拷贝路径
 5) 拷贝路径: <app_src> -> <app_dst>（evidence: <...>）
 
 请确认以下 5 项（直接回车使用默认值也可以）：
-Q1 技术栈 [默认: <stack_guess.id>]：
+Q1 技术栈 + 运行时档位 [默认: <stack_guess.id> + <recommended_profile>]：
 Q2 容器端口 [默认: <ports>]：
 Q3 WORKDIR [默认: <workdir>]：
 Q4 启动命令 [默认: <cmd1>; 备选: <cmd2>/<cmd3>]：
@@ -252,7 +255,7 @@ Step 1 末尾硬规则（必须执行）：
 ```yaml
 CONFIG PROPOSAL:
   stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg>
-  base_image: <string|optional>
+  base_image: <string|optional> # 由运行时档位映射或手动指定
   workdir: <string>
   app_src: <string>
   app_dst: <string>
