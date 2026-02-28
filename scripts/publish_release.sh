@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION_FILE="${ROOT_DIR}/VERSION"
 CHANGELOG_FILE="${ROOT_DIR}/CHANGELOG.md"
 RELEASE_BUILD_SCRIPT="${ROOT_DIR}/scripts/release_build.sh"
+PUBLISH_GUARD_SCRIPT="${ROOT_DIR}/scripts/publish_guard.py"
 PACKAGE_NAME="CloverSec-CTF-Build-Dockerizer"
 
 SOURCE_DIR=""
@@ -42,6 +43,16 @@ warn() {
 die() {
   echo "[ERROR] $*" >&2
   exit 1
+}
+
+print_path_group() {
+  local title="$1"
+  shift
+  local item
+  echo "${title}"
+  for item in "$@"; do
+    echo "  - ${item}"
+  done
 }
 
 usage() {
@@ -132,17 +143,17 @@ parse_args() {
 }
 
 load_version() {
+  [[ -f "${PUBLISH_GUARD_SCRIPT}" ]] || die "Missing guard script: ${PUBLISH_GUARD_SCRIPT}"
+
+  local cmd=(python3 "${PUBLISH_GUARD_SCRIPT}" version --version-file "${VERSION_FILE}")
   if [[ -n "${VERSION_OVERRIDE}" ]]; then
-    VERSION="${VERSION_OVERRIDE}"
-    printf '%s\n' "${VERSION}" > "${VERSION_FILE}"
-    log "VERSION updated to ${VERSION} from --version"
-  else
-    [[ -f "${VERSION_FILE}" ]] || die "VERSION file not found: ${VERSION_FILE}"
-    VERSION="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+    cmd+=(--override "${VERSION_OVERRIDE}")
   fi
 
-  [[ -n "${VERSION}" ]] || die "Version is empty"
-  [[ "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.-]+)?$ ]] || die "Invalid VERSION format: ${VERSION}"
+  VERSION="$("${cmd[@]}")" || die "Failed to load VERSION via publish_guard.py"
+  if [[ -n "${VERSION_OVERRIDE}" ]]; then
+    log "VERSION updated to ${VERSION} from --version"
+  fi
 }
 
 validate_workspace() {
@@ -150,6 +161,7 @@ validate_workspace() {
   CURRENT_BRANCH="$(git -C "${ROOT_DIR}" branch --show-current)"
   [[ -n "${CURRENT_BRANCH}" ]] || die "Cannot detect current branch"
   [[ -f "${RELEASE_BUILD_SCRIPT}" ]] || die "Missing script: ${RELEASE_BUILD_SCRIPT}"
+  [[ -f "${PUBLISH_GUARD_SCRIPT}" ]] || die "Missing script: ${PUBLISH_GUARD_SCRIPT}"
 }
 
 sync_from_source() {
@@ -198,92 +210,18 @@ build_release_zip() {
   done
 }
 
-is_blocked_publish_path() {
-  local path="$1"
-  case "${path}" in
-    internal/*|dist/*|.DS_Store|*/.DS_Store|SESSION_SUMMARY_v1.2.2.md|*.pem|*.key|.env|.env.*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-is_allowed_publish_path() {
-  local path="$1"
-  case "${path}" in
-    VERSION|CHANGELOG.md|README.md|README.zh-CN.md|README.en.md|LICENSE|.gitignore|scripts/*|src/CloverSec-CTF-Build-Dockerizer/*|docs/assets/readme/*|Build_test/*|.github/*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-print_path_group() {
-  local title="$1"
-  shift
-  local item
-  echo "${title}"
-  for item in "$@"; do
-    echo "  - ${item}"
-  done
-}
-
 collect_publish_stage_paths() {
-  local entry
-  local status
-  local payload
-  local extra_path
-  local path
-  local -a changed_paths=()
-  local -a blocked_paths=()
-  local -a unexpected_paths=()
-  local -a allowed_paths=()
+  local stage_output=""
+  if ! stage_output="$(python3 "${PUBLISH_GUARD_SCRIPT}" stage --root "${ROOT_DIR}")"; then
+    die "发布白名单检查失败，请先处理脚本输出的问题路径。"
+  fi
 
-  # Use NUL-delimited porcelain output to keep spaces/special chars intact.
-  while IFS= read -r -d '' entry; do
-    [[ -n "${entry}" ]] || continue
-    status="${entry:0:2}"
-    payload="${entry:3}"
-    changed_paths+=("${payload}")
-
-    if [[ "${status:0:1}" == "R" || "${status:1:1}" == "R" || "${status:0:1}" == "C" || "${status:1:1}" == "C" ]]; then
-      IFS= read -r -d '' extra_path || die "Failed to parse rename/copy path from git status"
-      changed_paths+=("${extra_path}")
-    fi
-  done < <(git -C "${ROOT_DIR}" status --porcelain -z)
-
-  if [[ ${#changed_paths[@]} -eq 0 ]]; then
+  if [[ -z "${stage_output}" ]]; then
     PUBLISH_STAGE_PATHS=()
     return 0
   fi
 
-  for path in "${changed_paths[@]}"; do
-    if is_blocked_publish_path "${path}"; then
-      blocked_paths+=("${path}")
-      continue
-    fi
-    if ! is_allowed_publish_path "${path}"; then
-      unexpected_paths+=("${path}")
-      continue
-    fi
-    allowed_paths+=("${path}")
-  done
-
-  if [[ ${#blocked_paths[@]} -gt 0 ]]; then
-    print_path_group "[ERROR] 检测到阻断路径（不允许发布脚本自动提交）:" "${blocked_paths[@]}" >&2
-    die "发布已中止，请先清理阻断路径。"
-  fi
-
-  if [[ ${#unexpected_paths[@]} -gt 0 ]]; then
-    print_path_group "[ERROR] 检测到白名单外变更（请手动审查并提交）:" "${unexpected_paths[@]}" >&2
-    die "发布已中止，请先处理白名单外变更。"
-  fi
-
-  PUBLISH_STAGE_PATHS=("${allowed_paths[@]}")
+  mapfile -t PUBLISH_STAGE_PATHS <<< "${stage_output}"
 }
 
 commit_and_push() {
