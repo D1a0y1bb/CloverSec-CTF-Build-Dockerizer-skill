@@ -34,10 +34,21 @@ jobs:
           pip3 install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt
 
       - name: Python syntax check
-        run: python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py
+        run: python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
+
+      - name: Governance Python entrypoints
+        run: |
+          python3 scripts/doc_guard.py --help
+          python3 scripts/release_build.py --help
+          python3 scripts/generate_sbom.py --help
+          python3 scripts/sync.py --help
+          python3 scripts/publish_guard.py --help
 
       - name: Shell syntax check
         run: find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Runtime profile inference regression
+        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/test_runtime_profiles.sh
 
       - name: Validate examples
         run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
@@ -78,10 +89,21 @@ jobs:
           pip3 install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt
 
       - name: Python syntax check
-        run: python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py
+        run: python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
+
+      - name: Governance Python entrypoints
+        run: |
+          python3 scripts/doc_guard.py --help
+          python3 scripts/release_build.py --help
+          python3 scripts/generate_sbom.py --help
+          python3 scripts/sync.py --help
+          python3 scripts/publish_guard.py --help
 
       - name: Shell syntax check
         run: find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+
+      - name: Runtime profile inference regression
+        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/test_runtime_profiles.sh
 
       - name: Validate examples
         run: VALIDATE_ENFORCE_DIGEST=1 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh

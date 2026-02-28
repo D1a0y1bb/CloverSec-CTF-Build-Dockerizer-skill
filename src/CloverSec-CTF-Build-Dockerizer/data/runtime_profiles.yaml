@@ -1,0 +1,66 @@
+version: 1
+stacks:
+  php:
+    default_profile: php82-apache
+    profiles:
+      php56-apache:
+        base_image: php:5.6-apache
+        legacy: true
+        eol: true
+        note: "用于老题目兼容；仅建议在题目环境还原场景使用。"
+      php74-apache:
+        base_image: php:7.4-apache
+        legacy: true
+        eol: true
+        note: "用于 PHP7 老项目兼容。"
+      php82-apache:
+        base_image: php:8.2-apache
+        legacy: false
+        eol: false
+        note: "默认稳定档位。"
+  node:
+    default_profile: node20-alpine
+    profiles:
+      node14-bullseye:
+        base_image: node:14-bullseye
+        legacy: true
+        eol: true
+        note: "用于旧依赖链兼容。"
+      node16-bullseye:
+        base_image: node:16-bullseye
+        legacy: true
+        eol: true
+        note: "用于历史题目迁移。"
+      node18-bookworm:
+        base_image: node:18-bookworm
+        legacy: false
+        eol: false
+        note: "长期稳定候选。"
+      node20-alpine:
+        base_image: node:20-alpine
+        legacy: false
+        eol: false
+        note: "默认轻量档位。"
+  java:
+    default_profile: temurin17-jre-jammy
+    profiles:
+      temurin8-jre-jammy:
+        base_image: eclipse-temurin:8-jre-jammy
+        legacy: true
+        eol: true
+        note: "用于 JDK8 题目兼容。"
+      temurin11-jre-jammy:
+        base_image: eclipse-temurin:11-jre-jammy
+        legacy: false
+        eol: false
+        note: "兼容较多中间代 Java 项目。"
+      temurin17-jre-jammy:
+        base_image: eclipse-temurin:17-jre-jammy
+        legacy: false
+        eol: false
+        note: "默认稳定档位。"
+      temurin21-jre-jammy:
+        base_image: eclipse-temurin:21-jre-jammy
+        legacy: false
+        eol: false
+        note: "新版本 JVM 题目可选。"

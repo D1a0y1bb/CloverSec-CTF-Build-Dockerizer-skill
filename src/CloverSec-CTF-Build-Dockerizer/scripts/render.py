@@ -31,13 +31,16 @@ from utils import (  # noqa: E402
     ensure_dict,
     ensure_list,
     first_non_empty,
+    infer_runtime_profile_candidates,
     infer_from_patterns,
     load_patterns,
+    load_runtime_profiles,
     load_stack_defs,
     load_template_with_includes,
     load_yaml_file,
     normalize_ports,
     render_template,
+    resolve_runtime_profile_base_image,
     validate_rendered,
 )
 
@@ -51,6 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workdir", help="WORKDIR，默认取栈默认值")
     parser.add_argument("--start", dest="start_cmd", help="启动命令")
     parser.add_argument("--base-image", help="覆盖基础镜像")
+    parser.add_argument("--runtime-profile", help="运行时档位（php/node/java），例如 php74-apache")
     parser.add_argument("--app-src", help="应用源码路径，默认 .")
     parser.add_argument("--app-dst", help="容器内应用路径，默认等于 WORKDIR")
     parser.add_argument("--mode", choices=["cmd", "service", "supervisor"], help="start.mode")
@@ -201,6 +205,7 @@ def build_render_context(
     args: argparse.Namespace,
     stacks: Dict[str, Dict[str, Any]],
     patterns_data: Dict[str, Any],
+    runtime_profiles_data: Dict[str, Any],
 ) -> Dict[str, Any]:
     scan_dir = resolve_scan_dir(args.config)
 
@@ -232,6 +237,7 @@ def build_render_context(
         raise ConfigError(f"不支持的 start.mode: {mode}")
 
     infer_info = infer_from_patterns(scan_dir, stack_id, patterns_data)
+    runtime_info = infer_runtime_profile_candidates(scan_dir, stack_id, runtime_profiles_data)
 
     rdg_enable_ttyd = _to_bool(rdg_cfg.get("enable_ttyd"), "challenge.rdg.enable_ttyd", True)
     rdg_ttyd_port_raw = first_non_empty(rdg_cfg.get("ttyd_port"), "8022")
@@ -317,8 +323,21 @@ def build_render_context(
         healthcheck_cfg.get("start_period"), "challenge.healthcheck.start_period", "10s"
     )
 
+    runtime_profile_selected = ""
+    runtime_base_image = ""
+    if args.runtime_profile:
+        runtime_profile_selected = str(args.runtime_profile).strip()
+        if runtime_profile_selected:
+            runtime_base_image = resolve_runtime_profile_base_image(
+                runtime_profiles_data, stack_id, runtime_profile_selected
+            )
+    elif runtime_info.get("supported"):
+        runtime_profile_selected = str(runtime_info.get("recommended_profile", "")).strip()
+        runtime_base_image = str(runtime_info.get("recommended_base_image", "")).strip()
+
     base_image = first_non_empty(
         args.base_image,
+        runtime_base_image,
         challenge.get("base_image"),
         inferred_base_image,
         defaults.get("base_image"),
@@ -398,7 +417,22 @@ def build_render_context(
     if mode == "cmd" and not start_cmd:
         raise ConfigError("mode=cmd 时必须提供启动命令（start.cmd 或 --start）")
 
-    if not args.base_image and not _has_value(challenge.get("base_image")):
+    if not args.base_image and runtime_profile_selected and runtime_base_image:
+        inference_notes.append(
+            {
+                "field": "runtime_profile",
+                "value": runtime_profile_selected,
+                "source": "cli" if args.runtime_profile else "inference",
+                "reason": "运行时版本档位映射到基础镜像",
+                "override": "--runtime-profile 或 --base-image 或 challenge.base_image",
+            }
+        )
+
+    if (
+        not args.base_image
+        and not runtime_base_image
+        and not _has_value(challenge.get("base_image"))
+    ):
         if inferred_base_image:
             inference_notes.append(
                 {
@@ -496,6 +530,9 @@ def build_render_context(
         "output_dir": Path(args.output).resolve(),
         "inference_notes": inference_notes,
         "entry_file": infer_info.get("entry_file"),
+        "runtime_supported": bool(runtime_info.get("supported", False)),
+        "runtime_profile_selected": runtime_profile_selected,
+        "runtime_profile_candidates": runtime_info.get("candidates", []),
     }
 
 
@@ -665,6 +702,10 @@ def render_files(context: Dict[str, Any]) -> None:
     else:
         print("- 栈来源: 显式指定（config 或 CLI）")
     print(f"- 基础镜像: {context['base_image']}")
+    if context.get("runtime_supported"):
+        runtime_selected = context.get("runtime_profile_selected", "")
+        if runtime_selected:
+            print(f"- 运行时档位: {runtime_selected}")
     print(f"- 端口: {' '.join(context['expose_ports'])}")
     print(f"- WORKDIR: {context['workdir']}")
     print(f"- 启动命令: {context['start_cmd']}")
@@ -738,7 +779,8 @@ def main() -> int:
         args = parse_args()
         stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
         patterns = load_patterns(DATA_DIR / "patterns.yaml")
-        context = build_render_context(args, stacks, patterns)
+        runtime_profiles = load_runtime_profiles(DATA_DIR / "runtime_profiles.yaml")
+        context = build_render_context(args, stacks, patterns, runtime_profiles)
         maybe_print_detect_debug(args, context["detect_details"])
         render_files(context)
         return 0

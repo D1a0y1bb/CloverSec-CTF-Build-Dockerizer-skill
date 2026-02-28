@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shlex
 from pathlib import Path
@@ -313,6 +314,218 @@ def load_patterns(patterns_yaml_path: Path) -> Dict[str, Any]:
         raise ConfigError("patterns.yaml 中 stacks 必须是对象")
 
     return data
+
+
+def load_runtime_profiles(runtime_yaml_path: Path) -> Dict[str, Any]:
+    data = load_yaml_file(runtime_yaml_path)
+    if data is None:
+        return {"stacks": {}}
+    if not isinstance(data, dict):
+        raise ConfigError(f"runtime_profiles.yaml 格式错误: {runtime_yaml_path}")
+
+    stacks = data.get("stacks")
+    if stacks is None:
+        return {"stacks": {}}
+    if not isinstance(stacks, dict):
+        raise ConfigError("runtime_profiles.yaml 中 stacks 必须是对象")
+    return data
+
+
+def _read_text_file(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _read_json_file(path: Path) -> Dict[str, Any]:
+    text = _read_text_file(path)
+    if not text:
+        return {}
+    try:
+        raw = json.loads(text)
+    except Exception:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    return {}
+
+
+def _extract_node_engine_major(engine_expr: str) -> Optional[int]:
+    text = engine_expr.strip()
+    if not text:
+        return None
+    majors = re.findall(r"(?<![0-9])(14|16|18|20|21|22)(?![0-9])", text)
+    if not majors:
+        return None
+    try:
+        return int(majors[0])
+    except ValueError:
+        return None
+
+
+def _choose_profile_for_major(major: int, mapping: Dict[int, str]) -> Optional[str]:
+    if major in mapping:
+        return mapping[major]
+    ordered = sorted(mapping.keys())
+    for value in ordered:
+        if major <= value:
+            return mapping[value]
+    return mapping[ordered[-1]] if ordered else None
+
+
+def _infer_php_profile(scan_dir: Path) -> Tuple[Optional[str], List[str]]:
+    evidence: List[str] = []
+    composer = _read_json_file(scan_dir / "composer.json")
+    require = composer.get("require") if isinstance(composer.get("require"), dict) else {}
+    php_req = str(require.get("php", "")).strip() if isinstance(require, dict) else ""
+    if php_req:
+        evidence.append(f"composer.json require.php={php_req}")
+        if re.search(r"5(\.|$)|5\.6", php_req):
+            return "php56-apache", evidence
+        if re.search(r"7(\.|$)|7\.4", php_req):
+            return "php74-apache", evidence
+        if re.search(r"8(\.|$)|8\.0|8\.1|8\.2|8\.3", php_req):
+            return "php82-apache", evidence
+    return None, evidence
+
+
+def _infer_node_profile(scan_dir: Path) -> Tuple[Optional[str], List[str]]:
+    evidence: List[str] = []
+    pkg = _read_json_file(scan_dir / "package.json")
+    engines = pkg.get("engines") if isinstance(pkg.get("engines"), dict) else {}
+    node_engine = str(engines.get("node", "")).strip() if isinstance(engines, dict) else ""
+    if node_engine:
+        evidence.append(f"package.json engines.node={node_engine}")
+        major = _extract_node_engine_major(node_engine)
+        if major is not None:
+            profile = _choose_profile_for_major(
+                major,
+                {
+                    14: "node14-bullseye",
+                    16: "node16-bullseye",
+                    18: "node18-bookworm",
+                    20: "node20-alpine",
+                },
+            )
+            return profile, evidence
+    return None, evidence
+
+
+def _infer_java_profile(scan_dir: Path) -> Tuple[Optional[str], List[str]]:
+    evidence: List[str] = []
+    pom = _read_text_file(scan_dir / "pom.xml")
+    gradle = _read_text_file(scan_dir / "build.gradle")
+    gradle_kts = _read_text_file(scan_dir / "build.gradle.kts")
+    java_text = "\n".join([pom, gradle, gradle_kts])
+    if not java_text.strip():
+        return None, evidence
+
+    # 优先识别 1.8，再识别常见 LTS 档位。
+    if re.search(r"1\.8|java\.version[^0-9]*8|sourceCompatibility[^0-9]*8|targetCompatibility[^0-9]*8", java_text, flags=re.IGNORECASE):
+        evidence.append("命中 pom/gradle: Java 8 信号")
+        return "temurin8-jre-jammy", evidence
+    if re.search(r"11", java_text):
+        evidence.append("命中 pom/gradle: Java 11 信号")
+        return "temurin11-jre-jammy", evidence
+    if re.search(r"21", java_text):
+        evidence.append("命中 pom/gradle: Java 21 信号")
+        return "temurin21-jre-jammy", evidence
+    if re.search(r"17", java_text):
+        evidence.append("命中 pom/gradle: Java 17 信号")
+        return "temurin17-jre-jammy", evidence
+    return None, evidence
+
+
+def infer_runtime_profile_candidates(
+    scan_dir: Path,
+    stack_id: str,
+    runtime_profiles_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    stacks = ensure_dict(runtime_profiles_data.get("stacks"), "runtime_profiles.stacks")
+    stack_obj = ensure_dict(stacks.get(stack_id), f"runtime_profiles.stacks.{stack_id}")
+    profile_map = ensure_dict(stack_obj.get("profiles"), f"runtime_profiles.stacks.{stack_id}.profiles")
+    default_profile = str(first_non_empty(stack_obj.get("default_profile"), "")).strip()
+
+    candidates: List[Dict[str, Any]] = []
+    for profile_id, raw in profile_map.items():
+        item = ensure_dict(raw, f"runtime_profiles.stacks.{stack_id}.profiles.{profile_id}")
+        base_image = str(first_non_empty(item.get("base_image"), "")).strip()
+        if not base_image:
+            continue
+        candidates.append(
+            {
+                "id": str(profile_id),
+                "base_image": base_image,
+                "legacy": bool(item.get("legacy", False)),
+                "eol": bool(item.get("eol", False)),
+                "note": str(first_non_empty(item.get("note"), "")),
+            }
+        )
+
+    if not candidates:
+        return {
+            "supported": False,
+            "stack": stack_id,
+            "default_profile": "",
+            "recommended_profile": "",
+            "recommended_base_image": "",
+            "evidence": [],
+            "candidates": [],
+        }
+
+    recommended_profile = default_profile
+    evidence: List[str] = []
+
+    if stack_id == "php":
+        inferred, detail = _infer_php_profile(scan_dir)
+        evidence.extend(detail)
+        if inferred:
+            recommended_profile = inferred
+    elif stack_id == "node":
+        inferred, detail = _infer_node_profile(scan_dir)
+        evidence.extend(detail)
+        if inferred:
+            recommended_profile = inferred
+    elif stack_id == "java":
+        inferred, detail = _infer_java_profile(scan_dir)
+        evidence.extend(detail)
+        if inferred:
+            recommended_profile = inferred
+
+    if not recommended_profile:
+        recommended_profile = candidates[0]["id"]
+
+    selected = next((x for x in candidates if x["id"] == recommended_profile), candidates[0])
+    if not evidence:
+        evidence.append("未命中显式版本信号，回退默认 runtime profile")
+
+    return {
+        "supported": True,
+        "stack": stack_id,
+        "default_profile": default_profile,
+        "recommended_profile": str(selected["id"]),
+        "recommended_base_image": str(selected["base_image"]),
+        "evidence": evidence,
+        "candidates": candidates,
+    }
+
+
+def resolve_runtime_profile_base_image(
+    runtime_profiles_data: Dict[str, Any],
+    stack_id: str,
+    profile_id: str,
+) -> str:
+    stacks = ensure_dict(runtime_profiles_data.get("stacks"), "runtime_profiles.stacks")
+    stack_obj = ensure_dict(stacks.get(stack_id), f"runtime_profiles.stacks.{stack_id}")
+    profiles = ensure_dict(stack_obj.get("profiles"), f"runtime_profiles.stacks.{stack_id}.profiles")
+    profile = ensure_dict(profiles.get(profile_id), f"runtime_profiles.stacks.{stack_id}.profiles.{profile_id}")
+    image = str(first_non_empty(profile.get("base_image"), "")).strip()
+    if not image:
+        raise ConfigError(f"runtime profile 缺少 base_image: {stack_id}/{profile_id}")
+    return image
 
 
 def _first_existing_file(scan_dir: Path, files: List[str]) -> Optional[str]:

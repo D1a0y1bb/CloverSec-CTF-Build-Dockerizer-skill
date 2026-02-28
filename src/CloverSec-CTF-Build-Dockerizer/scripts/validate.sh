@@ -224,6 +224,35 @@ raise SystemExit(1)
 PY
 }
 
+legacy_runtime_hint() {
+  local image_ref="$1"
+  case "$image_ref" in
+    php:5.6-apache|php:5.6-apache@*)
+      echo "PHP 5.6 已 EOL。仅建议用于历史题目兼容；新题目建议 php:8.2-apache。"
+      return 0
+      ;;
+    php:7.4-apache|php:7.4-apache@*)
+      echo "PHP 7.4 已 EOL。仅建议用于历史题目兼容；新题目建议 php:8.2-apache。"
+      return 0
+      ;;
+    node:14-bullseye|node:14-bullseye@*)
+      echo "Node 14 已 EOL。仅建议用于历史题目兼容；新题目建议 node:20-alpine 或 node:18-bookworm。"
+      return 0
+      ;;
+    node:16-bullseye|node:16-bullseye@*)
+      echo "Node 16 已 EOL。仅建议用于历史题目兼容；新题目建议 node:20-alpine 或 node:18-bookworm。"
+      return 0
+      ;;
+    eclipse-temurin:8-jre-jammy|eclipse-temurin:8-jre-jammy@*)
+      echo "JDK 8 运行时较老。仅建议用于历史题目兼容；新题目建议 eclipse-temurin:17-jre-jammy。"
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 is_multiservice_start() {
   if contains_re "$START_SH" '(^|[[:space:]])supervisord([[:space:]]|$)'; then
     return 0
@@ -772,6 +801,13 @@ run_dynamic_checks() {
     fi
   else
     log_result WARN "未检测到基础镜像 FROM，跳过 digest 校验"
+  fi
+
+  legacy_runtime_msg=""
+  if legacy_runtime_msg="$(legacy_runtime_hint "$base_image")"; then
+    log_result WARN "检测到 legacy 运行时镜像：${base_image}。${legacy_runtime_msg}"
+  else
+    log_result INFO "运行时镜像未命中 legacy 档位"
   fi
 
   local has_public_frontend=0

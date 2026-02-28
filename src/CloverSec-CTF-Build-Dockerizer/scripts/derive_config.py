@@ -21,8 +21,10 @@ from utils import (  # noqa: E402
     ConfigError,
     detect_stack,
     ensure_dict,
+    infer_runtime_profile_candidates,
     infer_from_patterns,
     load_patterns,
+    load_runtime_profiles,
     load_stack_defs,
     normalize_ports,
 )
@@ -492,6 +494,7 @@ def _guess_app_paths(scan_dir: Path, stack_id: str, workdir: str) -> Tuple[str, 
 def derive(project_dir: Path) -> Dict[str, Any]:
     stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
     patterns = load_patterns(DATA_DIR / "patterns.yaml")
+    runtime_profiles = load_runtime_profiles(DATA_DIR / "runtime_profiles.yaml")
 
     best_id, best_conf, details = detect_stack(project_dir, stacks)
     if best_id:
@@ -508,6 +511,7 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     defaults = ensure_dict(stack_info.get("defaults"), f"stacks[{stack_id}].defaults")
 
     infer_info = infer_from_patterns(project_dir, stack_id, patterns)
+    runtime_info = infer_runtime_profile_candidates(project_dir, stack_id, runtime_profiles)
     inferred_base_image_raw = infer_info.get("base_image")
     inferred_base_image = (
         inferred_base_image_raw.strip() if isinstance(inferred_base_image_raw, str) else ""
@@ -560,6 +564,13 @@ def derive(project_dir: Path) -> Dict[str, Any]:
                 inferred_base_image, infer_info.get("base_image_source", "rule")
             )
         )
+    if runtime_info.get("supported"):
+        notes.append(
+            "Q1 请同时确认技术栈与运行时档位（recommended_profile={} -> {}）。".format(
+                runtime_info.get("recommended_profile", ""),
+                runtime_info.get("recommended_base_image", ""),
+            )
+        )
 
     stack_evidence: List[str] = []
     if stack_detail:
@@ -584,6 +595,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     )
 
     default_healthcheck_cmd = str(defaults.get("healthcheck_cmd") or "").strip()
+
+    proposal_base_image = inferred_base_image or str(defaults.get("base_image") or "")
+    if runtime_info.get("supported") and str(runtime_info.get("recommended_base_image", "")).strip():
+        proposal_base_image = str(runtime_info.get("recommended_base_image")).strip()
 
     proposal: Dict[str, Any] = {
         "stack_guess": {
@@ -611,10 +626,14 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             "requires_port_confirm": requires_port_confirm,
         },
         "notes": notes,
+        "runtime_profile_candidates": runtime_info.get("candidates", []),
+        "recommended_profile": runtime_info.get("recommended_profile", ""),
+        "recommended_base_image": runtime_info.get("recommended_base_image", ""),
+        "runtime_profile_evidence": runtime_info.get("evidence", []),
         # 供 AI 直接渲染 Step 1 的 CONFIG PROPOSAL 块
         "config_proposal": {
             "stack": stack_id,
-            "base_image": inferred_base_image or str(defaults.get("base_image") or ""),
+            "base_image": proposal_base_image,
             "workdir": workdir,
             "app_src": app_src,
             "app_dst": app_dst,

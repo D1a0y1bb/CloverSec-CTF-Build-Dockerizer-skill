@@ -62,6 +62,7 @@ challenge:
 - `challenge.name`：题目标识字符串。
 - `challenge.stack`：技术栈，可选 `node/php/python/java/tomcat/lamp/pwn/ai/rdg`，缺省时自动侦测。
 - `challenge.base_image`：基础镜像；为空时使用栈默认值。
+  - 说明：`v1.5.0` 起支持运行时档位交互（`runtime_profiles.yaml`），但最终仍写入并生效于 `base_image`。
 - `challenge.workdir`：容器内工作目录。
 - `challenge.app_src`：构建上下文内源代码路径。
 - `challenge.app_dst`：镜像内应用目标路径。
@@ -165,3 +166,15 @@ challenge:
 - `validate.sh --fix-write`：应用安全自动修复并继续校验。
 - `validate.sh --fix-loopback`：允许修复显式 loopback 绑定参数到 `0.0.0.0`。
 - `VALIDATE_ENFORCE_DIGEST=1`：启用发布级 digest 门禁；非 digest 且非官方白名单镜像会报 `ERROR`。
+
+## 运行时档位说明（v1.5.0）
+
+- 支持栈：`php/node/java`
+- 数据源：`data/runtime_profiles.yaml`
+- `derive_config.py` 会输出：
+  - `runtime_profile_candidates`
+  - `recommended_profile`
+  - `recommended_base_image`
+  - `runtime_profile_evidence`
+- `render.py` 支持 `--runtime-profile <id>` 快速选择档位，优先级位于 `--base-image` 之后、`challenge.base_image` 之前。
+- 对 legacy 档位（如 `php:5.6-apache`、`node:14-bullseye`、`eclipse-temurin:8-jre-jammy`），`validate.sh` 输出 `WARN`（不阻断），用于题目兼容场景提醒。
