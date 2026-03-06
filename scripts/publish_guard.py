@@ -13,14 +13,13 @@ from pathlib import Path
 VERSION_RE = r"^v[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.-]+)?$"
 VERSION_CAPTURE_RE = r"v[0-9]+\.[0-9]+\.[0-9]+(?:[a-z0-9.-]+)?"
 
-REQUIRED_READMES = ("README.md", "README.en.md", "README.ja.md", "README.zh-CN.md")
+REQUIRED_READMES = ("README.md", "README.en.md", "README.ja.md")
 FULL_READMES = ("README.md", "README.en.md", "README.ja.md")
 
 ALLOWED_PATTERNS = [
     "VERSION",
     "CHANGELOG.md",
     "README.md",
-    "README.zh-CN.md",
     "README.ja.md",
     "README.en.md",
     "LICENSE",
@@ -162,16 +161,9 @@ def ensure_publish_docs(root: Path) -> int:
     if re.search(r"^#\s*Legacy English Entry\s*$", en_text, flags=re.MULTILINE):
         errors.append("README.en.md 仍为 Legacy English Entry 短页")
 
-    zh_compat = texts.get("README.zh-CN.md", "")
-    if zh_compat:
-        if not has_readme_link(zh_compat, "README.md"):
-            errors.append("README.zh-CN.md 未链接 README.md")
-        if "兼容" not in zh_compat:
-            errors.append("README.zh-CN.md 未体现兼容入口定位")
-
     for name in ("README.md", "README.en.md", "README.ja.md"):
         text = texts.get(name, "")
-        for target in ("README.md", "README.en.md", "README.ja.md", "README.zh-CN.md"):
+        for target in ("README.md", "README.en.md", "README.ja.md"):
             if name == target:
                 continue
             if not has_readme_link(text, target):
