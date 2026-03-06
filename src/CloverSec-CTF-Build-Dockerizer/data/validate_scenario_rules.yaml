@@ -1,0 +1,23 @@
+version: 1
+rules:
+  - id: service-name-unique
+    level: ERROR
+    message: scenario.services[].name 必须唯一
+  - id: service-source-exclusive
+    level: ERROR
+    message: 每个 service 必须且只能选择一种来源：project_dir/challenge_path 或 component+variant
+  - id: host-port-count-match
+    level: ERROR
+    message: service.host_ports 数量必须与 challenge.expose_ports 数量一致
+  - id: host-port-conflict
+    level: ERROR
+    message: host 端口不能冲突
+  - id: mode-profile-align
+    level: ERROR
+    message: awd/awdp 场景下，服务最终 profile 必须与 scenario.mode 一致或通过继承得到一致值
+  - id: awdp-patch-required
+    level: ERROR
+    message: awdp 服务必须包含 patch/src、可执行的 patch/patch.sh 与 patch_bundle.tar.gz
+  - id: awdp-patch-bundle-content
+    level: ERROR
+    message: awdp 的 patch_bundle.tar.gz 必须包含 patch/patch.sh 与 patch/src 内容

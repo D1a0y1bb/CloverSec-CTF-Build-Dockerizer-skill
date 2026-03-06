@@ -6,6 +6,8 @@ SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EXAMPLES_DIR="${SKILL_ROOT}/examples"
 VALIDATE_SH="${SCRIPT_DIR}/validate.sh"
 RENDER_PY="${SCRIPT_DIR}/render.py"
+RENDER_SCENARIO_PY="${SCRIPT_DIR}/render_scenario.py"
+VALIDATE_SCENARIO_PY="${SCRIPT_DIR}/validate_scenario.py"
 
 if [[ ! -d "$EXAMPLES_DIR" ]]; then
   echo "[ERROR] examples 目录不存在: $EXAMPLES_DIR" >&2
@@ -30,9 +32,23 @@ for dir in "$EXAMPLES_DIR"/*; do
   dockerfile="${dir}/Dockerfile"
   start_sh="${dir}/start.sh"
   challenge_yaml="${dir}/challenge.yaml"
+  scenario_yaml="${dir}/scenario.yaml"
 
   echo
   echo "== 示例目录: ${name} =="
+
+  if [[ -f "$scenario_yaml" ]]; then
+    echo "[INFO] 检测到 scenario.yaml，执行 scenario 渲染与校验"
+    scenario_out="$(mktemp -d "/tmp/ctf-validate-scenario-${name}-XXXXXX")"
+    if python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out" && \
+       python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out"; then
+      PASS_LIST+=("$name:scenario")
+    else
+      FAIL_LIST+=("$name:scenario")
+    fi
+    rm -rf "$scenario_out"
+    continue
+  fi
 
   if [[ ! -f "$dockerfile" || ! -f "$start_sh" ]]; then
     if [[ -f "$challenge_yaml" && -f "$RENDER_PY" ]]; then

@@ -2,10 +2,11 @@
 
 # Pwn 栈启动脚本：平台固定执行 /start.sh。
 # 必须启动真实服务并保持前台运行，禁止 sleep/空转保活。
-{{> snippets/ensure-flag.tpl }}
+{{RDG_FLAG_START_BLOCK}}
 {{> snippets/env.tpl }}
 
 cd "{{WORKDIR}}"
+{{DEFENSE_START_BLOCK}}
 
 # 兼容题目读取 /home/ctf/flag 的常见路径：保留根目录 /flag 为平台动态写入入口。
 if [[ -d /home/ctf ]]; then

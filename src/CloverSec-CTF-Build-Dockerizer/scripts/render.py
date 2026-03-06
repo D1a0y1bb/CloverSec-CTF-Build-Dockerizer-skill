@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""将 challenge.yaml 或 CLI 参数渲染为 Dockerfile/start.sh/flag。"""
+"""将 challenge.yaml 或 CLI 参数渲染为 Dockerfile/start.sh/flag/changeflag。"""
 
 from __future__ import annotations
 
 import argparse
 import os
 import re
+import tarfile
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -34,6 +35,7 @@ from utils import (  # noqa: E402
     infer_runtime_profile_candidates,
     infer_from_patterns,
     load_patterns,
+    load_profile_defs,
     load_runtime_profiles,
     load_stack_defs,
     load_template_with_includes,
@@ -49,7 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="渲染 CTF Web Dockerfile/start.sh")
     parser.add_argument("--config", help="challenge.yaml 路径")
 
-    parser.add_argument("--stack", help="技术栈: node/php/python/java/tomcat/lamp/pwn/ai/rdg")
+    parser.add_argument("--stack", help="技术栈: node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit")
+    parser.add_argument("--profile", choices=["jeopardy", "rdg", "awd", "awdp", "secops"], help="V2 profile")
     parser.add_argument("--port", action="append", help="暴露端口，可重复传入")
     parser.add_argument("--workdir", help="WORKDIR，默认取栈默认值")
     parser.add_argument("--start", dest="start_cmd", help="启动命令")
@@ -201,10 +204,120 @@ def _resolve_rdg_check_host_path(output_dir: Path, workdir: str, check_script_pa
     return output_dir / rel
 
 
+def _default_profile_for_stack(stack_id: str) -> str:
+    if stack_id == "rdg":
+        return "rdg"
+    if stack_id == "secops":
+        return "secops"
+    return "jeopardy"
+
+
+def _normalize_profile(value: Any, stack_id: str) -> str:
+    raw = str(first_non_empty(value, _default_profile_for_stack(stack_id)) or "").strip().lower()
+    if raw not in {"jeopardy", "rdg", "awd", "awdp", "secops"}:
+        raise ConfigError(f"challenge.profile 不支持: {raw}")
+    return raw
+
+
+def _default_defense_config(profile_defs: Dict[str, Any], profile: str, stack_id: str) -> Dict[str, Any]:
+    profiles = ensure_dict(profile_defs.get("profiles"), "profiles")
+    profile_defaults = ensure_dict(profiles.get(profile), f"profiles.{profile}")
+    return {
+        "enable_ttyd": bool(first_non_empty(profile_defaults.get("enable_ttyd"), False)),
+        "ttyd_port": str(first_non_empty(profile_defaults.get("ttyd_port"), "8022")),
+        "ttyd_login_cmd": str(first_non_empty(profile_defaults.get("ttyd_login_cmd"), "/bin/bash")),
+        "enable_sshd": bool(first_non_empty(profile_defaults.get("enable_sshd"), False)),
+        "sshd_port": str(first_non_empty(profile_defaults.get("sshd_port"), "22")),
+        "sshd_password_auth": bool(first_non_empty(profile_defaults.get("sshd_password_auth"), True)),
+        "ttyd_binary_relpath": str(first_non_empty(profile_defaults.get("ttyd_binary_relpath"), "ttyd")),
+        "ttyd_install_fallback": bool(first_non_empty(profile_defaults.get("ttyd_install_fallback"), True)),
+        "ctf_user": str(first_non_empty(profile_defaults.get("ctf_user"), "ctf")),
+        "ctf_password": str(first_non_empty(profile_defaults.get("ctf_password"), "123456")),
+        "ctf_in_root_group": bool(first_non_empty(profile_defaults.get("ctf_in_root_group"), False)),
+        "scoring_mode": str(first_non_empty(profile_defaults.get("scoring_mode"), "flag")),
+        "include_flag_artifact": bool(first_non_empty(profile_defaults.get("include_flag_artifact"), True)),
+        "check_enabled": bool(first_non_empty(profile_defaults.get("check_enabled"), False)),
+        "check_script_path": str(first_non_empty(profile_defaults.get("check_script_path"), "check/check.sh")),
+    }
+
+
+def _normalize_defense_config(
+    profile_defs: Dict[str, Any],
+    stack_id: str,
+    profile: str,
+    defense_cfg: Dict[str, Any],
+    legacy_rdg_cfg: Dict[str, Any],
+) -> Dict[str, Any]:
+    source = {**legacy_rdg_cfg, **defense_cfg}
+    merged = _default_defense_config(profile_defs, profile, stack_id)
+    merged["enable_ttyd"] = _to_bool(source.get("enable_ttyd"), "challenge.defense.enable_ttyd", merged["enable_ttyd"])
+    ttyd_port_raw = first_non_empty(source.get("ttyd_port"), merged["ttyd_port"])
+    merged["ttyd_port"] = str(ttyd_port_raw).strip()
+    if not merged["ttyd_port"].isdigit() or not (1 <= int(merged["ttyd_port"]) <= 65535):
+        raise ConfigError("challenge.defense.ttyd_port 必须是 1-65535 的端口数字")
+
+    merged["ttyd_login_cmd"] = str(first_non_empty(source.get("ttyd_login_cmd"), merged["ttyd_login_cmd"])).strip()
+    if not merged["ttyd_login_cmd"]:
+        raise ConfigError("challenge.defense.ttyd_login_cmd 不能为空")
+
+    merged["enable_sshd"] = _to_bool(source.get("enable_sshd"), "challenge.defense.enable_sshd", merged["enable_sshd"])
+    sshd_port_raw = first_non_empty(source.get("sshd_port"), merged["sshd_port"])
+    merged["sshd_port"] = str(sshd_port_raw).strip()
+    if not merged["sshd_port"].isdigit() or not (1 <= int(merged["sshd_port"]) <= 65535):
+        raise ConfigError("challenge.defense.sshd_port 必须是 1-65535 的端口数字")
+
+    merged["sshd_password_auth"] = _to_bool(
+        source.get("sshd_password_auth"),
+        "challenge.defense.sshd_password_auth",
+        merged["sshd_password_auth"],
+    )
+    merged["ttyd_binary_relpath"] = str(
+        first_non_empty(source.get("ttyd_binary_relpath"), merged["ttyd_binary_relpath"])
+    ).strip()
+    if not merged["ttyd_binary_relpath"]:
+        raise ConfigError("challenge.defense.ttyd_binary_relpath 不能为空")
+    merged["ttyd_install_fallback"] = _to_bool(
+        source.get("ttyd_install_fallback"),
+        "challenge.defense.ttyd_install_fallback",
+        merged["ttyd_install_fallback"],
+    )
+    merged["ctf_user"] = str(first_non_empty(source.get("ctf_user"), merged["ctf_user"])).strip()
+    if not merged["ctf_user"]:
+        raise ConfigError("challenge.defense.ctf_user 不能为空")
+    merged["ctf_password"] = str(first_non_empty(source.get("ctf_password"), merged["ctf_password"])).strip()
+    if not merged["ctf_password"]:
+        raise ConfigError("challenge.defense.ctf_password 不能为空")
+    merged["ctf_in_root_group"] = _to_bool(
+        source.get("ctf_in_root_group"),
+        "challenge.defense.ctf_in_root_group",
+        merged["ctf_in_root_group"],
+    )
+    merged["scoring_mode"] = str(first_non_empty(source.get("scoring_mode"), merged["scoring_mode"])).strip().lower()
+    if merged["scoring_mode"] not in {"check_service", "flag"}:
+        raise ConfigError("challenge.defense.scoring_mode 仅支持 check_service 或 flag")
+    merged["include_flag_artifact"] = _to_bool(
+        source.get("include_flag_artifact"),
+        "challenge.defense.include_flag_artifact",
+        merged["include_flag_artifact"],
+    )
+    merged["check_enabled"] = _to_bool(
+        source.get("check_enabled"),
+        "challenge.defense.check_enabled",
+        merged["check_enabled"],
+    )
+    merged["check_script_path"] = str(
+        first_non_empty(source.get("check_script_path"), merged["check_script_path"])
+    ).strip()
+    if merged["check_enabled"] and not merged["check_script_path"]:
+        raise ConfigError("challenge.defense.check_script_path 不能为空")
+    return merged
+
+
 def build_render_context(
     args: argparse.Namespace,
     stacks: Dict[str, Dict[str, Any]],
     patterns_data: Dict[str, Any],
+    profile_defs: Dict[str, Any],
     runtime_profiles_data: Dict[str, Any],
 ) -> Dict[str, Any]:
     scan_dir = resolve_scan_dir(args.config)
@@ -230,7 +343,10 @@ def build_render_context(
     platform_cfg = ensure_dict(challenge.get("platform"), "challenge.platform")
     healthcheck_cfg = ensure_dict(challenge.get("healthcheck"), "challenge.healthcheck")
     extra_cfg = ensure_dict(challenge.get("extra"), "challenge.extra")
+    defense_cfg = ensure_dict(challenge.get("defense"), "challenge.defense")
     rdg_cfg = ensure_dict(challenge.get("rdg"), "challenge.rdg")
+    profile = _normalize_profile(first_non_empty(args.profile, challenge.get("profile")), stack_id)
+    normalized_defense = _normalize_defense_config(profile_defs, stack_id, profile, defense_cfg, rdg_cfg)
 
     mode = first_non_empty(args.mode, start_cfg.get("mode"), "cmd")
     if mode not in {"cmd", "service", "supervisor"}:
@@ -239,58 +355,21 @@ def build_render_context(
     infer_info = infer_from_patterns(scan_dir, stack_id, patterns_data)
     runtime_info = infer_runtime_profile_candidates(scan_dir, stack_id, runtime_profiles_data)
 
-    rdg_enable_ttyd = _to_bool(rdg_cfg.get("enable_ttyd"), "challenge.rdg.enable_ttyd", True)
-    rdg_ttyd_port_raw = first_non_empty(rdg_cfg.get("ttyd_port"), "8022")
-    rdg_ttyd_port = str(rdg_ttyd_port_raw).strip()
-    if not rdg_ttyd_port.isdigit() or not (1 <= int(rdg_ttyd_port) <= 65535):
-        raise ConfigError("challenge.rdg.ttyd_port 必须是 1-65535 的端口数字")
-
-    rdg_ttyd_login_cmd = str(first_non_empty(rdg_cfg.get("ttyd_login_cmd"), "/bin/bash")).strip()
-    if not rdg_ttyd_login_cmd:
-        raise ConfigError("challenge.rdg.ttyd_login_cmd 不能为空")
-
-    rdg_enable_sshd = _to_bool(rdg_cfg.get("enable_sshd"), "challenge.rdg.enable_sshd", True)
-    rdg_sshd_port_raw = first_non_empty(rdg_cfg.get("sshd_port"), "22")
-    rdg_sshd_port = str(rdg_sshd_port_raw).strip()
-    if not rdg_sshd_port.isdigit() or not (1 <= int(rdg_sshd_port) <= 65535):
-        raise ConfigError("challenge.rdg.sshd_port 必须是 1-65535 的端口数字")
-
-    rdg_sshd_password_auth = _to_bool(
-        rdg_cfg.get("sshd_password_auth"), "challenge.rdg.sshd_password_auth", True
-    )
-    rdg_ttyd_binary_relpath = str(
-        first_non_empty(rdg_cfg.get("ttyd_binary_relpath"), "ttyd")
-    ).strip()
-    if not rdg_ttyd_binary_relpath:
-        raise ConfigError("challenge.rdg.ttyd_binary_relpath 不能为空")
-
-    rdg_ttyd_install_fallback = _to_bool(
-        rdg_cfg.get("ttyd_install_fallback"), "challenge.rdg.ttyd_install_fallback", True
-    )
-    rdg_ctf_user = str(first_non_empty(rdg_cfg.get("ctf_user"), "ctf")).strip()
-    if not rdg_ctf_user:
-        raise ConfigError("challenge.rdg.ctf_user 不能为空")
-
-    rdg_ctf_password = str(first_non_empty(rdg_cfg.get("ctf_password"), "123456")).strip()
-    if not rdg_ctf_password:
-        raise ConfigError("challenge.rdg.ctf_password 不能为空")
-
-    rdg_ctf_in_root_group = _to_bool(
-        rdg_cfg.get("ctf_in_root_group"), "challenge.rdg.ctf_in_root_group", False
-    )
-    rdg_scoring_mode = str(first_non_empty(rdg_cfg.get("scoring_mode"), "check_service")).strip().lower()
-    if rdg_scoring_mode not in {"check_service", "flag"}:
-        raise ConfigError("challenge.rdg.scoring_mode 仅支持 check_service 或 flag")
-
-    rdg_include_flag_artifact = _to_bool(
-        rdg_cfg.get("include_flag_artifact"), "challenge.rdg.include_flag_artifact", True
-    )
-    rdg_check_enabled = _to_bool(rdg_cfg.get("check_enabled"), "challenge.rdg.check_enabled", True)
-    rdg_check_script_path = str(
-        first_non_empty(rdg_cfg.get("check_script_path"), "check/check.sh")
-    ).strip()
-    if rdg_check_enabled and not rdg_check_script_path:
-        raise ConfigError("challenge.rdg.check_script_path 不能为空")
+    rdg_enable_ttyd = bool(normalized_defense["enable_ttyd"])
+    rdg_ttyd_port = str(normalized_defense["ttyd_port"])
+    rdg_ttyd_login_cmd = str(normalized_defense["ttyd_login_cmd"])
+    rdg_enable_sshd = bool(normalized_defense["enable_sshd"])
+    rdg_sshd_port = str(normalized_defense["sshd_port"])
+    rdg_sshd_password_auth = bool(normalized_defense["sshd_password_auth"])
+    rdg_ttyd_binary_relpath = str(normalized_defense["ttyd_binary_relpath"])
+    rdg_ttyd_install_fallback = bool(normalized_defense["ttyd_install_fallback"])
+    rdg_ctf_user = str(normalized_defense["ctf_user"])
+    rdg_ctf_password = str(normalized_defense["ctf_password"])
+    rdg_ctf_in_root_group = bool(normalized_defense["ctf_in_root_group"])
+    rdg_scoring_mode = str(normalized_defense["scoring_mode"])
+    rdg_include_flag_artifact = bool(normalized_defense["include_flag_artifact"])
+    rdg_check_enabled = bool(normalized_defense["check_enabled"])
+    rdg_check_script_path = str(normalized_defense["check_script_path"])
 
     inferred_base_image_raw = infer_info.get("base_image")
     inferred_base_image = (
@@ -375,7 +454,7 @@ def build_render_context(
             ports_source = "default"
             ports_reason = "patterns 未给出端口，回退 stacks 默认值"
 
-    if stack_id == "rdg":
+    if profile != "jeopardy":
         rdg_extra_ports: List[str] = []
         if rdg_enable_ttyd:
             rdg_extra_ports.append(rdg_ttyd_port)
@@ -490,6 +569,7 @@ def build_render_context(
     return {
         "stack_id": stack_id,
         "stack_display": stack_info.get("display_name", stack_id),
+        "profile": profile,
         "auto_detected": auto_detected,
         "confidence": confidence,
         "detect_details": detect_details,
@@ -520,6 +600,8 @@ def build_render_context(
         "rdg_include_flag_artifact": rdg_include_flag_artifact,
         "rdg_check_enabled": rdg_check_enabled,
         "rdg_check_script_path": rdg_check_script_path,
+        "defense_enabled": profile != "jeopardy" and (rdg_enable_ttyd or rdg_enable_sshd),
+        "flag_optional": profile in {"rdg", "awdp", "secops"} and not rdg_include_flag_artifact,
         "allow_loopback_bind": allow_loopback_bind,
         "healthcheck_enabled": healthcheck_enabled,
         "healthcheck_cmd": healthcheck_cmd,
@@ -555,13 +637,15 @@ def render_files(context: Dict[str, Any]) -> None:
         TEMPLATES_DIR / "snippets" / "ensure-flag.tpl", TEMPLATES_DIR
     ).rstrip()
 
-    if context["stack_id"] == "rdg" and not context.get("rdg_include_flag_artifact", True):
+    if context.get("flag_optional", False):
         flag_docker_block = (
-            "# RDG include_flag_artifact=false：跳过 /flag 产物拷贝。"
+            "# profile allow flag_optional：跳过 /flag 产物拷贝。"
             "\nCOPY start.sh /start.sh"
+            "\nCOPY changeflag.sh /changeflag.sh"
             "\nRUN chmod 555 /start.sh"
+            "\nRUN chmod 555 /changeflag.sh"
         )
-        flag_start_block = ": # RDG include_flag_artifact=false：跳过 /flag 检查"
+        flag_start_block = ": # profile flag_optional=true：跳过 /flag 检查"
 
     healthcheck_block = "# healthcheck disabled"
     if context.get("healthcheck_enabled", True):
@@ -579,6 +663,57 @@ def render_files(context: Dict[str, Any]) -> None:
             },
         ).rstrip()
 
+    defense_docker_block = "# defense block disabled"
+    defense_start_block = ": # defense block disabled"
+    if context["stack_id"] not in {"rdg", "secops"} and context.get("defense_enabled", False):
+        defense_docker_tpl = load_template_with_includes(
+            TEMPLATES_DIR / "snippets" / "defense-docker-block.tpl", TEMPLATES_DIR
+        )
+        defense_start_tpl = load_template_with_includes(
+            TEMPLATES_DIR / "snippets" / "defense-start-block.tpl", TEMPLATES_DIR
+        )
+        defense_docker_block = render_template(defense_docker_tpl, common_vars := {
+            "BASE_IMAGE": context["base_image"],
+            "WORKDIR": context["workdir"],
+            "APP_SRC": context["app_src"],
+            "APP_DST": context["app_dst"],
+            "EXPOSE_PORTS": " ".join(context["expose_ports"]),
+            "RUNTIME_DEPS_INSTALL": build_runtime_deps_install(
+                context["runtime_deps"], context["base_image"]
+            ),
+            "COPY_APP": build_copy_app(context["copy_items"]),
+            "START_CMD": context["start_cmd"],
+            "NPM_INSTALL_BLOCK": build_npm_install_block(context.get("npm_install_block", "")),
+            "PIP_REQUIREMENTS_BLOCK": build_pip_requirements_block(
+                context.get("pip_requirements_block", "")
+            ),
+            "RDG_ENABLE_TTYD": "true" if context.get("rdg_enable_ttyd") else "false",
+            "RDG_TTYD_PORT": context.get("rdg_ttyd_port", "8022"),
+            "RDG_TTYD_LOGIN_CMD": context.get("rdg_ttyd_login_cmd", "/bin/bash"),
+            "RDG_ENABLE_SSHD": "true" if context.get("rdg_enable_sshd") else "false",
+            "RDG_SSHD_PORT": context.get("rdg_sshd_port", "22"),
+            "RDG_SSHD_PASSWORD_AUTH_TEXT": "yes"
+            if context.get("rdg_sshd_password_auth", True)
+            else "no",
+            "RDG_TTYD_BINARY_RELPATH": context.get("rdg_ttyd_binary_relpath", "ttyd"),
+            "RDG_TTYD_INSTALL_FALLBACK": "true"
+            if context.get("rdg_ttyd_install_fallback", True)
+            else "false",
+            "RDG_CTF_USER": context.get("rdg_ctf_user", "ctf"),
+            "RDG_CTF_PASSWORD": context.get("rdg_ctf_password", "123456"),
+            "RDG_CTF_IN_ROOT_GROUP": "true"
+            if context.get("rdg_ctf_in_root_group", False)
+            else "false",
+            "RDG_SCORING_MODE": context.get("rdg_scoring_mode", "check_service"),
+            "RDG_CHECK_ENABLED": "true" if context.get("rdg_check_enabled", True) else "false",
+            "RDG_CHECK_SCRIPT_PATH": context.get("rdg_check_script_path", "check/check.sh"),
+            "DEFENSE_ENABLED": "true",
+            "STACK_FLAG_BLOCK": flag_docker_block,
+            "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
+            "RDG_FLAG_START_BLOCK": flag_start_block,
+            "HEALTHCHECK_BLOCK": healthcheck_block,
+        }).rstrip()
+        defense_start_block = render_template(defense_start_tpl, common_vars).rstrip()
     common_vars = {
         "BASE_IMAGE": context["base_image"],
         "WORKDIR": context["workdir"],
@@ -614,10 +749,13 @@ def render_files(context: Dict[str, Any]) -> None:
         "RDG_SCORING_MODE": context.get("rdg_scoring_mode", "check_service"),
         "RDG_CHECK_ENABLED": "true" if context.get("rdg_check_enabled", True) else "false",
         "RDG_CHECK_SCRIPT_PATH": context.get("rdg_check_script_path", "check/check.sh"),
+        "DEFENSE_ENABLED": "true" if context.get("defense_enabled", False) else "false",
         "STACK_FLAG_BLOCK": flag_docker_block,
         "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
         "RDG_FLAG_START_BLOCK": flag_start_block,
         "HEALTHCHECK_BLOCK": healthcheck_block,
+        "DEFENSE_DOCKER_BLOCK": defense_docker_block,
+        "DEFENSE_START_BLOCK": defense_start_block,
     }
 
     docker_vars = {
@@ -639,7 +777,7 @@ def render_files(context: Dict[str, Any]) -> None:
         workdir=context["workdir"],
         start_mode=context["mode"],
         stack_id=context["stack_id"],
-        include_flag_artifact=context.get("rdg_include_flag_artifact", True),
+        flag_optional=bool(context.get("flag_optional", False)),
     )
 
     out_dir: Path = context["output_dir"]
@@ -648,14 +786,36 @@ def render_files(context: Dict[str, Any]) -> None:
     docker_out = out_dir / "Dockerfile"
     start_out = out_dir / "start.sh"
     flag_out = out_dir / "flag"
+    changeflag_out = out_dir / "changeflag.sh"
+
+    if changeflag_out.exists():
+        os.chmod(changeflag_out, 0o644)
 
     docker_out.write_text(rendered_docker.rstrip() + "\n", encoding="utf-8")
     start_out.write_text(rendered_start.rstrip() + "\n", encoding="utf-8")
+    changeflag_out.write_text(
+        "#!/bin/bash\n"
+        "set -euo pipefail\n\n"
+        "# 平台动态 flag 写入入口。优先使用 FLAG/CTF_FLAG 环境变量，"
+        "未提供时允许将第一个参数作为兜底值。\n"
+        "TARGET_PATH=\"${FLAG_PATH:-/flag}\"\n"
+        "TARGET_FLAG=\"${FLAG:-${CTF_FLAG:-${1:-flag{dynamic_flag_placeholder}}}}\"\n\n"
+        "if [[ -z \"${TARGET_PATH}\" ]]; then\n"
+        "  echo \"[ERROR] FLAG_PATH 不能为空\" >&2\n"
+        "  exit 2\n"
+        "fi\n\n"
+        "mkdir -p \"$(dirname \"${TARGET_PATH}\")\"\n"
+        "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
+        "chmod 444 \"${TARGET_PATH}\" || true\n"
+        "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n",
+        encoding="utf-8",
+    )
 
     os.chmod(start_out, 0o755)
+    os.chmod(changeflag_out, 0o555)
 
-    include_flag_artifact = bool(context.get("rdg_include_flag_artifact", True))
-    if context["stack_id"] != "rdg" or include_flag_artifact:
+    include_flag_artifact = not bool(context.get("flag_optional", False))
+    if include_flag_artifact:
         flag_default = "flag{static_test_flag}\n"
         if not flag_out.exists():
             flag_out.write_text(flag_default, encoding="utf-8")
@@ -667,7 +827,7 @@ def render_files(context: Dict[str, Any]) -> None:
         os.chmod(flag_out, 0o444)
 
     generated_check_script: str | None = None
-    if context["stack_id"] == "rdg" and context.get("rdg_check_enabled", True):
+    if context.get("rdg_check_enabled", True) and context.get("rdg_scoring_mode", "flag") == "check_service":
         check_path = _resolve_rdg_check_host_path(
             out_dir, context["workdir"], context.get("rdg_check_script_path", "check/check.sh")
         )
@@ -693,6 +853,42 @@ def render_files(context: Dict[str, Any]) -> None:
         if check_path.is_file():
             os.chmod(check_path, 0o755)
         generated_check_script = str(check_path.relative_to(out_dir))
+
+    generated_patch_bundle: str | None = None
+    if context.get("profile") == "awdp":
+        patch_root = out_dir / "patch"
+        patch_src = patch_root / "src"
+        patch_script = patch_root / "patch.sh"
+        patch_bundle = out_dir / "patch_bundle.tar.gz"
+        patch_src.mkdir(parents=True, exist_ok=True)
+        readme = patch_src / "README.md"
+        if not any(patch_src.iterdir()):
+            readme.write_text(
+                "# AWDP Patch Source\n\n"
+                "将需要替换的修复文件放到本目录中，保持相对业务目录结构。\n",
+                encoding="utf-8",
+            )
+        if not patch_script.exists():
+            patch_script.write_text(
+                "#!/bin/bash\n"
+                "set -euo pipefail\n\n"
+                "PATCH_ROOT=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n"
+                "PATCH_SRC=\"${PATCH_ROOT}/src\"\n"
+                "TARGET_DIR=\"${PATCH_TARGET_DIR:-" + context["workdir"] + "}\"\n\n"
+                "if [[ ! -d \"${PATCH_SRC}\" ]]; then\n"
+                "  echo \"[ERROR] patch/src 不存在\" >&2\n"
+                "  exit 2\n"
+                "fi\n\n"
+                "mkdir -p \"${TARGET_DIR}\"\n"
+                "cp -a \"${PATCH_SRC}/.\" \"${TARGET_DIR}/\"\n"
+                "echo \"[INFO] patch files copied into ${TARGET_DIR}\"\n",
+                encoding="utf-8",
+            )
+        os.chmod(patch_script, 0o755)
+        with tarfile.open(patch_bundle, "w:gz") as tar:
+            tar.add(patch_script, arcname="patch/patch.sh")
+            tar.add(patch_src, arcname="patch/src")
+        generated_patch_bundle = str(patch_bundle.relative_to(out_dir))
 
     print("生成完成（CloverSec-CTF-Build-Dockerizer）")
     print(f"- 输出目录: {out_dir}")
@@ -735,17 +931,18 @@ def render_files(context: Dict[str, Any]) -> None:
             f"（依据: {note.get('reason', '未提供')}，可通过 {note['override']} 覆盖）"
         )
 
-    if context["stack_id"] == "rdg":
+    if context["stack_id"] in {"rdg", "secops"}:
         if include_flag_artifact:
-            print("- 产物: Dockerfile, start.sh, flag, check/check.sh")
+            print("- 产物: Dockerfile, start.sh, changeflag.sh, flag, check/check.sh")
         else:
-            print("- 产物: Dockerfile, start.sh, check/check.sh（flag 可选关闭）")
+            print("- 产物: Dockerfile, start.sh, changeflag.sh, check/check.sh（flag 可选关闭）")
     else:
-        print("- 产物: Dockerfile, start.sh, flag")
+        print("- 产物: Dockerfile, start.sh, changeflag.sh, flag")
 
-    if context["stack_id"] == "rdg":
+    if context["profile"] != "jeopardy":
         print(
-            "- RDG: ttyd={ttyd}, sshd={sshd}, scoring_mode={mode}, include_flag_artifact={flag}".format(
+            "- Defense: profile={profile}, ttyd={ttyd}, sshd={sshd}, scoring_mode={mode}, include_flag_artifact={flag}".format(
+                profile=context.get("profile", "jeopardy"),
                 ttyd="on" if context.get("rdg_enable_ttyd") else "off",
                 sshd="on" if context.get("rdg_enable_sshd") else "off",
                 mode=context.get("rdg_scoring_mode", "check_service"),
@@ -754,6 +951,8 @@ def render_files(context: Dict[str, Any]) -> None:
         )
         if generated_check_script:
             print(f"- RDG check 脚手架: {generated_check_script}")
+    if generated_patch_bundle:
+        print(f"- AWDP patch bundle: {generated_patch_bundle}")
 
 
 def maybe_print_detect_debug(args: argparse.Namespace, details: List[Dict[str, Any]]) -> None:
@@ -779,8 +978,9 @@ def main() -> int:
         args = parse_args()
         stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
         patterns = load_patterns(DATA_DIR / "patterns.yaml")
+        profiles = load_profile_defs(DATA_DIR / "profiles.yaml")
         runtime_profiles = load_runtime_profiles(DATA_DIR / "runtime_profiles.yaml")
-        context = build_render_context(args, stacks, patterns, runtime_profiles)
+        context = build_render_context(args, stacks, patterns, profiles, runtime_profiles)
         maybe_print_detect_debug(args, context["detect_details"])
         render_files(context)
         return 0

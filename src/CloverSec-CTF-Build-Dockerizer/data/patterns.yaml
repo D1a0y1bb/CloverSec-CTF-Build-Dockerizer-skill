@@ -299,3 +299,197 @@ stacks:
           base_image: "nginx:1.27-bookworm"
           start_cmd: "nginx -g 'daemon off;'"
           reason: "命中 nginx 配置，推断 nginx 前台启动"
+
+  secops:
+    entry_files:
+      - nginx.conf
+      - redis.conf
+      - my.cnf
+      - sshd_config
+      - server.xml
+    defaults:
+      expose_ports:
+        - "80"
+      base_image: "debian:bookworm-slim"
+      start_cmd: "bash -lc 'if command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v /usr/sbin/sshd >/dev/null 2>&1; then exec /usr/sbin/sshd -D -e; else exec /bin/bash; fi'"
+      start_reason: "SecOps 规则未命中，回退通用服务前台启动"
+      ports_reason: "SecOps 规则未命中，回退默认端口"
+      base_image_reason: "SecOps 规则未命中，回退默认基础镜像"
+    rules:
+      - id: secops-nginx
+        any_of_files:
+          - nginx.conf
+        infer:
+          expose_ports:
+            - "80"
+          base_image: "nginx:1.27-bookworm"
+          start_cmd: "nginx -g 'daemon off;'"
+          reason: "命中 nginx.conf，推断 nginx 运维/加固场景"
+      - id: secops-redis
+        any_of_files:
+          - redis.conf
+        infer:
+          expose_ports:
+            - "6379"
+          base_image: "redis:7.2-alpine"
+          start_cmd: "redis-server /app/redis.conf --protected-mode no --bind 0.0.0.0"
+          reason: "命中 redis.conf，推断 Redis 运维/加固场景"
+      - id: secops-ssh
+        any_of_files:
+          - sshd_config
+        infer:
+          expose_ports:
+            - "22"
+          base_image: "debian:bookworm-slim"
+          start_cmd: "/usr/sbin/sshd -D -e"
+          reason: "命中 sshd_config，推断 SSH 运维/加固场景"
+      - id: secops-tomcat
+        any_of_files:
+          - server.xml
+        infer:
+          expose_ports:
+            - "8080"
+          base_image: "tomcat:9.0-jre17-temurin-jammy"
+          start_cmd: "catalina.sh run"
+          reason: "命中 server.xml，推断 Tomcat 运维/加固场景"
+
+  baseunit:
+    entry_files: []
+    defaults:
+      expose_ports:
+        - "80"
+      base_image: "debian:bookworm-slim"
+      start_cmd: "bash -lc 'echo \"[ERROR] baseunit requires explicit start.cmd\" >&2; exit 2'"
+      start_reason: "BaseUnit 要求显式 start_cmd，建议通过 render_component.py 生成"
+      ports_reason: "BaseUnit 规则未命中，回退默认端口"
+      base_image_reason: "BaseUnit 规则未命中，回退默认基础镜像"
+    rules: []
+
+  secops:
+    entry_files:
+      - nginx.conf
+      - redis.conf
+      - my.cnf
+      - sshd_config
+      - server.xml
+    defaults:
+      expose_ports:
+        - "80"
+      base_image: "debian:bookworm-slim"
+      start_cmd: "bash -lc 'if command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v httpd >/dev/null 2>&1; then exec httpd -D FOREGROUND; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v /usr/sbin/sshd >/dev/null 2>&1; then exec /usr/sbin/sshd -D -e; else exec /bin/bash; fi'"
+      start_reason: "SecOps 规则未命中，回退通用服务前台启动"
+      ports_reason: "SecOps 规则未命中，回退默认端口"
+      base_image_reason: "SecOps 规则未命中，回退默认基础镜像"
+    rules:
+      - id: secops-nginx
+        any_of_files:
+          - nginx.conf
+        infer:
+          expose_ports:
+            - "80"
+          base_image: "nginx:1.27-bookworm"
+          start_cmd: "nginx -g 'daemon off;'"
+          reason: "命中 nginx.conf，推断为 Nginx 安全运维场景"
+      - id: secops-redis
+        any_of_files:
+          - redis.conf
+        infer:
+          expose_ports:
+            - "6379"
+          base_image: "redis:7.2-alpine"
+          start_cmd: "redis-server /etc/redis/redis.conf --protected-mode no --bind 0.0.0.0"
+          reason: "命中 redis.conf，推断为 Redis 安全运维场景"
+      - id: secops-mysql
+        any_of_files:
+          - my.cnf
+          - mysqld.cnf
+        infer:
+          expose_ports:
+            - "3306"
+          base_image: "mysql:8.0"
+          start_cmd: "mysqld --user=mysql --bind-address=0.0.0.0"
+          reason: "命中 MySQL 配置文件，推断为数据库安全运维场景"
+      - id: secops-sshd
+        any_of_files:
+          - sshd_config
+        infer:
+          expose_ports:
+            - "22"
+          base_image: "debian:bookworm-slim"
+          start_cmd: "/usr/sbin/sshd -D -e"
+          reason: "命中 sshd_config，推断为 SSH 安全运维场景"
+      - id: secops-tomcat
+        any_of_files:
+          - server.xml
+        infer:
+          expose_ports:
+            - "8080"
+          base_image: "tomcat:9.0-jre17-temurin-jammy"
+          start_cmd: "catalina.sh run"
+          reason: "命中 server.xml，推断为 Tomcat 安全运维场景"
+
+  secops:
+    entry_files:
+      - nginx.conf
+      - redis.conf
+      - my.cnf
+      - sshd_config
+      - vsftpd.conf
+      - config.xml
+    defaults:
+      expose_ports:
+        - "80"
+      base_image: "debian:bookworm-slim"
+      start_cmd: "bash -lc 'if command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v mysqld >/dev/null 2>&1; then exec mysqld --user=mysql; else exec /bin/bash; fi'"
+      start_reason: "SecOps 规则未命中，回退兼容服务启动命令"
+      ports_reason: "SecOps 规则未命中，回退默认端口"
+      base_image_reason: "SecOps 规则未命中，回退默认基础镜像"
+    rules:
+      - id: secops-nginx
+        any_of_files:
+          - nginx.conf
+        infer:
+          expose_ports:
+            - "80"
+          base_image: "nginx:1.27-bookworm"
+          start_cmd: "nginx -g 'daemon off;'"
+          reason: "命中 nginx 安全配置场景"
+      - id: secops-redis
+        any_of_files:
+          - redis.conf
+        infer:
+          expose_ports:
+            - "6379"
+          base_image: "redis:7.2-alpine"
+          start_cmd: "redis-server /app/redis.conf --protected-mode no --bind 0.0.0.0"
+          reason: "命中 Redis 安全配置场景"
+      - id: secops-ssh
+        any_of_files:
+          - sshd_config
+        infer:
+          expose_ports:
+            - "22"
+          base_image: "debian:bookworm-slim"
+          start_cmd: "/usr/sbin/sshd -D -e -p 22"
+          reason: "命中 SSH 安全配置场景"
+      - id: secops-tomcat
+        any_of_files:
+          - config.xml
+        infer:
+          expose_ports:
+            - "8080"
+          base_image: "tomcat:9.0-jre17-temurin-jammy"
+          start_cmd: "catalina.sh run"
+          reason: "命中 Tomcat/WebLogic 风格配置文件"
+
+  baseunit:
+    entry_files: []
+    defaults:
+      expose_ports:
+        - "80"
+      base_image: "alpine:3.20"
+      start_cmd: ""
+      start_reason: "BaseUnit 需显式提供 start_cmd 或通过 render_component.py 生成"
+      ports_reason: "BaseUnit 需显式提供 expose_ports 或通过 render_component.py 生成"
+      base_image_reason: "BaseUnit 需显式提供 base_image 或通过 render_component.py 生成"
+    rules: []

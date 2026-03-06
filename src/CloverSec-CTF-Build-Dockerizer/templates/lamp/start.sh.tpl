@@ -1,10 +1,11 @@
 {{> snippets/start-header.tpl }}
 
 # LAMP 多服务启动：MariaDB 后台 + Apache 前台 exec。
-{{> snippets/ensure-flag.tpl }}
+{{RDG_FLAG_START_BLOCK}}
 {{> snippets/env.tpl }}
 
 cd "{{WORKDIR}}"
+{{DEFENSE_START_BLOCK}}
 
 mkdir -p /run/mysqld /var/log/mysql /var/log/apache2
 chown -R mysql:mysql /run/mysqld /var/lib/mysql /var/log/mysql || true

@@ -9,11 +9,11 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 :
 
 
 cd "/home/ctf"
+: # defense block disabled
 
 # 兼容题目读取 /home/ctf/flag 的常见路径：保留根目录 /flag 为平台动态写入入口。
 if [[ -d /home/ctf ]]; then

@@ -1,10 +1,11 @@
 {{> snippets/start-header.tpl }}
 
 # AI 栈启动脚本：必须启动真实前台服务并输出日志。
-{{> snippets/ensure-flag.tpl }}
+{{RDG_FLAG_START_BLOCK}}
 {{> snippets/env.tpl }}
 
 cd "{{WORKDIR}}"
+{{DEFENSE_START_BLOCK}}
 
 # 二次兜底线程限制，避免宿主机高核心数触发 OpenBLAS 线程异常。
 : "${OPENBLAS_NUM_THREADS:=1}"

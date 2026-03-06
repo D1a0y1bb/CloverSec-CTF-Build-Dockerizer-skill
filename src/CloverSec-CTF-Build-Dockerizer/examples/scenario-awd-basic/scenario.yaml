@@ -1,0 +1,21 @@
+scenario:
+  name: scenario-awd-basic
+  mode: awd
+  services:
+    - name: web1
+      challenge_path: ../node-basic/challenge.yaml
+      profile: awd
+      challenge:
+        name: scenario-awd-web1
+        start:
+          mode: cmd
+          cmd: node server.js
+        extra:
+          env:
+            SCENARIO_ROLE: frontend
+    - name: redis1
+      component: redis
+      variant: 7.2-alpine
+      profile: awd
+      host_ports:
+        - "6379"

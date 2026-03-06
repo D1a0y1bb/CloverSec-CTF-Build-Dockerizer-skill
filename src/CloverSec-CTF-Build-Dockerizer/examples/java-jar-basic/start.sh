@@ -8,11 +8,11 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 :
 
 
 cd "/app"
+: # defense block disabled
 
 START_CMD="java -jar app.jar"
 if [[ -z "${START_CMD}" ]]; then

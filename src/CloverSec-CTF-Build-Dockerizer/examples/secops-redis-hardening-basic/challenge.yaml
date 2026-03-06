@@ -1,0 +1,30 @@
+challenge:
+  name: secops-redis-hardening-basic
+  stack: secops
+  profile: secops
+  base_image: redis:7.2-alpine
+  workdir: /app
+  app_src: .
+  app_dst: /app
+  expose_ports:
+    - "6379"
+  start:
+    mode: cmd
+    cmd: redis-server /app/redis.conf --protected-mode no --bind 0.0.0.0
+  defense:
+    enable_ttyd: false
+    enable_sshd: true
+    scoring_mode: check_service
+    include_flag_artifact: false
+    check_enabled: true
+    check_script_path: check/check.sh
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+  healthcheck:
+    enabled: true
+    cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/6379'
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s

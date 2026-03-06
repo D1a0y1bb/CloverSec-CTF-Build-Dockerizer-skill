@@ -302,6 +302,22 @@ def load_stack_defs(stacks_yaml_path: Path) -> Dict[str, Dict[str, Any]]:
     return stacks
 
 
+def load_profile_defs(profiles_yaml_path: Path) -> Dict[str, Dict[str, Any]]:
+    data = load_yaml_file(profiles_yaml_path)
+    if data is None:
+        return {"profiles": {}}
+    if not isinstance(data, dict):
+        raise ConfigError(f"profiles.yaml 格式错误: {profiles_yaml_path}")
+
+    profiles = data.get("profiles")
+    if profiles is None:
+        return {"profiles": {}}
+    if not isinstance(profiles, dict):
+        raise ConfigError("profiles.yaml 中 profiles 必须是对象")
+
+    return data
+
+
 def load_patterns(patterns_yaml_path: Path) -> Dict[str, Any]:
     data = load_yaml_file(patterns_yaml_path)
     if data is None:
@@ -810,14 +826,16 @@ def validate_rendered(
     workdir: str,
     start_mode: str,
     stack_id: str = "",
-    include_flag_artifact: bool = True,
+    flag_optional: bool = False,
 ) -> None:
     docker_requirements = [
         "COPY start.sh /start.sh",
+        "COPY changeflag.sh /changeflag.sh",
         "chmod 555 /start.sh",
+        "chmod 555 /changeflag.sh",
         "EXPOSE ",
     ]
-    if not (stack_id == "rdg" and not include_flag_artifact):
+    if not flag_optional:
         docker_requirements.extend(["COPY flag /flag", "chmod 444 /flag"])
 
     missing = [item for item in docker_requirements if item not in docker_text]

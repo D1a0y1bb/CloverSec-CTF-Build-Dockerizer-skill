@@ -107,9 +107,12 @@ RUN set -eux; \
       > /etc/ssh/sshd_config; \
     fi
 
-# RDG include_flag_artifact=false：跳过 /flag 产物拷贝。
+# defense block disabled
+# profile allow flag_optional：跳过 /flag 产物拷贝。
 COPY start.sh /start.sh
+COPY changeflag.sh /changeflag.sh
 RUN chmod 555 /start.sh
+RUN chmod 555 /changeflag.sh
 # 对外暴露端口（至少一个）
 EXPOSE 80 22 8022
 

@@ -1,0 +1,31 @@
+challenge:
+  name: baseunit-sshd-basic
+  stack: baseunit
+  profile: jeopardy
+  base_image: debian:bookworm-slim
+  workdir: /app
+  app_src: .
+  app_dst: /app
+  expose_ports:
+    - "22"
+  start:
+    mode: cmd
+    cmd: mkdir -p /var/run/sshd /etc/ssh && ssh-keygen -A && exec /usr/sbin/sshd -D -e -p 22
+  runtime_deps:
+    - openssh-server
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+    allow_loopback_bind: false
+  healthcheck:
+    enabled: true
+    cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/22'
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+  extra:
+    env:
+      BASEUNIT_COMPONENT_DESCRIPTION: BaseUnit OpenSSH sample for operator login service images.
+    copy: []
+    user: ""

@@ -8,7 +8,6 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 export TRANSFORMERS_OFFLINE=1
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
@@ -19,6 +18,7 @@ export MALLOC_ARENA_MAX=2
 
 
 cd "/app"
+: # defense block disabled
 
 # 二次兜底线程限制，避免宿主机高核心数触发 OpenBLAS 线程异常。
 : "${OPENBLAS_NUM_THREADS:=1}"

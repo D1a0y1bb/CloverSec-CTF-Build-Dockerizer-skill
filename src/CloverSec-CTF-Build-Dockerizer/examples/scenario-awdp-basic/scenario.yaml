@@ -1,0 +1,9 @@
+scenario:
+  name: scenario-awdp-basic
+  mode: awdp
+  services:
+    - name: web1
+      challenge_path: ../node-awdp-basic/challenge.yaml
+      profile: awdp
+      challenge:
+        name: scenario-awdp-web1

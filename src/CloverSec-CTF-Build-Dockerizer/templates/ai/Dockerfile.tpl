@@ -30,4 +30,6 @@ ENV OPENBLAS_NUM_THREADS=1 \
 # Python 依赖安装必须使用 --no-cache-dir 以控制镜像体积。
 {{PIP_REQUIREMENTS_BLOCK}}
 
+{{DEFENSE_DOCKER_BLOCK}}
+
 {{> snippets/docker-common-epilog.tpl }}

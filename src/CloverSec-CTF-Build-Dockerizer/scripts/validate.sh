@@ -73,6 +73,7 @@ SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RULES_FILE="${SKILL_ROOT}/data/validate_rules.yaml"
 ALLOWLIST_FILE="${SKILL_ROOT}/data/base_image_allowlist.yaml"
 AUTOFIX_SCRIPT="${SCRIPT_DIR}/autofix.py"
+VALIDATE_CONTEXT_PY="${SCRIPT_DIR}/validate_context.py"
 VALIDATE_ENFORCE_DIGEST="${VALIDATE_ENFORCE_DIGEST:-0}"
 
 RDG_ENABLE_TTYD_CFG="true"
@@ -87,6 +88,8 @@ RDG_CHECK_ENABLED_CFG="true"
 RDG_CHECK_SCRIPT_PATH_CFG="check/check.sh"
 RDG_WORKDIR_CFG="/app"
 ALLOW_LOOPBACK_BIND_CFG="false"
+PROFILE_CFG="jeopardy"
+FLAG_OPTIONAL_CFG="false"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
   echo "[ERROR] Dockerfile 不存在: $DOCKERFILE" >&2
@@ -395,6 +398,29 @@ parse_challenge_stack() {
   ' "$file"
 }
 
+load_challenge_v2_context() {
+  if [[ -z "$CHALLENGE_YAML" || ! -f "$CHALLENGE_YAML" ]]; then
+    return
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ ! -f "$VALIDATE_CONTEXT_PY" ]]; then
+    return
+  fi
+
+  local context_lines=""
+  context_lines="$(python3 "$VALIDATE_CONTEXT_PY" "$CHALLENGE_YAML" 2>/dev/null || true)"
+
+  local line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    eval "$line"
+  done <<< "$context_lines"
+}
+
 parse_challenge_key_value() {
   local file="$1"
   local key="$2"
@@ -444,19 +470,7 @@ load_rdg_config_from_challenge() {
   if [[ -z "$CHALLENGE_YAML" || ! -f "$CHALLENGE_YAML" ]]; then
     return
   fi
-
-  RDG_ENABLE_TTYD_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "enable_ttyd" "$RDG_ENABLE_TTYD_CFG")" "true")"
-  RDG_ENABLE_SSHD_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "enable_sshd" "$RDG_ENABLE_SSHD_CFG")" "true")"
-  RDG_SSHD_PASSWORD_AUTH_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "sshd_password_auth" "$RDG_SSHD_PASSWORD_AUTH_CFG")" "true")"
-  RDG_TTYD_INSTALL_FALLBACK_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "ttyd_install_fallback" "$RDG_TTYD_INSTALL_FALLBACK_CFG")" "true")"
-  RDG_CTF_USER_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "ctf_user" "$RDG_CTF_USER_CFG")"
-  RDG_CTF_IN_ROOT_GROUP_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "ctf_in_root_group" "$RDG_CTF_IN_ROOT_GROUP_CFG")" "false")"
-  RDG_SCORING_MODE_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "scoring_mode" "$RDG_SCORING_MODE_CFG")"
-  RDG_INCLUDE_FLAG_ARTIFACT_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "include_flag_artifact" "$RDG_INCLUDE_FLAG_ARTIFACT_CFG")" "true")"
-  RDG_CHECK_ENABLED_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "check_enabled" "$RDG_CHECK_ENABLED_CFG")" "true")"
-  RDG_CHECK_SCRIPT_PATH_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "check_script_path" "$RDG_CHECK_SCRIPT_PATH_CFG")"
-  RDG_WORKDIR_CFG="$(parse_challenge_key_value "$CHALLENGE_YAML" "workdir" "$RDG_WORKDIR_CFG")"
-  ALLOW_LOOPBACK_BIND_CFG="$(normalize_bool_text "$(parse_challenge_key_value "$CHALLENGE_YAML" "allow_loopback_bind" "$ALLOW_LOOPBACK_BIND_CFG")" "false")"
+  load_challenge_v2_context
 }
 
 parse_docker_expose_ports() {
@@ -476,6 +490,11 @@ infer_stack_hint() {
 
   if [[ -n "$stack" ]]; then
     echo "$stack"
+    return
+  fi
+
+  if contains_re "$DOCKERFILE" 'server\.xml|redis\.conf|my\.cnf|sshd_config' || contains_re "$START_SH" 'secops|redis-server|/usr/sbin/sshd -D -e'; then
+    echo "secops"
     return
   fi
 
@@ -537,7 +556,7 @@ run_hard_rules() {
     stack_cfg="$(parse_challenge_stack "$CHALLENGE_YAML" || true)"
   fi
   local rdg_flag_optional=0
-  if [[ "$stack_cfg" == "rdg" && "$RDG_INCLUDE_FLAG_ARTIFACT_CFG" == "false" ]]; then
+  if [[ "$FLAG_OPTIONAL_CFG" == "true" ]]; then
     rdg_flag_optional=1
   fi
 
@@ -547,8 +566,14 @@ run_hard_rules() {
     log_result ERROR "未检测到 /start.sh 拷贝逻辑。修复：在 Dockerfile 增加 COPY start.sh /start.sh。"
   fi
 
+  if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*changeflag\.sh.*(/changeflag\.sh|"/changeflag\.sh")'; then
+    log_result INFO "Dockerfile 已将 changeflag.sh 放置到 /changeflag.sh"
+  else
+    log_result ERROR "未检测到 /changeflag.sh 拷贝逻辑。修复：在 Dockerfile 增加 COPY changeflag.sh /changeflag.sh。"
+  fi
+
   if [[ $rdg_flag_optional -eq 1 ]]; then
-    log_result INFO "RDG include_flag_artifact=false：放行 /flag 产物校验"
+    log_result INFO "profile include_flag_artifact=false：放行 /flag 产物校验"
   else
     if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*flag.*(/flag|"/flag")' \
       || contains_re "$DOCKERFILE" '^[[:space:]]*RUN[[:space:]].*(touch|echo|printf|install).*([[:space:]]|>)\/flag'; then
@@ -564,8 +589,14 @@ run_hard_rules() {
     log_result ERROR "未检测到 /start.sh 可执行权限。修复：增加 RUN chmod 555 /start.sh。"
   fi
 
+  if contains_re "$DOCKERFILE" 'chmod.*(\+x|a\+x|u\+x|555|755|775).*/changeflag\.sh'; then
+    log_result INFO "Dockerfile 已对 /changeflag.sh 设置可执行权限"
+  else
+    log_result ERROR "未检测到 /changeflag.sh 可执行权限。修复：增加 RUN chmod 555 /changeflag.sh。"
+  fi
+
   if [[ $rdg_flag_optional -eq 1 ]]; then
-    log_result INFO "RDG include_flag_artifact=false：放行 /flag 权限校验"
+    log_result INFO "profile include_flag_artifact=false：放行 /flag 权限校验"
   else
     if contains_re "$DOCKERFILE" 'chmod.*(444|644|664|744|755|a\+r|u\+r|go\+r).*/flag'; then
       log_result INFO "Dockerfile 已对 /flag 设置可读权限"
@@ -867,10 +898,7 @@ run_dynamic_checks() {
   fi
 
   if [[ "$stack_hint" == "pwn" ]]; then
-    local configured_start_cmd=""
-    if [[ -n "$CHALLENGE_YAML" && -f "$CHALLENGE_YAML" ]]; then
-      configured_start_cmd="$(parse_challenge_key_value "$CHALLENGE_YAML" "cmd" "")"
-    fi
+    local configured_start_cmd="${START_CMD_CFG:-}"
 
     if contains_re "$START_SH" 'exec[[:space:]]+.*xinetd[[:space:]]+.*-dontfork'; then
       log_result INFO "Pwn 场景已使用 xinetd 前台模式（exec ... -dontfork）"
@@ -993,82 +1021,82 @@ run_dynamic_checks() {
     fi
   fi
 
-  if [[ "$stack_hint" == "rdg" ]]; then
+  if [[ "$PROFILE_CFG" != "jeopardy" || "$stack_hint" == "rdg" || "$stack_hint" == "secops" ]]; then
     local rdg_user_re
     rdg_user_re="$(escape_regex "$RDG_CTF_USER_CFG")"
 
     if [[ "$RDG_ENABLE_TTYD_CFG" == "true" ]]; then
       if contains_re "$DOCKERFILE" '/ttyd' && contains_re "$DOCKERFILE" 'chmod[[:space:]]+.*(/ttyd)'; then
-        log_result INFO "RDG 场景检测到 /ttyd 产物落地与赋权逻辑"
+        log_result INFO "Defense 场景检测到 /ttyd 产物落地与赋权逻辑"
       else
-        log_result ERROR "RDG enable_ttyd=true 但未检测到 /ttyd 构建逻辑。修复：将 ttyd 复制到 /ttyd 并 chmod 755。"
+        log_result ERROR "profile=${PROFILE_CFG} enable_ttyd=true 但未检测到 /ttyd 构建逻辑。修复：将 ttyd 复制到 /ttyd 并 chmod 755。"
       fi
 
       if contains_re "$START_SH" '(^|[^A-Za-z0-9_/-])/ttyd([^A-Za-z0-9_/-]|$)|ttyd'; then
-        log_result INFO "RDG 场景检测到 ttyd 启动逻辑"
+        log_result INFO "Defense 场景检测到 ttyd 启动逻辑"
       else
-        log_result ERROR "RDG enable_ttyd=true 但 start.sh 未检测到 ttyd 启动逻辑。"
+        log_result ERROR "profile=${PROFILE_CFG} enable_ttyd=true 但 start.sh 未检测到 ttyd 启动逻辑。"
       fi
 
       if [[ "$RDG_TTYD_INSTALL_FALLBACK_CFG" == "true" ]]; then
         if contains_re "$DOCKERFILE" '(apt-get[[:space:]].*ttyd|apk[[:space:]]+add.*ttyd)'; then
-          log_result INFO "RDG 场景检测到 ttyd 安装回退逻辑"
+          log_result INFO "Defense 场景检测到 ttyd 安装回退逻辑"
         else
-          log_result ERROR "RDG ttyd_install_fallback=true 但未检测到 ttyd 安装回退逻辑。"
+          log_result ERROR "profile=${PROFILE_CFG} ttyd_install_fallback=true 但未检测到 ttyd 安装回退逻辑。"
         fi
       fi
     else
-      log_result INFO "RDG enable_ttyd=false：跳过 ttyd 强制校验"
+      log_result INFO "profile=${PROFILE_CFG} enable_ttyd=false：跳过 ttyd 强制校验"
     fi
 
     if [[ "$RDG_ENABLE_SSHD_CFG" == "true" ]]; then
       if contains_re "$DOCKERFILE" '(openssh|sshd|ssh-keygen)'; then
-        log_result INFO "RDG 场景检测到 sshd 安装/配置逻辑"
+        log_result INFO "Defense 场景检测到 sshd 安装/配置逻辑"
       else
-        log_result ERROR "RDG enable_sshd=true 但未检测到 sshd 安装或配置逻辑。"
+        log_result ERROR "profile=${PROFILE_CFG} enable_sshd=true 但未检测到 sshd 安装或配置逻辑。"
       fi
 
       if contains_re "$START_SH" '(/usr/sbin/sshd|(^|[[:space:]])sshd)([[:space:]]|$)'; then
-        log_result INFO "RDG 场景检测到 sshd 启动逻辑"
+        log_result INFO "Defense 场景检测到 sshd 启动逻辑"
       else
-        log_result ERROR "RDG enable_sshd=true 但 start.sh 未检测到 sshd 启动逻辑。"
+        log_result ERROR "profile=${PROFILE_CFG} enable_sshd=true 但 start.sh 未检测到 sshd 启动逻辑。"
       fi
     else
-      log_result INFO "RDG enable_sshd=false：跳过 sshd 强制校验"
+      log_result INFO "profile=${PROFILE_CFG} enable_sshd=false：跳过 sshd 强制校验"
     fi
 
     if contains_re "$DOCKERFILE" "(useradd|adduser)[[:space:]].*${rdg_user_re}" \
       || (contains_re "$DOCKERFILE" '(useradd|adduser)' && contains_re "$DOCKERFILE" 'CTF_USER'); then
-      log_result INFO "RDG 场景检测到 ctf 用户创建逻辑"
+      log_result INFO "Defense 场景检测到 ctf 用户创建逻辑"
     else
-      log_result ERROR "RDG 场景未检测到 ctf 用户创建。修复：创建 ${RDG_CTF_USER_CFG} 账号。"
+      log_result ERROR "Defense 场景未检测到 ctf 用户创建。修复：创建 ${RDG_CTF_USER_CFG} 账号。"
     fi
 
     if contains_re "$DOCKERFILE" '(chpasswd|passwd[[:space:]])' || contains_re "$START_SH" '(chpasswd|passwd[[:space:]])'; then
-      log_result INFO "RDG 场景检测到 ctf 用户密码初始化逻辑"
+      log_result INFO "Defense 场景检测到 ctf 用户密码初始化逻辑"
     else
-      log_result ERROR "RDG 场景未检测到 ctf 用户密码初始化。修复：设置默认口令（例如 123456）。"
+      log_result ERROR "Defense 场景未检测到 ctf 用户密码初始化。修复：设置默认口令（例如 123456）。"
     fi
 
     if [[ "$RDG_CTF_IN_ROOT_GROUP_CFG" == "true" ]]; then
       if contains_re "$DOCKERFILE" "(usermod[[:space:]]+-aG[[:space:]]+root[[:space:]]+${rdg_user_re}|addgroup[[:space:]]+${rdg_user_re}[[:space:]]+root)" \
         || (contains_re "$DOCKERFILE" '(usermod[[:space:]]+-aG[[:space:]]+root|addgroup[[:space:]].*[[:space:]]+root)' && contains_re "$DOCKERFILE" 'CTF_USER'); then
-        log_result INFO "RDG 场景检测到 ctf 用户加入 root 组逻辑"
+        log_result INFO "Defense 场景检测到 ctf 用户加入 root 组逻辑"
       else
-        log_result ERROR "RDG ctf_in_root_group=true 但未检测到加组逻辑。"
+        log_result ERROR "profile=${PROFILE_CFG} ctf_in_root_group=true 但未检测到加组逻辑。"
       fi
     fi
 
     if contains_re "$DOCKERFILE" '^[[:space:]]*EXPOSE[[:space:]]+[0-9]+'; then
-      log_result INFO "RDG 场景已声明 EXPOSE 端口"
+      log_result INFO "Defense 场景已声明 EXPOSE 端口"
     else
-      log_result ERROR "RDG 场景未检测到 EXPOSE 端口声明。"
+      log_result ERROR "profile=${PROFILE_CFG} 未检测到 EXPOSE 端口声明。"
     fi
 
     if is_multiservice_start; then
-      log_result INFO "RDG 场景检测到多服务启动模式"
+      log_result INFO "Defense 场景检测到多服务启动模式"
     else
-      log_result WARN "RDG 场景未检测到多服务启动模式，可按题目需求保持单服务。"
+      log_result WARN "Defense 场景未检测到多服务启动模式，可按题目需求保持单服务。"
     fi
 
     if [[ "$RDG_SCORING_MODE_CFG" == "check_service" && "$RDG_CHECK_ENABLED_CFG" == "true" ]]; then
@@ -1086,19 +1114,39 @@ run_dynamic_checks() {
       fi
       check_candidate="${base_dir}/${check_rel}"
       if [[ -f "$check_candidate" ]]; then
-        log_result INFO "RDG check_service 脚本存在：${check_rel}"
+        log_result INFO "check_service 脚本存在：${check_rel}"
         local check_line_count
         check_line_count="$(grep -cv '^[[:space:]]*$' "$check_candidate" || true)"
 
         if contains_re "$check_candidate" '(CHECK_IMPLEMENT_ME|TODO[[:space:]]*implement|TODO:|placeholder)'; then
-          log_result ERROR "RDG check_service 脚本仍为占位实现：${check_rel}。修复：按真实业务补齐健康检查与漏洞负向检查逻辑。"
+          log_result ERROR "check_service 脚本仍为占位实现：${check_rel}。修复：按真实业务补齐健康检查与漏洞负向检查逻辑。"
         elif [[ "${check_line_count}" -le 8 ]] && contains_re "$check_candidate" 'exit[[:space:]]+0([[:space:]]|$)'; then
-          log_result ERROR "RDG check_service 脚本疑似占位实现（脚本过短且直接 exit 0）：${check_rel}。"
+          log_result ERROR "check_service 脚本疑似占位实现（脚本过短且直接 exit 0）：${check_rel}。"
         else
-          log_result INFO "RDG check_service 脚本通过占位检测"
+          log_result INFO "check_service 脚本通过占位检测"
         fi
       else
-        log_result ERROR "RDG scoring_mode=check_service 但缺少校验脚本：${check_rel}"
+        log_result ERROR "scoring_mode=check_service 但缺少校验脚本：${check_rel}"
+      fi
+    fi
+
+    if [[ "$PROFILE_CFG" == "awdp" ]]; then
+      local base_dir
+      base_dir="$(cd "$(dirname "$DOCKERFILE")" && pwd)"
+      if [[ -d "${base_dir}/patch/src" ]]; then
+        log_result INFO "AWDP 检测到 patch/src 目录"
+      else
+        log_result ERROR "AWDP 缺少 patch/src 目录。"
+      fi
+      if [[ -x "${base_dir}/patch/patch.sh" ]]; then
+        log_result INFO "AWDP 检测到 patch/patch.sh"
+      else
+        log_result ERROR "AWDP 缺少可执行 patch/patch.sh。"
+      fi
+      if [[ -f "${base_dir}/patch_bundle.tar.gz" ]]; then
+        log_result INFO "AWDP 检测到 patch_bundle.tar.gz"
+      else
+        log_result ERROR "AWDP 缺少 patch_bundle.tar.gz。修复：重新渲染或打包补丁产物。"
       fi
     fi
   fi

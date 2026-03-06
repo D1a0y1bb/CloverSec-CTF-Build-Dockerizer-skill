@@ -8,11 +8,11 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 :
 
 
 cd "/var/www/html"
+: # defense block disabled
 
 mkdir -p /run/mysqld /var/log/mysql /var/log/apache2
 chown -R mysql:mysql /run/mysqld /var/lib/mysql /var/log/mysql || true

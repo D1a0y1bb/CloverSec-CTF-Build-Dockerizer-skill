@@ -1,0 +1,50 @@
+challenge:
+  name: secops-nginx-basic
+  stack: secops
+  profile: secops
+  base_image: nginx:1.27-bookworm
+  workdir: /app
+  app_src: public
+  app_dst: /usr/share/nginx/html
+  expose_ports:
+    - "80"
+    - "22"
+    - "8022"
+  start:
+    mode: cmd
+    cmd: nginx -g 'daemon off;'
+  runtime_deps:
+    - procps
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+    allow_loopback_bind: false
+  healthcheck:
+    enabled: true
+    cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/80'
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+  extra:
+    env:
+      SECOPS_MODE: nginx-hardening
+    copy:
+      - from: nginx/default.conf
+        to: /etc/nginx/conf.d/default.conf
+  defense:
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: /bin/bash
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    ttyd_binary_relpath: ttyd
+    ttyd_install_fallback: true
+    ctf_user: ctf
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: check_service
+    include_flag_artifact: false
+    check_enabled: true
+    check_script_path: check/check.sh

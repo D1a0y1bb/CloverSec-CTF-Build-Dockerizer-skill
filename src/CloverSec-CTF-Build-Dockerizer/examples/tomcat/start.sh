@@ -8,11 +8,11 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 :
 
 
 cd "/usr/local/tomcat"
+: # defense block disabled
 
 START_CMD="catalina.sh run"
 if [[ -z "${START_CMD}" ]]; then

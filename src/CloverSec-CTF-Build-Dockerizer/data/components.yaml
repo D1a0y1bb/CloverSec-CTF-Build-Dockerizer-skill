@@ -1,0 +1,229 @@
+version: 1
+components:
+  mysql:
+    display_name: MySQL
+    description: BaseUnit family for standalone MySQL service images.
+    default_variant: 8.0-debian
+    variants:
+      - id: 8.0-debian
+        base_image: mysql:8.0
+        workdir: /docker-entrypoint-initdb.d
+        app_dst: /docker-entrypoint-initdb.d
+        expose_ports: ["3306"]
+        start_cmd: docker-entrypoint.sh mysqld
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/3306'
+        runtime_deps: []
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: app
+      - id: 5.7-debian
+        base_image: mysql:5.7
+        workdir: /docker-entrypoint-initdb.d
+        app_dst: /docker-entrypoint-initdb.d
+        expose_ports: ["3306"]
+        start_cmd: docker-entrypoint.sh mysqld
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/3306'
+        runtime_deps: []
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: app
+
+  redis:
+    display_name: Redis
+    description: BaseUnit family for standalone Redis cache nodes.
+    default_variant: 7.2-alpine
+    variants:
+      - id: 7.2-alpine
+        base_image: redis:7.2-alpine
+        workdir: /data
+        app_dst: /data
+        expose_ports: ["6379"]
+        start_cmd: redis-server --protected-mode no --bind 0.0.0.0
+        healthcheck_cmd: bash -lc 'redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG || echo > /dev/tcp/127.0.0.1/6379'
+        runtime_deps: []
+      - id: 6.2-alpine
+        base_image: redis:6.2-alpine
+        workdir: /data
+        app_dst: /data
+        expose_ports: ["6379"]
+        start_cmd: redis-server --protected-mode no --bind 0.0.0.0
+        healthcheck_cmd: bash -lc 'redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG || echo > /dev/tcp/127.0.0.1/6379'
+        runtime_deps: []
+
+  sshd:
+    display_name: OpenSSH Server
+    description: BaseUnit family for operator login and service hardening scenes.
+    default_variant: bookworm
+    variants:
+      - id: bookworm
+        base_image: debian:bookworm-slim
+        workdir: /app
+        app_dst: /app
+        expose_ports: ["22"]
+        start_cmd: mkdir -p /var/run/sshd /etc/ssh && ssh-keygen -A && exec /usr/sbin/sshd -D -e -p 22
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/22'
+        runtime_deps: [openssh-server]
+      - id: jammy
+        base_image: ubuntu:22.04
+        workdir: /app
+        app_dst: /app
+        expose_ports: ["22"]
+        start_cmd: mkdir -p /var/run/sshd /etc/ssh && ssh-keygen -A && exec /usr/sbin/sshd -D -e -p 22
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/22'
+        runtime_deps: [openssh-server]
+
+  ttyd:
+    display_name: TTYD
+    description: BaseUnit family for browser terminal access services.
+    default_variant: bookworm
+    variants:
+      - id: bookworm
+        base_image: debian:bookworm-slim
+        workdir: /app
+        app_dst: /app
+        expose_ports: ["8022"]
+        start_cmd: ttyd -p 8022 /bin/bash
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/8022'
+        runtime_deps: [ttyd]
+      - id: alpine
+        base_image: alpine:3.20
+        workdir: /app
+        app_dst: /app
+        expose_ports: ["8022"]
+        start_cmd: ttyd -p 8022 /bin/sh
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/8022'
+        runtime_deps: [ttyd]
+
+  apache:
+    display_name: Apache HTTPD
+    description: BaseUnit family for standalone Apache web servers.
+    default_variant: 2.4-bookworm
+    variants:
+      - id: 2.4-bookworm
+        base_image: httpd:2.4-bookworm
+        workdir: /usr/local/apache2/htdocs
+        app_dst: /usr/local/apache2/htdocs
+        expose_ports: ["80"]
+        start_cmd: httpd-foreground
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/80'
+        runtime_deps: []
+      - id: 2.4-alpine
+        base_image: httpd:2.4-alpine
+        workdir: /usr/local/apache2/htdocs
+        app_dst: /usr/local/apache2/htdocs
+        expose_ports: ["80"]
+        start_cmd: httpd-foreground
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/80'
+        runtime_deps: []
+
+  nginx:
+    display_name: Nginx
+    description: BaseUnit family for standalone Nginx web servers.
+    default_variant: 1.27-bookworm
+    variants:
+      - id: 1.27-bookworm
+        base_image: nginx:1.27-bookworm
+        workdir: /usr/share/nginx/html
+        app_dst: /usr/share/nginx/html
+        expose_ports: ["80"]
+        start_cmd: nginx -g 'daemon off;'
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/80'
+        runtime_deps: []
+      - id: 1.25-alpine
+        base_image: nginx:1.25-alpine
+        workdir: /usr/share/nginx/html
+        app_dst: /usr/share/nginx/html
+        expose_ports: ["80"]
+        start_cmd: nginx -g 'daemon off;'
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/80'
+        runtime_deps: []
+
+  tomcat:
+    display_name: Tomcat
+    description: BaseUnit family for standalone Tomcat servlet containers.
+    default_variant: 9-jre17
+    variants:
+      - id: 9-jre17
+        base_image: tomcat:9.0-jre17-temurin-jammy
+        workdir: /usr/local/tomcat/webapps/ROOT
+        app_dst: /usr/local/tomcat/webapps/ROOT
+        expose_ports: ["8080"]
+        start_cmd: catalina.sh run
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/8080'
+        runtime_deps: []
+      - id: 8.5-jre8
+        base_image: tomcat:8.5-jre8-temurin-focal
+        workdir: /usr/local/tomcat/webapps/ROOT
+        app_dst: /usr/local/tomcat/webapps/ROOT
+        expose_ports: ["8080"]
+        start_cmd: catalina.sh run
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/8080'
+        runtime_deps: []
+
+  php-fpm:
+    display_name: PHP-FPM
+    description: BaseUnit family for standalone PHP-FPM runtimes.
+    default_variant: 8.2-bookworm
+    variants:
+      - id: 8.2-bookworm
+        base_image: php:8.2-fpm-bookworm
+        workdir: /var/www/html
+        app_dst: /var/www/html
+        expose_ports: ["9000"]
+        start_cmd: php-fpm -F
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/9000'
+        runtime_deps: []
+      - id: 7.4-bullseye
+        base_image: php:7.4-fpm-bullseye
+        workdir: /var/www/html
+        app_dst: /var/www/html
+        expose_ports: ["9000"]
+        start_cmd: php-fpm -F
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/9000'
+        runtime_deps: []
+
+  vsftpd:
+    display_name: VSFTPD
+    description: BaseUnit family for standalone FTP services.
+    default_variant: bookworm
+    variants:
+      - id: bookworm
+        base_image: debian:bookworm-slim
+        workdir: /srv/ftp
+        app_dst: /srv/ftp
+        expose_ports: ["21"]
+        start_cmd: mkdir -p /var/run/vsftpd/empty && exec /usr/sbin/vsftpd /etc/vsftpd.conf
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/21'
+        runtime_deps: [vsftpd]
+      - id: alpine
+        base_image: alpine:3.20
+        workdir: /srv/ftp
+        app_dst: /srv/ftp
+        expose_ports: ["21"]
+        start_cmd: mkdir -p /var/run/vsftpd/empty && exec /usr/sbin/vsftpd /etc/vsftpd/vsftpd.conf
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/21'
+        runtime_deps: [vsftpd]
+
+  weblogic:
+    display_name: Oracle WebLogic
+    description: BaseUnit family for WebLogic base images with platform-compatible wrappers.
+    default_variant: 12.2.1.4-dev
+    variants:
+      - id: 12.2.1.4-dev
+        base_image: container-registry.oracle.com/middleware/weblogic:12.2.1.4-dev
+        workdir: /u01/oracle/user_projects
+        app_dst: /u01/oracle/user_projects
+        expose_ports: ["7001"]
+        start_cmd: /u01/oracle/user_projects/domains/base_domain/startWebLogic.sh
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/7001'
+        runtime_deps: []
+        notes: Oracle Container Registry login may be required before build.
+      - id: 14.1.1-dev
+        base_image: container-registry.oracle.com/middleware/weblogic:14.1.1.0-dev
+        workdir: /u01/oracle/user_projects
+        app_dst: /u01/oracle/user_projects
+        expose_ports: ["7001"]
+        start_cmd: /u01/oracle/user_projects/domains/base_domain/startWebLogic.sh
+        healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/7001'
+        runtime_deps: []
+        notes: Oracle Container Registry login may be required before build.

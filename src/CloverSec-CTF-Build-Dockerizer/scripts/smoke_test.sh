@@ -5,10 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EXAMPLES_DIR="${SKILL_ROOT}/examples"
 RENDER_PY="${SCRIPT_DIR}/render.py"
+RENDER_SCENARIO_PY="${SCRIPT_DIR}/render_scenario.py"
 VALIDATE_SH="${SCRIPT_DIR}/validate.sh"
+VALIDATE_SCENARIO_PY="${SCRIPT_DIR}/validate_scenario.py"
 
 FULL_RUN="${SMOKE_FULL_RUN:-0}"
-FORCE_RUN_LIST="${SMOKE_FORCE_RUN:-node-basic,php-apache-basic,python-flask-basic,pwn-basic,ai-basic,rdg-php-hardening-basic,rdg-python-ssti-basic}"
+FORCE_RUN_LIST="${SMOKE_FORCE_RUN:-node-basic,php-apache-basic,python-flask-basic,pwn-basic,ai-basic,rdg-php-hardening-basic,rdg-python-ssti-basic,baseunit-redis-basic,baseunit-sshd-basic,node-awdp-basic,secops-nginx-basic,secops-redis-hardening-basic}"
 WAIT_SECONDS="${SMOKE_WAIT_SECONDS:-5}"
 KEEP_ARTIFACTS="${KEEP_SMOKE_ARTIFACTS:-0}"
 LAMP_RUN_MODE="${LAMP_RUN_MODE:-build-only}" # build-only/full
@@ -107,6 +109,58 @@ print(str(stack).strip().lower())
 PY
 }
 
+get_profile_id() {
+  local challenge_file="$1"
+  python3 - "$challenge_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    print("")
+    raise SystemExit(0)
+
+import yaml
+
+raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+challenge = raw.get("challenge", {}) if isinstance(raw, dict) else {}
+profile = challenge.get("profile", "") if isinstance(challenge, dict) else ""
+print(str(profile).strip().lower())
+PY
+}
+
+get_check_contract() {
+  local challenge_file="$1"
+  python3 - "$challenge_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists():
+    print("false|flag|check/check.sh")
+    raise SystemExit(0)
+
+import yaml
+
+raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+challenge = raw.get("challenge", {}) if isinstance(raw, dict) else {}
+if not isinstance(challenge, dict):
+    print("false|flag|check/check.sh")
+    raise SystemExit(0)
+
+cfg = challenge.get("defense")
+if not isinstance(cfg, dict):
+    cfg = challenge.get("rdg")
+if not isinstance(cfg, dict):
+    cfg = {}
+
+enabled = bool(cfg.get("check_enabled", False))
+mode = str(cfg.get("scoring_mode", "flag")).strip().lower() or "flag"
+path_value = str(cfg.get("check_script_path", "check/check.sh")).strip() or "check/check.sh"
+print(f"{str(enabled).lower()}|{mode}|{path_value}")
+PY
+}
+
 cleanup_case() {
   local cname="$1"
   local image_tag="$2"
@@ -157,11 +211,46 @@ echo "- WAIT_SECONDS: ${WAIT_SECONDS}"
 while IFS= read -r dir; do
   name="$(basename "$dir")"
   challenge_yaml="${dir}/challenge.yaml"
+  scenario_yaml="${dir}/scenario.yaml"
   dockerfile="${dir}/Dockerfile"
   start_sh="${dir}/start.sh"
 
   echo
   echo "== 测试目录: ${name} =="
+
+  if [[ -f "$scenario_yaml" ]]; then
+    scenario_out="$(mktemp -d "/tmp/ctf-scenario-${name}-XXXXXX")"
+    echo "[INFO] 检测到 scenario.yaml，执行 scenario 渲染与校验"
+    if ! python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out"; then
+      echo "[ERROR] scenario render 失败: ${name}"
+      FAIL_LIST+=("${name}:scenario-render")
+      rm -rf "$scenario_out"
+      continue
+    fi
+
+    compose_file="${scenario_out}/docker-compose.yml"
+    if ! python3 "$VALIDATE_SCENARIO_PY" "$compose_file" "$scenario_out"; then
+      echo "[ERROR] scenario validate 失败: ${name}"
+      FAIL_LIST+=("${name}:scenario-validate")
+      rm -rf "$scenario_out"
+      continue
+    fi
+
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      if ! docker compose -f "$compose_file" build; then
+        echo "[ERROR] docker compose build 失败: ${name}"
+        FAIL_LIST+=("${name}:scenario-build")
+        rm -rf "$scenario_out"
+        continue
+      fi
+    else
+      echo "[WARN] 未检测到 docker compose，scenario 仅执行静态校验: ${name}"
+    fi
+
+    PASS_LIST+=("${name}:scenario")
+    rm -rf "$scenario_out"
+    continue
+  fi
 
   if [[ ! -f "$challenge_yaml" ]]; then
     echo "[WARN] 缺少 challenge.yaml，跳过: ${dir}"
@@ -257,26 +346,32 @@ while IFS= read -r dir; do
   fi
 
   stack_id="$(get_stack_id "$challenge_yaml")"
-  if [[ "${stack_id}" == "rdg" ]]; then
-    check_script="${dir}/check/check.sh"
+  profile_id="$(get_profile_id "$challenge_yaml")"
+  check_contract="$(get_check_contract "$challenge_yaml")"
+  check_enabled="${check_contract%%|*}"
+  check_rest="${check_contract#*|}"
+  check_mode="${check_rest%%|*}"
+  check_script_rel="${check_rest#*|}"
+  if [[ "${check_enabled}" == "true" && "${check_mode}" == "check_service" ]]; then
+    check_script="${dir}/${check_script_rel}"
     if [[ ! -f "${check_script}" ]]; then
-      echo "[ERROR] RDG 示例缺少 check 脚本: ${check_script}"
+      echo "[ERROR] check_service 示例缺少 check 脚本: ${check_script}"
       FAIL_LIST+=("${name}:missing-check-script")
       cleanup_case "$container_name" "$image_tag"
       continue
     fi
 
     if [[ -z "${host_port}" ]]; then
-      echo "[ERROR] 无法解析 RDG 检查端口映射: ${name} ${container_port}/tcp"
+      echo "[ERROR] 无法解析 check_service 检查端口映射: ${name} ${container_port}/tcp"
       FAIL_LIST+=("${name}:check-port-resolve")
       cleanup_case "$container_name" "$image_tag"
       continue
     fi
 
-    echo "[INFO] 执行 RDG check 脚本: ${check_script} 127.0.0.1 ${host_port}"
+    echo "[INFO] 执行 check 脚本: ${check_script} 127.0.0.1 ${host_port} (stack=${stack_id} profile=${profile_id})"
     if ! bash "${check_script}" "127.0.0.1" "${host_port}"; then
-      echo "[ERROR] RDG check 脚本失败: ${name}"
-      FAIL_LIST+=("${name}:rdg-check")
+      echo "[ERROR] check 脚本失败: ${name}"
+      FAIL_LIST+=("${name}:service-check")
       cleanup_case "$container_name" "$image_tag"
       continue
     fi

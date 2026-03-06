@@ -1,0 +1,30 @@
+challenge:
+  name: baseunit-redis-basic
+  stack: baseunit
+  profile: jeopardy
+  base_image: redis:7.2-alpine
+  workdir: /data
+  app_src: .
+  app_dst: /data
+  expose_ports:
+    - "6379"
+  start:
+    mode: cmd
+    cmd: redis-server --protected-mode no --bind 0.0.0.0
+  runtime_deps: []
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+    allow_loopback_bind: false
+  healthcheck:
+    enabled: true
+    cmd: bash -lc 'redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG || echo > /dev/tcp/127.0.0.1/6379'
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+  extra:
+    env:
+      BASEUNIT_COMPONENT_DESCRIPTION: BaseUnit Redis sample using an official Redis image.
+    copy: []
+    user: ""

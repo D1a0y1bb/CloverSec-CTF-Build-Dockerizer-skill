@@ -8,11 +8,11 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 :
 
 
 cd "/var/www/html"
+: # defense block disabled
 
 START_CMD="apache2-foreground"
 if [[ -z "${START_CMD}" ]]; then

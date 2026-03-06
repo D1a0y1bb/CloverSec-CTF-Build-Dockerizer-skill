@@ -26,4 +26,6 @@ COPY {{APP_SRC}} {{APP_DST}}
 # 可选环境变量注入。
 {{> snippets/env.tpl }}
 
+{{DEFENSE_DOCKER_BLOCK}}
+
 {{> snippets/docker-common-epilog.tpl }}

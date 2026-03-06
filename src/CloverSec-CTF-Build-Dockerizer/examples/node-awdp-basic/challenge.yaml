@@ -1,0 +1,40 @@
+challenge:
+  name: node-awdp-basic
+  stack: node
+  profile: awdp
+  base_image: node:20-alpine
+  workdir: /app
+  app_src: .
+  app_dst: /app
+  expose_ports:
+    - "3000"
+    - "22"
+    - "8022"
+  start:
+    mode: cmd
+    cmd: node server.js
+  runtime_deps: []
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+  defense:
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: /bin/bash
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    ttyd_binary_relpath: ttyd
+    ttyd_install_fallback: true
+    ctf_user: ctf
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: check_service
+    include_flag_artifact: true
+    check_enabled: true
+    check_script_path: check/check.sh
+  extra:
+    env:
+      NODE_ENV: production
+    copy: []
+    user: ""

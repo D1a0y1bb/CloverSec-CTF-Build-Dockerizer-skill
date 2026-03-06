@@ -1,10 +1,11 @@
 {{> snippets/start-header.tpl }}
 
 # Node 栈启动脚本，平台固定以 /start.sh 启动。
-{{> snippets/ensure-flag.tpl }}
+{{RDG_FLAG_START_BLOCK}}
 {{> snippets/env.tpl }}
 
 cd "{{WORKDIR}}"
+{{DEFENSE_START_BLOCK}}
 
 # 单服务必须 exec 主进程作为 PID1，保证信号正确传递。
 START_CMD="{{START_CMD}}"

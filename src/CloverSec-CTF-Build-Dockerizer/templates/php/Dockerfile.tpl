@@ -15,4 +15,6 @@ COPY {{APP_SRC}} {{APP_DST}}
 
 {{> snippets/env.tpl }}
 
+{{DEFENSE_DOCKER_BLOCK}}
+
 {{> snippets/docker-common-epilog.tpl }}

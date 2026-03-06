@@ -24,6 +24,7 @@ from utils import (  # noqa: E402
     infer_runtime_profile_candidates,
     infer_from_patterns,
     load_patterns,
+    load_profile_defs,
     load_runtime_profiles,
     load_stack_defs,
     normalize_ports,
@@ -426,6 +427,52 @@ def _build_start_candidates(
         notes.append("RDG 默认启用 ttyd+sshd 双通道，并创建 ctf 用户（默认口令 123456）。")
         notes.append("RDG 默认采用 check-service 判定；如无需登录链路可显式关闭 enable_ttyd/enable_sshd。")
 
+    elif stack_id == "secops":
+        if (scan_dir / "nginx.conf").is_file():
+            candidates.append(
+                {
+                    "cmd": "nginx -g 'daemon off;'",
+                    "rationale": "命中 nginx.conf，推断为 Nginx 安全运维场景",
+                    "evidence": ["命中文件: nginx.conf"],
+                }
+            )
+        if (scan_dir / "redis.conf").is_file():
+            candidates.append(
+                {
+                    "cmd": "redis-server /etc/redis/redis.conf --protected-mode no --bind 0.0.0.0",
+                    "rationale": "命中 redis.conf，推断为 Redis 安全运维场景",
+                    "evidence": ["命中文件: redis.conf"],
+                }
+            )
+        if (scan_dir / "sshd_config").is_file():
+            candidates.append(
+                {
+                    "cmd": "/usr/sbin/sshd -D -e",
+                    "rationale": "命中 sshd_config，推断为 SSH 安全运维场景",
+                    "evidence": ["命中文件: sshd_config"],
+                }
+            )
+        if (scan_dir / "server.xml").is_file():
+            candidates.append(
+                {
+                    "cmd": "catalina.sh run",
+                    "rationale": "命中 server.xml，推断为 Tomcat 安全运维场景",
+                    "evidence": ["命中文件: server.xml"],
+                }
+            )
+        notes.append("SecOps 默认采用 check-service 判定，并保留 ttyd+sshd 登录链路。")
+        notes.append("SecOps 适用于配置加固/安全运维类题目；若无需登录链路可显式关闭 enable_ttyd/enable_sshd。")
+
+    elif stack_id == "baseunit":
+        candidates.append(
+            {
+                "cmd": "",
+                "rationale": "baseunit 需要显式组件变体提供 start_cmd",
+                "evidence": ["建议通过 render_component.py 生成，而不是直接 derive"],
+            }
+        )
+        notes.append("baseunit 不参与常规源码侦测，建议直接走 render_component.py。")
+
     if default_cmd:
         candidates.append(
             {
@@ -491,9 +538,51 @@ def _guess_app_paths(scan_dir: Path, stack_id: str, workdir: str) -> Tuple[str, 
     return app_src, app_dst, evidence
 
 
+def _guess_profile(scan_dir: Path, stack_id: str) -> Tuple[str, List[str]]:
+    if stack_id == "rdg":
+        return "rdg", ["stack=rdg：默认进入 RDG profile"]
+    if stack_id == "secops":
+        return "secops", ["stack=secops：默认进入 SecOps profile"]
+
+    patch_src = scan_dir / "patch" / "src"
+    patch_sh = scan_dir / "patch" / "patch.sh"
+    check_sh = scan_dir / "check" / "check.sh"
+    ttyd_bin = scan_dir / "ttyd"
+    ssh_cfg = scan_dir / "sshd_config"
+
+    if patch_src.is_dir() and patch_sh.is_file():
+        return "awdp", ["命中 patch/src + patch/patch.sh，倾向 AWDP profile"]
+    if check_sh.is_file() and (ttyd_bin.exists() or ssh_cfg.is_file()):
+        return "awd", ["命中 check/check.sh 且存在 ttyd/sshd 相关线索，倾向 AWD profile"]
+    return "jeopardy", ["未命中明确攻防修复信号，保守回退 jeopardy profile"]
+
+
+def _default_defense_proposal(profile_defs: Dict[str, Any], profile: str) -> Dict[str, Any]:
+    profiles = ensure_dict(profile_defs.get("profiles"), "profiles")
+    item = ensure_dict(profiles.get(profile), f"profiles.{profile}")
+    return {
+        "enable_ttyd": bool(item.get("enable_ttyd", False)),
+        "ttyd_port": str(item.get("ttyd_port", "8022")),
+        "ttyd_login_cmd": str(item.get("ttyd_login_cmd", "/bin/bash")),
+        "enable_sshd": bool(item.get("enable_sshd", False)),
+        "sshd_port": str(item.get("sshd_port", "22")),
+        "sshd_password_auth": bool(item.get("sshd_password_auth", True)),
+        "ttyd_binary_relpath": str(item.get("ttyd_binary_relpath", "ttyd")),
+        "ttyd_install_fallback": bool(item.get("ttyd_install_fallback", True)),
+        "ctf_user": str(item.get("ctf_user", "ctf")),
+        "ctf_password": str(item.get("ctf_password", "123456")),
+        "ctf_in_root_group": bool(item.get("ctf_in_root_group", False)),
+        "scoring_mode": str(item.get("scoring_mode", "flag")),
+        "include_flag_artifact": bool(item.get("include_flag_artifact", True)),
+        "check_enabled": bool(item.get("check_enabled", False)),
+        "check_script_path": str(item.get("check_script_path", "check/check.sh")),
+    }
+
+
 def derive(project_dir: Path) -> Dict[str, Any]:
     stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
     patterns = load_patterns(DATA_DIR / "patterns.yaml")
+    profile_defs = load_profile_defs(DATA_DIR / "profiles.yaml")
     runtime_profiles = load_runtime_profiles(DATA_DIR / "runtime_profiles.yaml")
 
     best_id, best_conf, details = detect_stack(project_dir, stacks)
@@ -543,12 +632,25 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     candidates, candidate_notes = _build_start_candidates(project_dir, stack_id, defaults, infer_info, guessed_ports)
 
     app_src, app_dst, app_path_evidence = _guess_app_paths(project_dir, stack_id, workdir)
+    profile_guess, profile_evidence = _guess_profile(project_dir, stack_id)
+    defense_proposal = _default_defense_proposal(profile_defs, profile_guess)
+
+    if profile_guess != "jeopardy":
+        extra_ports: List[str] = []
+        if defense_proposal.get("enable_ttyd"):
+            extra_ports.append(str(defense_proposal.get("ttyd_port", "8022")))
+        if defense_proposal.get("enable_sshd"):
+            extra_ports.append(str(defense_proposal.get("sshd_port", "22")))
+        for port in extra_ports:
+            if port and port not in guessed_ports:
+                guessed_ports.append(port)
 
     notes: List[str] = [
         "确保服务监听 0.0.0.0，避免容器内可达但外部不可达。",
         "单服务启动命令必须以前台 exec 方式运行。",
     ]
     notes.extend(candidate_notes)
+    notes.extend(profile_evidence)
 
     if best_conf < 0.6:
         notes.append(f"栈侦测置信度较低（{best_conf:.2f}），Q1 请重点确认技术栈。")
@@ -620,6 +722,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             "app_dst": app_dst,
             "evidence": app_path_evidence,
         },
+        "profile_guess": {
+            "id": profile_guess,
+            "evidence": profile_evidence,
+        },
         "gates": {
             "requires_explicit_stack_confirm": requires_explicit_stack_confirm,
             "requires_start_cmd_confirm": requires_start_cmd_confirm,
@@ -633,6 +739,7 @@ def derive(project_dir: Path) -> Dict[str, Any]:
         # 供 AI 直接渲染 Step 1 的 CONFIG PROPOSAL 块
         "config_proposal": {
             "stack": stack_id,
+            "profile": profile_guess,
             "base_image": proposal_base_image,
             "workdir": workdir,
             "app_src": app_src,
@@ -662,6 +769,9 @@ def derive(project_dir: Path) -> Dict[str, Any]:
         },
     }
 
+    if profile_guess != "jeopardy":
+        proposal["config_proposal"]["defense"] = defense_proposal
+
     if stack_id == "rdg":
         rdg_ports = list(guessed_ports)
         for p in ["8022", "22"]:
@@ -669,23 +779,7 @@ def derive(project_dir: Path) -> Dict[str, Any]:
                 rdg_ports.append(p)
         proposal["port_guess"]["ports"] = rdg_ports
         proposal["config_proposal"]["expose_ports"] = rdg_ports
-        proposal["config_proposal"]["rdg"] = {
-            "enable_ttyd": True,
-            "ttyd_port": "8022",
-            "ttyd_login_cmd": "/bin/bash",
-            "enable_sshd": True,
-            "sshd_port": "22",
-            "sshd_password_auth": True,
-            "ttyd_binary_relpath": "ttyd",
-            "ttyd_install_fallback": True,
-            "ctf_user": "ctf",
-            "ctf_password": "123456",
-            "ctf_in_root_group": False,
-            "scoring_mode": "check_service",
-            "include_flag_artifact": True,
-            "check_enabled": True,
-            "check_script_path": "check/check.sh",
-        }
+        proposal["config_proposal"]["rdg"] = dict(defense_proposal)
 
     return proposal
 

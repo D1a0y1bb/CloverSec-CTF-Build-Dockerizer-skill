@@ -20,4 +20,6 @@ COPY {{APP_SRC}} {{APP_DST}}
 # 依赖安装块由渲染器生成：有 lock 优先 npm ci，无 lock 回退 npm install。
 {{NPM_INSTALL_BLOCK}}
 
+{{DEFENSE_DOCKER_BLOCK}}
+
 {{> snippets/docker-common-epilog.tpl }}

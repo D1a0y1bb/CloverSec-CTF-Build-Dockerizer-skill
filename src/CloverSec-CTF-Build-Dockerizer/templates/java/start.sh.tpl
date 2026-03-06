@@ -1,10 +1,11 @@
 {{> snippets/start-header.tpl }}
 
 # Java 栈启动脚本（JAR Runner）。
-{{> snippets/ensure-flag.tpl }}
+{{RDG_FLAG_START_BLOCK}}
 {{> snippets/env.tpl }}
 
 cd "{{WORKDIR}}"
+{{DEFENSE_START_BLOCK}}
 
 START_CMD="{{START_CMD}}"
 if [[ -z "${START_CMD}" ]]; then

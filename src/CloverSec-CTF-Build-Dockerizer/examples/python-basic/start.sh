@@ -8,11 +8,11 @@ if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-
 export PYTHONUNBUFFERED=1
 
 
 cd "/app"
+: # defense block disabled
 
 START_CMD="python app.py"
 if [[ -z "${START_CMD}" ]]; then

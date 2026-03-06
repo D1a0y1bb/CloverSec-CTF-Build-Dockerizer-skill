@@ -1,0 +1,82 @@
+version: 1
+profiles:
+  jeopardy:
+    enable_sshd: false
+    sshd_port: "22"
+    sshd_password_auth: true
+    enable_ttyd: false
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "flag"
+    include_flag_artifact: true
+    check_enabled: false
+    check_script_path: "check/check.sh"
+  rdg:
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: true
+    check_enabled: true
+    check_script_path: "check/check.sh"
+  awd:
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: true
+    check_enabled: false
+    check_script_path: "check/check.sh"
+  awdp:
+    enable_sshd: false
+    sshd_port: "22"
+    sshd_password_auth: true
+    enable_ttyd: false
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: true
+    check_enabled: false
+    check_script_path: "check/check.sh"
+  secops:
+    enable_sshd: true
+    sshd_port: "22"
+    sshd_password_auth: true
+    enable_ttyd: true
+    ttyd_port: "8022"
+    ttyd_login_cmd: "/bin/bash"
+    ttyd_binary_relpath: "ttyd"
+    ttyd_install_fallback: true
+    ctf_user: "ctf"
+    ctf_password: "123456"
+    ctf_in_root_group: false
+    scoring_mode: "check_service"
+    include_flag_artifact: false
+    check_enabled: true
+    check_script_path: "check/check.sh"

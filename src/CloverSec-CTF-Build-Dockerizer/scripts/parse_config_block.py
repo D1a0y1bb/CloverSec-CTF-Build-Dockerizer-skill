@@ -7,7 +7,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_ROOT = SCRIPT_DIR.parent
@@ -19,11 +19,25 @@ if str(SCRIPT_DIR) not in sys.path:
 from utils import (  # noqa: E402
     ConfigError,
     ensure_dict,
+    load_profile_defs,
     load_stack_defs,
     normalize_ports,
 )
 
-ALLOWED_STACKS = {"node", "php", "python", "java", "tomcat", "lamp", "pwn", "ai", "rdg"}
+ALLOWED_STACKS = {
+    "node",
+    "php",
+    "python",
+    "java",
+    "tomcat",
+    "lamp",
+    "pwn",
+    "ai",
+    "rdg",
+    "secops",
+    "baseunit",
+}
+ALLOWED_PROFILES = {"jeopardy", "rdg", "awd", "awdp", "secops"}
 _DURATION_RE = re.compile(r"^[0-9]+(ns|us|ms|s|m|h)$")
 
 
@@ -49,11 +63,10 @@ def _load_yaml_module():
 
 def _extract_yaml_object(text: str, yaml_mod: Any) -> Dict[str, Any]:
     candidates = [text]
-
     code_blocks = re.findall(r"```(?:yaml|yml|json)?\s*(.*?)```", text, flags=re.IGNORECASE | re.DOTALL)
     candidates.extend(code_blocks)
 
-    for idx, item in enumerate(candidates, start=1):
+    for item in candidates:
         chunk = item.strip()
         if not chunk:
             continue
@@ -65,8 +78,7 @@ def _extract_yaml_object(text: str, yaml_mod: Any) -> Dict[str, Any]:
             return parsed
 
     raise ConfigError(
-        "YAML 解析失败：未识别到有效对象。请仅粘贴 CONFIG PROPOSAL YAML 块，"
-        "或用 ```yaml ... ``` 包裹后重试。"
+        "YAML 解析失败：未识别到有效对象。请仅粘贴 CONFIG PROPOSAL YAML 块，或用 ```yaml ... ``` 包裹后重试。"
     )
 
 
@@ -75,21 +87,15 @@ def _extract_proposal(root: Dict[str, Any]) -> Dict[str, Any]:
         return ensure_dict(root.get("CONFIG PROPOSAL"), "CONFIG PROPOSAL")
     if "config_proposal" in root:
         return ensure_dict(root.get("config_proposal"), "config_proposal")
-
-    # 兼容仅粘贴内部对象（不带外层键）
     if "stack" in root and "start" in root:
         return root
-
-    raise ConfigError(
-        "缺少 CONFIG PROPOSAL 根键。请回复“OK”或粘贴包含 `CONFIG PROPOSAL:` 的 YAML 块。"
-    )
+    raise ConfigError("缺少 CONFIG PROPOSAL 根键。请回复“OK”或粘贴包含 `CONFIG PROPOSAL:` 的 YAML 块。")
 
 
 def _ensure_port_list(value: Any) -> list[str]:
     ports = normalize_ports(value)
     if not ports:
         return []
-
     for p in ports:
         if not p.isdigit():
             raise ConfigError(f"端口必须是数字：{p}")
@@ -142,8 +148,106 @@ def _parse_positive_int(value: Any, field_name: str, default: int) -> int:
     return number
 
 
+def _default_profile_for_stack(stack_id: str) -> str:
+    if stack_id == "rdg":
+        return "rdg"
+    if stack_id == "secops":
+        return "secops"
+    return "jeopardy"
+
+
+def _normalize_profile(value: Any, stack_id: str) -> str:
+    raw = str(_first_non_empty(value, _default_profile_for_stack(stack_id)) or "").strip().lower()
+    if raw not in ALLOWED_PROFILES:
+        raise ConfigError(f"profile 非法：{raw}（允许: {', '.join(sorted(ALLOWED_PROFILES))}）")
+    return raw
+
+
+def _default_defense_config(profile_defs: Dict[str, Any], profile: str) -> Dict[str, Any]:
+    profiles = ensure_dict(profile_defs.get("profiles"), "profiles")
+    item = ensure_dict(profiles.get(profile), f"profiles.{profile}")
+    return {
+        "enable_ttyd": _to_bool(item.get("enable_ttyd"), False),
+        "ttyd_port": str(_first_non_empty(item.get("ttyd_port"), "8022")),
+        "ttyd_login_cmd": str(_first_non_empty(item.get("ttyd_login_cmd"), "/bin/bash")),
+        "enable_sshd": _to_bool(item.get("enable_sshd"), False),
+        "sshd_port": str(_first_non_empty(item.get("sshd_port"), "22")),
+        "sshd_password_auth": _to_bool(item.get("sshd_password_auth"), True),
+        "ttyd_binary_relpath": str(_first_non_empty(item.get("ttyd_binary_relpath"), "ttyd")),
+        "ttyd_install_fallback": _to_bool(item.get("ttyd_install_fallback"), True),
+        "ctf_user": str(_first_non_empty(item.get("ctf_user"), "ctf")),
+        "ctf_password": str(_first_non_empty(item.get("ctf_password"), "123456")),
+        "ctf_in_root_group": _to_bool(item.get("ctf_in_root_group"), False),
+        "scoring_mode": str(_first_non_empty(item.get("scoring_mode"), "flag")).strip().lower(),
+        "include_flag_artifact": _to_bool(item.get("include_flag_artifact"), True),
+        "check_enabled": _to_bool(item.get("check_enabled"), False),
+        "check_script_path": str(_first_non_empty(item.get("check_script_path"), "check/check.sh")),
+    }
+
+
+def _normalize_defense(
+    profile_defs: Dict[str, Any],
+    profile: str,
+    defense_cfg: Dict[str, Any],
+    legacy_rdg_cfg: Dict[str, Any],
+) -> Dict[str, Any]:
+    source = {**legacy_rdg_cfg, **defense_cfg}
+    merged = _default_defense_config(profile_defs, profile)
+    merged["enable_ttyd"] = _to_bool(source.get("enable_ttyd"), merged["enable_ttyd"])
+    merged["ttyd_port"] = str(_first_non_empty(source.get("ttyd_port"), merged["ttyd_port"])).strip()
+    if not merged["ttyd_port"].isdigit() or not (1 <= int(merged["ttyd_port"]) <= 65535):
+        raise ConfigError("defense.ttyd_port 必须是 1-65535 的端口数字")
+    merged["ttyd_login_cmd"] = str(
+        _first_non_empty(source.get("ttyd_login_cmd"), merged["ttyd_login_cmd"])
+    ).strip()
+    if not merged["ttyd_login_cmd"]:
+        raise ConfigError("defense.ttyd_login_cmd 不能为空")
+    merged["enable_sshd"] = _to_bool(source.get("enable_sshd"), merged["enable_sshd"])
+    merged["sshd_port"] = str(_first_non_empty(source.get("sshd_port"), merged["sshd_port"])).strip()
+    if not merged["sshd_port"].isdigit() or not (1 <= int(merged["sshd_port"]) <= 65535):
+        raise ConfigError("defense.sshd_port 必须是 1-65535 的端口数字")
+    merged["sshd_password_auth"] = _to_bool(
+        source.get("sshd_password_auth"), merged["sshd_password_auth"]
+    )
+    merged["ttyd_binary_relpath"] = str(
+        _first_non_empty(source.get("ttyd_binary_relpath"), merged["ttyd_binary_relpath"])
+    ).strip()
+    if not merged["ttyd_binary_relpath"]:
+        raise ConfigError("defense.ttyd_binary_relpath 不能为空")
+    merged["ttyd_install_fallback"] = _to_bool(
+        source.get("ttyd_install_fallback"), merged["ttyd_install_fallback"]
+    )
+    merged["ctf_user"] = str(_first_non_empty(source.get("ctf_user"), merged["ctf_user"])).strip()
+    if not merged["ctf_user"]:
+        raise ConfigError("defense.ctf_user 不能为空")
+    merged["ctf_password"] = str(
+        _first_non_empty(source.get("ctf_password"), merged["ctf_password"])
+    ).strip()
+    if not merged["ctf_password"]:
+        raise ConfigError("defense.ctf_password 不能为空")
+    merged["ctf_in_root_group"] = _to_bool(
+        source.get("ctf_in_root_group"), merged["ctf_in_root_group"]
+    )
+    merged["scoring_mode"] = str(
+        _first_non_empty(source.get("scoring_mode"), merged["scoring_mode"])
+    ).strip().lower()
+    if merged["scoring_mode"] not in {"check_service", "flag"}:
+        raise ConfigError("defense.scoring_mode 仅支持 check_service 或 flag")
+    merged["include_flag_artifact"] = _to_bool(
+        source.get("include_flag_artifact"), merged["include_flag_artifact"]
+    )
+    merged["check_enabled"] = _to_bool(source.get("check_enabled"), merged["check_enabled"])
+    merged["check_script_path"] = str(
+        _first_non_empty(source.get("check_script_path"), merged["check_script_path"])
+    ).strip()
+    if merged["check_enabled"] and not merged["check_script_path"]:
+        raise ConfigError("defense.check_script_path 不能为空")
+    return merged
+
+
 def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
     stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
+    profile_defs = load_profile_defs(DATA_DIR / "profiles.yaml")
 
     stack_raw = str(_first_non_empty(proposal.get("stack"), "") or "").strip().lower()
     if not stack_raw:
@@ -156,7 +260,7 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     defaults = ensure_dict(stacks[stack_raw].get("defaults"), f"stacks.{stack_raw}.defaults")
 
     base_image = str(_first_non_empty(proposal.get("base_image"), defaults.get("base_image"), "") or "").strip()
-    workdir = str(_first_non_empty(proposal.get("workdir"), defaults.get("workdir"), "/app") or "").strip()
+    workdir = str(_first_non_empty(proposal.get("workdir"), defaults.get("workdir"), "/app") or "/app").strip()
     if not workdir:
         raise ConfigError("workdir 不能为空")
 
@@ -173,7 +277,6 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     start_mode = str(_first_non_empty(start.get("mode"), "cmd") or "cmd").strip()
     if start_mode not in {"cmd", "service", "supervisor"}:
         raise ConfigError(f"start.mode 非法：{start_mode}（允许: cmd/service/supervisor）")
-
     default_cmd = str(defaults.get("start_cmd") or "").strip()
     start_cmd = str(_first_non_empty(start.get("cmd"), default_cmd, "") or "").strip()
 
@@ -185,71 +288,30 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     healthcheck = ensure_dict(proposal.get("healthcheck"), "healthcheck")
     healthcheck_enabled = _to_bool(healthcheck.get("enabled"), True)
     default_healthcheck_cmd = str(defaults.get("healthcheck_cmd") or "").strip()
-    healthcheck_cmd = str(
-        _first_non_empty(healthcheck.get("cmd"), default_healthcheck_cmd, "") or ""
-    ).strip()
+    healthcheck_cmd = str(_first_non_empty(healthcheck.get("cmd"), default_healthcheck_cmd, "") or "").strip()
     if healthcheck_enabled and not healthcheck_cmd:
         raise ConfigError("healthcheck.enabled=true 时，healthcheck.cmd 不能为空")
-    healthcheck_interval = _parse_duration(
-        healthcheck.get("interval"), "healthcheck.interval", "30s"
-    )
-    healthcheck_timeout = _parse_duration(
-        healthcheck.get("timeout"), "healthcheck.timeout", "5s"
-    )
-    healthcheck_retries = _parse_positive_int(
-        healthcheck.get("retries"), "healthcheck.retries", 3
-    )
-    healthcheck_start_period = _parse_duration(
-        healthcheck.get("start_period"), "healthcheck.start_period", "10s"
-    )
+    healthcheck_interval = _parse_duration(healthcheck.get("interval"), "healthcheck.interval", "30s")
+    healthcheck_timeout = _parse_duration(healthcheck.get("timeout"), "healthcheck.timeout", "5s")
+    healthcheck_retries = _parse_positive_int(healthcheck.get("retries"), "healthcheck.retries", 3)
+    healthcheck_start_period = _parse_duration(healthcheck.get("start_period"), "healthcheck.start_period", "10s")
 
     flag = ensure_dict(proposal.get("flag"), "flag")
     flag_path = str(_first_non_empty(flag.get("path"), "/flag") or "/flag").strip()
     flag_perm = str(_first_non_empty(flag.get("permission"), "444") or "444").strip()
 
-    challenge_name = args.name.strip() if args.name.strip() else f"{stack_raw}-challenge"
-
+    profile = _normalize_profile(proposal.get("profile"), stack_raw)
+    defense = ensure_dict(proposal.get("defense"), "defense")
     rdg = ensure_dict(proposal.get("rdg"), "rdg")
-    rdg_enable_ttyd = _to_bool(rdg.get("enable_ttyd"), True)
-    rdg_ttyd_port_raw = _first_non_empty(rdg.get("ttyd_port"), "8022")
-    rdg_ttyd_port = str(rdg_ttyd_port_raw).strip()
-    if not rdg_ttyd_port.isdigit() or not (1 <= int(rdg_ttyd_port) <= 65535):
-        raise ConfigError("rdg.ttyd_port 必须是 1-65535 的端口数字")
-    rdg_ttyd_login_cmd = str(_first_non_empty(rdg.get("ttyd_login_cmd"), "/bin/bash") or "/bin/bash").strip()
-    if not rdg_ttyd_login_cmd:
-        raise ConfigError("rdg.ttyd_login_cmd 不能为空")
-    rdg_enable_sshd = _to_bool(rdg.get("enable_sshd"), True)
-    rdg_sshd_port_raw = _first_non_empty(rdg.get("sshd_port"), "22")
-    rdg_sshd_port = str(rdg_sshd_port_raw).strip()
-    if not rdg_sshd_port.isdigit() or not (1 <= int(rdg_sshd_port) <= 65535):
-        raise ConfigError("rdg.sshd_port 必须是 1-65535 的端口数字")
-    rdg_sshd_password_auth = _to_bool(rdg.get("sshd_password_auth"), True)
-    rdg_ttyd_binary_relpath = str(_first_non_empty(rdg.get("ttyd_binary_relpath"), "ttyd") or "ttyd").strip()
-    if not rdg_ttyd_binary_relpath:
-        raise ConfigError("rdg.ttyd_binary_relpath 不能为空")
-    rdg_ttyd_install_fallback = _to_bool(rdg.get("ttyd_install_fallback"), True)
-    rdg_ctf_user = str(_first_non_empty(rdg.get("ctf_user"), "ctf") or "ctf").strip()
-    if not rdg_ctf_user:
-        raise ConfigError("rdg.ctf_user 不能为空")
-    rdg_ctf_password = str(_first_non_empty(rdg.get("ctf_password"), "123456") or "123456").strip()
-    if not rdg_ctf_password:
-        raise ConfigError("rdg.ctf_password 不能为空")
-    rdg_ctf_in_root_group = _to_bool(rdg.get("ctf_in_root_group"), False)
-    rdg_scoring_mode = str(_first_non_empty(rdg.get("scoring_mode"), "check_service") or "check_service").strip().lower()
-    if rdg_scoring_mode not in {"check_service", "flag"}:
-        raise ConfigError("rdg.scoring_mode 仅支持 check_service 或 flag")
-    rdg_include_flag_artifact = _to_bool(rdg.get("include_flag_artifact"), True)
-    rdg_check_enabled = _to_bool(rdg.get("check_enabled"), True)
-    rdg_check_script_path = str(
-        _first_non_empty(rdg.get("check_script_path"), "check/check.sh") or "check/check.sh"
-    ).strip()
-    if rdg_check_enabled and not rdg_check_script_path:
-        raise ConfigError("rdg.check_script_path 不能为空")
+    normalized_defense = _normalize_defense(profile_defs, profile, defense, rdg)
+
+    challenge_name = args.name.strip() if args.name.strip() else f"{stack_raw}-challenge"
 
     challenge: Dict[str, Any] = {
         "challenge": {
             "name": challenge_name,
             "stack": stack_raw,
+            "profile": profile,
             "base_image": base_image,
             "workdir": workdir,
             "app_src": app_src,
@@ -286,24 +348,27 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
         }
     }
 
-    if stack_raw == "rdg" or rdg:
-        challenge["challenge"]["rdg"] = {
-            "enable_ttyd": rdg_enable_ttyd,
-            "ttyd_port": rdg_ttyd_port,
-            "ttyd_login_cmd": rdg_ttyd_login_cmd,
-            "enable_sshd": rdg_enable_sshd,
-            "sshd_port": rdg_sshd_port,
-            "sshd_password_auth": rdg_sshd_password_auth,
-            "ttyd_binary_relpath": rdg_ttyd_binary_relpath,
-            "ttyd_install_fallback": rdg_ttyd_install_fallback,
-            "ctf_user": rdg_ctf_user,
-            "ctf_password": rdg_ctf_password,
-            "ctf_in_root_group": rdg_ctf_in_root_group,
-            "scoring_mode": rdg_scoring_mode,
-            "include_flag_artifact": rdg_include_flag_artifact,
-            "check_enabled": rdg_check_enabled,
-            "check_script_path": rdg_check_script_path,
+    if profile != "jeopardy" or defense or rdg or stack_raw in {"rdg", "secops"}:
+        challenge["challenge"]["defense"] = {
+            "enable_ttyd": normalized_defense["enable_ttyd"],
+            "ttyd_port": normalized_defense["ttyd_port"],
+            "ttyd_login_cmd": normalized_defense["ttyd_login_cmd"],
+            "enable_sshd": normalized_defense["enable_sshd"],
+            "sshd_port": normalized_defense["sshd_port"],
+            "sshd_password_auth": normalized_defense["sshd_password_auth"],
+            "ttyd_binary_relpath": normalized_defense["ttyd_binary_relpath"],
+            "ttyd_install_fallback": normalized_defense["ttyd_install_fallback"],
+            "ctf_user": normalized_defense["ctf_user"],
+            "ctf_password": normalized_defense["ctf_password"],
+            "ctf_in_root_group": normalized_defense["ctf_in_root_group"],
+            "scoring_mode": normalized_defense["scoring_mode"],
+            "include_flag_artifact": normalized_defense["include_flag_artifact"],
+            "check_enabled": normalized_defense["check_enabled"],
+            "check_script_path": normalized_defense["check_script_path"],
         }
+
+    if stack_raw == "rdg" or rdg:
+        challenge["challenge"]["rdg"] = dict(challenge["challenge"].get("defense", {}))
 
     return challenge
 
