@@ -1,4 +1,4 @@
-# data 目录（v2.0.2）
+# data 目录（v2.0.3）
 
 - `schema.md`：`challenge.yaml` v2 输入契约
 - `stacks.yaml`：11 栈默认值与探测规则
@@ -14,5 +14,5 @@
 说明：
 
 - 平台硬约束由渲染与校验链路强制执行（`/start.sh`、`/changeflag.sh`、`/bin/bash`、`EXPOSE`）。
-- `/flag` 默认必须存在，仅在 `include_flag_artifact=false` 时可放行。
+- `/flag` 默认必须存在，仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行。
 - scenario 生成的 compose 为本地验证用途，不改变平台单服务交付模型。

@@ -1,4 +1,4 @@
-# 架构总览（v2.0.2）
+# 架构总览（v2.0.3）
 
 ## 1) 输入层
 
@@ -43,5 +43,5 @@
 ## 6) 核心约束
 
 - 最终交付必须包含：`Dockerfile/start.sh/changeflag.sh`
-- `/flag` 仅在 `include_flag_artifact=false` 时可放行
+- `/flag` 仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行
 - `docker-compose.yml` 仅用于本地场景编排，不作为平台最终交付

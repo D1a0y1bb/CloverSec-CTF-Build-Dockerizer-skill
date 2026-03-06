@@ -11,25 +11,25 @@ from typing import Iterable
 
 VERSION_RE = r"v[0-9]+\.[0-9]+\.[0-9]+(?:[a-z0-9.-]+)?"
 FULL_READMES = ("README.md", "README.en.md", "README.ja.md")
-ALL_READMES = FULL_READMES + ("README.zh-CN.md",)
+ALL_READMES = FULL_READMES
 
 README_REQUIRED_SECTIONS = {
     "README.md": (
-        r"^## v2\.0\.2 重点更新\s*$",
-        r"^## AI 编程工具实战用法\s*$",
-        r"^## 竞赛模式构建手册\s*$",
-        r"^## 文件级目录索引\s*$",
+        r"^## V2\.0\.3 有哪些重大更新？\s*$",
+        r"^## 竞赛模式构建分类\s*$",
+        r"^## 文件目录索引\s*$",
         r"^## FAQ 与常见排障\s*$",
+        r"^## 维护、贡献与发布\s*$",
     ),
     "README.en.md": (
-        r"^## v2\.0\.2 Highlights\s*$",
+        r"^## v2\.0\.3 Highlights\s*$",
         r"^## AI Coding Playbook\s*$",
         r"^## Competition Mode Build Guide\s*$",
         r"^## File-Level Directory Index\s*$",
         r"^## FAQ and Troubleshooting\s*$",
     ),
     "README.ja.md": (
-        r"^## v2\.0\.2 更新ハイライト\s*$",
+        r"^## v2\.0\.3 更新ハイライト\s*$",
         r"^## AI コーディング実践ガイド\s*$",
         r"^## 競技モード構築ガイド\s*$",
         r"^## ファイル単位ディレクトリ索引\s*$",
@@ -38,13 +38,10 @@ README_REQUIRED_SECTIONS = {
 }
 
 README_REQUIRED_LINKS = {
-    "README.md": ("README.en.md", "README.ja.md", "README.zh-CN.md"),
-    "README.en.md": ("README.md", "README.ja.md", "README.zh-CN.md"),
-    "README.ja.md": ("README.md", "README.en.md", "README.zh-CN.md"),
-    "README.zh-CN.md": ("README.md", "README.en.md", "README.ja.md"),
+    "README.md": ("README.en.md", "README.ja.md"),
+    "README.en.md": ("README.md", "README.ja.md"),
+    "README.ja.md": ("README.md", "README.en.md"),
 }
-
-README_VERSION_CHAIN = ("v1.5.0", "v2.0.0", "v2.0.1", "v2.0.2")
 
 
 class Counter:
@@ -132,7 +129,7 @@ def should_check_candidate(cand: str) -> bool:
         return False
     if any(ch in cand for ch in ("*", "{", "}", "$", "|")):
         return False
-    if cand in {"README.md", "README.en.md", "README.ja.md", "README.zh-CN.md", "VERSION", "CHANGELOG.md", "LICENSE"}:
+    if cand in {"README.md", "README.en.md", "README.ja.md", "VERSION", "CHANGELOG.md", "LICENSE"}:
         return True
     return cand.startswith("src/") or cand.startswith("scripts/") or cand.startswith("docs/") or cand.startswith("Build_test/")
 
@@ -225,22 +222,9 @@ def check_readme_set(counter: Counter, root: Path, repo_version: str) -> None:
         else:
             counter.log_info(f"{name} VERSION 与 VERSION 文件一致")
 
-        for token in README_VERSION_CHAIN:
-            if token not in text:
-                counter.log_error(f"{name} 缺少版本演进节点：{token}")
-
         for section_re in README_REQUIRED_SECTIONS.get(name, ()):
             if not re.search(section_re, text, flags=re.MULTILINE):
                 counter.log_error(f"{name} 缺少关键章节：{section_re}")
-
-    zh_compat = readme_texts.get("README.zh-CN.md")
-    if zh_compat is not None:
-        if "兼容" not in zh_compat:
-            counter.log_warn("README.zh-CN.md 未检测到“兼容”说明")
-        if repo_version not in zh_compat:
-            counter.log_warn("README.zh-CN.md 未检测到当前版本号")
-        if len(zh_compat.splitlines()) > 80:
-            counter.log_warn("README.zh-CN.md 行数偏多，可能偏离“兼容入口页”定位")
 
     en_text = readme_texts.get("README.en.md")
     if en_text and re.search(r"^#\\s*Legacy English Entry\\s*$", en_text, flags=re.MULTILINE):

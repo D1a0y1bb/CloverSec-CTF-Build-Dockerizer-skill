@@ -15,7 +15,7 @@ allowed-tools:
 
 **硬约束：平台固定使用 `/start.sh` 启动**
 
-**镜像根目录默认必须包含 `/flag` 且可读（RDG 且 include_flag_artifact=false 可放行）**
+**镜像根目录默认必须包含 `/flag` 且可读（在支持的 defense profile 中显式设置 include_flag_artifact=false 时可放行）**
 
 **镜像中必须存在 `/bin/bash`**
 
@@ -127,7 +127,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG/Defense check 脚本契约（v2.0.2）
+### RDG/Defense check 脚本契约（v2.0.3）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -153,7 +153,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `HEALTHCHECK_BLOCK`
 - `STACK_FLAG_BLOCK`
 
-## validate 自动修复与发布门禁（v2.0.2）
+## validate 自动修复与发布门禁（v2.0.3）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。
@@ -170,7 +170,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `/start.sh` 必须能启动真实服务。
 - `/start.sh` 必须保持容器持续运行。
 - `/start.sh` 必须有可观测日志输出。
-- `/flag` 默认必须存在且可读（RDG 且 `include_flag_artifact=false` 可放行）。
+- `/flag` 默认必须存在且可读；在当前已支持的 defense profile 中，显式设置 `include_flag_artifact=false` 时可放行。
 - `/bin/bash` 必须存在。
 - 单服务必须 `exec` 主进程。
 - 多服务可后台一个前台一个，但不能空转。
@@ -364,7 +364,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <project_dir>/Docker
 
 AI 必须输出：
 
-- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`changeflag.sh`、`flag(可选)`、`check/check.sh(按 defense.check_enabled 生成，需替换为真实检查逻辑)`
+- 最终工作目录通常会包含：`challenge.yaml`、`Dockerfile`、`start.sh`、`changeflag.sh`、`flag(可选)`、`check/check.sh(按 defense.check_enabled 生成，需替换为真实检查逻辑)`
 - 本地测试命令：`docker build` + `docker run ... /start.sh`
 - 平台导入提醒：端口映射、固定 `/start.sh` 启动、动态 flag 依赖 bash
 
@@ -740,9 +740,9 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - `start.sh` 必须包含 `set -euo pipefail`。
 - `Dockerfile` 必须有 `EXPOSE`。
 - `Dockerfile` 必须把 `start.sh` 放到 `/start.sh`。
-- `Dockerfile` 必须把 `flag` 放到 `/flag`（RDG 且 `include_flag_artifact=false` 除外）。
+- `Dockerfile` 必须把 `flag` 放到 `/flag`（已启用 `include_flag_artifact=false` 的受支持 defense profile 除外）。
 - `Dockerfile` 必须设置 `/start.sh` 可执行。
-- `Dockerfile` 必须设置 `/flag` 可读（RDG 且 `include_flag_artifact=false` 除外）。
+- `Dockerfile` 必须设置 `/flag` 可读（已启用 `include_flag_artifact=false` 的受支持 defense profile 除外）。
 - 镜像必须有 `/bin/bash`。
 - 单服务必须 `exec` 主进程。
 - 不能使用空转保活。

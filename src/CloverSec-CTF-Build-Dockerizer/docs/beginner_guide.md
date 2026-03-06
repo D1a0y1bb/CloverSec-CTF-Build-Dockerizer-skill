@@ -9,18 +9,26 @@
 
 ## 1. 先知道它能做什么
 
-`CloverSec-CTF-Build-Dockerizer` 用于把 CTF Jeopardy 与 RDG（Docker）题目目录转换为平台可运行的容器交付物，核心链路是：
+`CloverSec-CTF-Build-Dockerizer` 用于把题目目录、组件目录或本地场景定义转换为当前平台契约下可运行、可校验、可回归的容器交付物。当前核心能力覆盖：
+
+- Jeopardy / Web / Pwn / AI
+- RDG / AWD / AWDP / SecOps
+- BaseUnit 纯基座组件渲染
+- Scenario 本地多服务编排
+
+主链路是：
 
 1. 自动探测栈与启动信息（`derive_config.py`）
 2. 输出配置确认块（`CONFIG PROPOSAL`）
 3. 你只需要回复 `OK` 或改一行 YAML
 4. AI 自动执行渲染与校验（`parse_config_block.py -> render.py -> validate.sh`）
 
-产物固定为：
+渲染最小产物固定为：
 
 - `Dockerfile`
 - `start.sh`
-- `flag`
+- `changeflag.sh`
+- `flag`（按 profile / defense 配置可选）
 
 ## 2. 平台硬约束（必须满足）
 
@@ -28,11 +36,12 @@
 
 1. 平台固定用 `/start.sh` 启动：`docker run -d -p host:container <image>:latest /start.sh`
 2. 镜像必须包含 `/start.sh` 且可执行
-3. 镜像必须包含 `/flag` 且可读
+3. 镜像必须包含 `/changeflag.sh` 且可执行
 4. 镜像必须包含 `/bin/bash`（平台会执行 `/bin/bash /changeflag.sh`）
 5. Dockerfile 必须有 `EXPOSE`
 6. 禁止空转保活（`sleep infinity`、`while true; do sleep ...`）
 7. 单服务必须 `exec` 主进程（PID1）
+8. `/flag` 默认要求存在；仅在支持的 defense profile 中显式设置 `include_flag_artifact=false` 时可放行
 
 ## 3. 安装 Skill（一次配置，可重复覆盖）
 
@@ -67,11 +76,6 @@ ls /tmp/skills/CloverSec-CTF-Build-Dockerizer
 bash scripts/sync.sh --target-dir ./.trae/skills
 ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 ```
-
-说明：
-
-- 不同 Trae 版本的“本地技能目录”入口名称可能不同（如 Skills/Tools/Workspace Skills）。
-- 若你们团队有固定目录规范，把 `--target-dir` 改为对应路径即可。
 
 ## 4. 三个平台如何触发这个 Skill
 
@@ -109,7 +113,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 你只需要关注这 5 个确认项：
 
-1. 技术栈（node/php/python/java/tomcat/lamp/pwn/ai/rdg）+ 运行时档位（php/node/java）
+1. 技术栈 + profile（php/node/java 还要确认运行时档位）
 2. 容器端口
 3. `WORKDIR`
 4. 启动命令
@@ -117,23 +121,19 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 ## 6. 真实业务场景怎么触发
 
-以下是最常见场景与可直接复制的触发语句。
-
 | 场景 | 触发语句（可直接发给 AI） | 期望输出 |
 |---|---|---|
 | 老题目没有 Dockerfile | “用 CloverSec-CTF-Build-Dockerizer 为当前目录生成交付文件，按 CONFIG PROPOSAL 流程走。” | 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)` |
 | 题目容器一启动就退出 | “用 CloverSec-CTF-Build-Dockerizer 重生 start.sh，并确保单服务用 exec 作为 PID1。” | `start.sh` 可持续运行且有日志 |
 | 平台报 `/bin/bash` 不存在 | “用 CloverSec-CTF-Build-Dockerizer 修复镜像，确保 /bin/bash 可用并通过 validate。” | Dockerfile 补齐 bash 安装 |
-| 平台动态 flag 写入失败 | “检查并修复 /flag 权限、路径与 start.sh 入口约束。” | `/flag` 在根目录且可读 |
+| 平台动态 flag 写入失败 | “检查并修复 /flag 权限、路径与 changeflag 入口约束。” | `/flag` 与 `/changeflag.sh` 约束正确 |
 | 端口映射后访问不到 | “检查 EXPOSE 与服务监听地址，确保监听 0.0.0.0 并更新配置。” | 端口与监听修复 |
-| Pwn 题目需要 xinetd 前台托管 | “按 pwn 栈生成模板，并确保 start.sh 使用 xinetd -dontfork 前台运行。” | 端口/前台策略符合平台约束 |
+| Pwn 题目需要前台托管 | “按 pwn 栈生成模板，并确保 start.sh 使用 xinetd/tcpserver/socat 的合法前台路径。” | 端口/前台策略符合平台约束 |
 | AI 题目在高核心服务器报线程错误 | “按 ai 栈生成并设置 OPENBLAS/OMP/MKL 线程限制，使用 gunicorn 单 worker。” | 线程稳定、容器持续运行 |
-| 想快速做栈迁移（如 Python -> Tomcat） | “按 tomcat 栈重新生成模板，保留平台硬约束并给迁移差异说明。” | 新栈模板产物与说明 |
-| 发布前批量验收 examples | “运行 validate_examples.sh 并输出失败项修复建议。” | 回归汇总与修复指引 |
+| 需要生成纯组件镜像 | “用 render_component.py 生成 baseunit 组件目录，并保留平台契约文件。” | 输出可直接 `docker build` 的目录 |
+| 需要本地多服务演练 | “用 scenario.yaml 渲染本地场景，并校验 profile/端口/AWDP 补丁契约。” | 服务目录 + `docker-compose.yml` |
 
 ## 7. 手动模式（当你不走对话工作流时）
-
-如果你想本地直接执行脚本，命令链如下：
 
 ```bash
 # 1) 自动提案（可选）
@@ -154,22 +154,16 @@ docker logs -f "$(docker ps -q --filter ancestor=ctf-web-demo:latest | head -n 1
 ## 8. 小白常见误区
 
 1. 把宿主机端口写进 `expose_ports`
-   - `expose_ports` 写容器端口，不是宿主机端口。
 2. 启动命令只监听 `127.0.0.1`
-   - 需改成监听 `0.0.0.0`。
 3. 用 `sleep infinity` 保活
-   - 平台明确禁止，必须运行真实服务进程。
-4. 忘了 `/start.sh` 或 `/flag`
-   - 这是平台强约束，缺一不可。
-5. 忽略 `validate.sh`
-   - 生成后先校验再 build，能提前发现多数问题。
+4. 忘了 `/start.sh`、`/changeflag.sh` 或 `/bin/bash`
+5. 把 `include_flag_artifact=false` 理解成可以跳过所有平台产物
+6. 忽略 `validate.sh` 与 `smoke_test.sh`
 
 ## 9. 你下一步该做什么
 
-如果你是第一次使用，建议按这个顺序：
-
-1. 先跑安装命令（3.1 + 3.2 + 3.3 任选你需要的平台）
-2. 复制“触发示例”发给 Agent
-3. 收到 `CONFIG PROPOSAL` 后仅回复 `OK`
+1. 先跑安装命令
+2. 复制触发示例发给 Agent
+3. 收到 `CONFIG PROPOSAL` 后只回复 `OK` 或改 YAML
 4. 查看 `Dockerfile/start.sh/changeflag.sh/flag(可选)` 与 validate 结果
 5. 本地 `docker run ... /start.sh` 做最后验证

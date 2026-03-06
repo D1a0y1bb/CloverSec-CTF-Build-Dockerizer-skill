@@ -2,15 +2,32 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.0.3 - 2026-03-06
+
+### 变更
+
+- 修复三语 README 的历史错链，统一当前文档入口为：`README.md`（中文默认）、`README.en.md`（英文完整）、`README.ja.md`（日文完整）。
+- 收敛 README 中过强或易过时的承诺性表述，改为以“当前已验证能力范围”和“兼容优先迭代”描述项目边界。
+- 将 `beginner_guide.md` 升级到 V2 口径，补齐 `changeflag.sh`、`secops`、`baseunit`、`scenario`、`awd`、`awdp` 等能力说明。
+- 修正文档契约错位：
+  - `changeflag.sh` 明确为硬产物
+  - `/flag` 明确为条件产物
+  - `challenge.yaml` 不再被表述为所有渲染路径都必然重新输出的硬产物
+- 更新 `directory_guide.md`、`SKILL.md`、`platform_contract.md`、`architecture_overview.md`、`stack_cookbook.md`、`data/README.md`，统一到当前实现语义。
+- `scripts/doc_guard.py` 收口到当前三语 README 结构，不再强依赖已删除的历史中文入口文件。
+
+### 发布
+
+- 本版本为纯文档一致性修复，不引入新的运行时功能。
+
 ## v2.0.2 - 2026-03-06
 
 ### 变更
 
-- README 体系重写为“中文默认 + 三语完整等价 + 中文兼容入口”：
+- README 体系重写为“中文默认 + 三语完整等价文档”
   - `README.md`：中文默认完整手册
   - `README.en.md`：英文完整手册（不再是 legacy 短入口）
   - `README.ja.md`：日文完整手册
-  - `README.zh-CN.md`：中文兼容入口（历史链接保留）
 - 新增“版本演进叙事”并覆盖 `v1.5.0 -> v2.0.0 -> v2.0.1 -> v2.0.2` 全链路说明。
 - 补齐并扩展高价值文档板块：
   - 一键安装与技能发现
@@ -21,14 +38,13 @@
   - Workflow 截图与 Build_test 真实样例说明
 - 移除三语 README 中的“参考资料”章节，改为仓库内文档与命令导航。
 - `scripts/doc_guard.py` 增强 README 结构守卫：
-  - 校验四个 README 文件存在与语言互链完整性
+  - 校验三份完整 README 存在与语言互链完整性
   - 校验关键章节存在（重点更新、AI 工具、模式手册、目录索引、FAQ）
   - 校验三份完整 README 的版本号与 `VERSION` 一致
   - 校验不再出现 `References/参考资料/参考` 章节
 - `scripts/publish_guard.py` 新增发布前文档守卫：
   - 校验 README 资产完整性
   - 校验 `README.en.md` 非 legacy 短入口
-  - 校验 `README.zh-CN.md` 为兼容入口并指向 `README.md`
 
 ### 发布
 
@@ -92,7 +108,7 @@
 
 ### 文档
 
-- `README.md` / `README.zh-CN.md` / `README.ja.md` 统一升级到 `v2.0.0`，补齐：
+- `README.md` / `README.en.md` / `README.ja.md` 统一升级到 `v2.0.0`，补齐：
   - 多语言导航
   - `profile / defense / secops / baseunit / scenario / changeflag`
   - 平台最终交付与本地 compose 编排边界

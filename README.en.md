@@ -6,8 +6,7 @@
   <a href="README.en.md"><strong>English</strong></a>
   <span> · </span>
   <a href="README.ja.md"><strong>日本語</strong></a>
-  <span> · </span>
-  <a href="README.zh-CN.md"><strong>Chinese Compat Entry</strong></a>
+
 </p>
 
 <p align="center">
@@ -15,19 +14,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.3-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.3"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.0.2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.0.3</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.0.2 Highlights
+## v2.0.3 Highlights
 
 ### v1.5.0: Governance baseline and runtime compatibility
 
@@ -55,9 +54,9 @@ If you have ever patched `start.sh` minutes before kickoff, or found contract fa
 - Removed duplicate stack definitions and made duplicate IDs fail fast.
 - AWDP patch bundle switched to deterministic packaging.
 
-### v2.0.2: Chinese default and full documentation expansion
+### v2.0.3: Chinese default and full documentation expansion
 
-`v2.0.2` is documentation-first, without runtime behavior changes:
+`v2.0.3` is documentation-first, without runtime behavior changes:
 
 - `README.md` is now the full Chinese default manual.
 - `README.en.md` and `README.ja.md` are now full equivalent manuals.
@@ -500,10 +499,9 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 
 | File/Directory | Purpose |
 |---|---|
-| `README.md` | Full Chinese default manual |
+| `README.md` | Full Chinese manual (default entry) |
 | `README.en.md` | Full English manual |
 | `README.ja.md` | Full Japanese manual |
-| `README.zh-CN.md` | Chinese compatibility entry |
 | `VERSION` | Current release version |
 | `CHANGELOG.md` | Version history |
 | `LICENSE` | Open-source license |
@@ -639,7 +637,7 @@ bash scripts/release_build.sh
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.0.2
+bash scripts/publish_release.sh --version v2.0.3
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

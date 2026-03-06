@@ -13,27 +13,29 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.3-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.0.2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.0.3</code></p>
 
-四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），可通过Agent&LLM工具使用此Skill技能将题目附件、源码、指定的目录转化为凌虚竞赛平台与星图大靶场引擎（市面主流所有竞赛平台）可直接运行的Docker镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错 + 临场修补带来的不确定性。如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
+四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
-## V2.0.2 有哪些重大更新？
+如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
 
-1、重大更新：目前已完整支持适配市面主流几乎所有竞赛平台的题目容器构建，包括 Jeopardy、RDG、AWD、AWDP、SecOps、BaseUnit 以及 Vulhub-like 风格的各种题目类型，一次适配即可覆盖绝大部分实际使用场景。
+## V2.0.3 有哪些重大更新？
 
-2、优化适配内容：v2.0.2 是真正意义上的能力跃迁版本，把之前多个长期存在的痛点问题进行了系统性补全和扩展，核心配置模型全面升级为以 challenge.profile + challenge.defense 为主口径，同时保留了 challenge.rdg 的兼容输入方式，便于老用户平滑过渡。平台交付契约也做了标准化优化，现在每次构建都会稳定输出 Dockerfile + start.sh + changeflag.sh 这三个核心文件，确保下游使用一致性。新增加了 stack=secops 和 stack=baseunit 两种模式，其中 secops 专门支持安全运维类题目（本质上是类 RDG 的变种），baseunit 则针对只需要快速起一个带指定服务包的最小服务镜像的场景，特别适合部分岗位的轻量交付需求。
+1、重大更新：当前版本已经覆盖本仓库已实现并持续回归的主要交付场景，包括 Jeopardy、RDG、AWD、AWDP、SecOps、BaseUnit 以及 Vulhub-like 风格的本地场景编排，适合大多数实际竞赛与漏洞环境交付需求。
+
+2、优化适配内容：v2.0.3 是真正意义上的能力跃迁版本，把之前多个长期存在的痛点问题进行了系统性补全和扩展，核心配置模型全面升级为以 challenge.profile + challenge.defense 为主口径，同时保留了 challenge.rdg 的兼容输入方式，便于老用户平滑过渡。平台交付契约也做了标准化优化，现在每次构建都会稳定输出 Dockerfile + start.sh + changeflag.sh 这三个核心文件，确保下游使用一致性。新增加了 stack=secops 和 stack=baseunit 两种模式，其中 secops 专门支持安全运维类题目（本质上是类 RDG 的变种），baseunit 则针对只需要快速起一个带指定服务包的最小服务镜像的场景，特别适合部分岗位的轻量交付需求。
 
 3、渲染和校验流程优化：新增了 render_component.py、render_scenario.py、validate_scenario.py 这三个实用脚本，进一步完善了渲染和校验流程。针对 AWDP 模式，补丁契约也做了固定优化，现在统一采用 patch/src/（补丁源文件）+ patch/patch.sh（执行脚本）+ patch_bundle.tar.gz（最终补丁包）的结构，并且补丁包实现了确定性打包（相同输入永远产生相同输出，便于分发和校验）。在 scenario 层面，彻底补齐了 scenario-vulhub-like-basic，同时新增了从旧版 Vulhub 题目迁移到本项目的完整示例，迁移成本大幅降低。
 
 4、重要修复与改进包括：解决了 stacks.yaml 中容易出现的重复定义问题，load_stack_defs 遇到重复 id 时会直接抛出报错并附带 Warning，强制要求修正而不是默默容忍；整体代码进行了精简和优化，逻辑更清晰、体积更小；文档体验全面升级，默认 README.md 改为中文完整手册，全部重新润色表述，不再依赖 AI 自动生成；同时补充了英文和日文版本的 README，项目显得更加国际化；新增了针对每种模式的独立构建手册（分别覆盖 Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），方便按需查阅；还增加了文件级目录索引、常见问题 FAQ、排障指南以及发布验收清单等实用内容，让新手和老手都能更快上手。
 
-5、重要内容：本项目经过此V2版本迭代后将不会迎来重大版本更新，有问题请及时提[Issues](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/issues)，欢迎👏二次开发与优化适配
+5、维护说明：V2 之后会继续以兼容优先的方式迭代；如发现问题或契约错位，请及时提交 [Issues](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/issues)，也欢迎按现有模型继续做二次开发与适配。
 
 ## 核心能力矩阵
 
@@ -329,7 +331,6 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `README.md` | 中文默认完整手册（主入口） |
 | `README.en.md` | 英文完整手册 |
 | `README.ja.md` | 日文完整手册 |
-| `README.zh-CN.md` | 中文兼容入口（历史链接跳转） |
 | `VERSION` | 当前发布版本号 |
 | `CHANGELOG.md` | 版本变更历史 |
 | `LICENSE` | 开源许可证 |
@@ -464,7 +465,7 @@ bash scripts/release_build.sh
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.0.2
+bash scripts/publish_release.sh --version v2.0.3
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

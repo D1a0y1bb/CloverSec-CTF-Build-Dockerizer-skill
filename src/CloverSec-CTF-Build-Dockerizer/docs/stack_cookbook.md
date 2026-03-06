@@ -1,11 +1,11 @@
-# 技术栈手册（v2.0.2）
+# 技术栈手册（v2.0.3）
 
 本手册给出各栈最小配置与 V2 使用建议。
 
 ## 全局规则
 
 - 所有栈最终交付都必须包含：`Dockerfile/start.sh/changeflag.sh`
-- 默认要求 `/flag`；仅在 `include_flag_artifact=false` 时可放行
+- 默认要求 `/flag`；仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行
 - profile 推荐通过 `challenge.profile` 显式声明
 - 防御配置使用 `challenge.defense`；`challenge.rdg` 仅兼容输入
 
@@ -63,7 +63,7 @@ challenge:
 
 - 使用 `profile=rdg`
 - 保持 `check/check.sh` 为真实检查脚本（避免占位实现）
-- 当题目不需要静态 `/flag` 时，可设置 `include_flag_artifact=false`
+- 当题目不需要静态 `/flag` 且当前 profile/stack 已支持该放行语义时，可设置 `include_flag_artifact=false`
 
 ## stack=secops 建议
 
