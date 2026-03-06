@@ -146,6 +146,17 @@ When migrating a Vulhub-style multi-service environment:
 3. render and validate locally with `render_scenario.py` + `validate_scenario.py`
 4. deliver each rendered service directory independently to the target platform
 
+Reference example (Vulhub-like migration demo):
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
+  --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml \
+  --output /tmp/scenario-vulhub-like
+
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+  --output /tmp/scenario-vulhub-like
+```
+
 ## AWDP Patch Workflow
 
 For services rendered as `profile=awdp`, V2 enforces:

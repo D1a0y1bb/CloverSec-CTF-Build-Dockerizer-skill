@@ -1,0 +1,18 @@
+scenario:
+  name: scenario-vulhub-like-basic
+  mode: jeopardy
+  services:
+    - name: web1
+      challenge_path: ../python-loopback-ssrf-basic/challenge.yaml
+      challenge:
+        name: scenario-vulhub-web1
+      host_ports:
+        - "15000"
+
+    - name: redis1
+      component: redis
+      variant: 7.2-alpine
+      challenge:
+        name: scenario-vulhub-redis1
+      host_ports:
+        - "16379"

@@ -297,6 +297,8 @@ def load_stack_defs(stacks_yaml_path: Path) -> Dict[str, Dict[str, Any]]:
         stack_id = item.get("id")
         if not isinstance(stack_id, str) or not stack_id.strip():
             raise ConfigError("stacks.yaml 栈定义缺少有效 id")
+        if stack_id in stacks:
+            raise ConfigError(f"stacks.yaml 存在重复 stack id: {stack_id}")
         stacks[stack_id] = item
 
     return stacks

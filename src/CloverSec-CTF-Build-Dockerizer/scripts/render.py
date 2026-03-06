@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import os
 import re
 import tarfile
@@ -202,6 +203,52 @@ def _resolve_rdg_check_host_path(output_dir: Path, workdir: str, check_script_pa
     if not rel:
         raise ConfigError("challenge.rdg.check_script_path 不能为空路径根")
     return output_dir / rel
+
+
+def _normalize_tarinfo(info: tarfile.TarInfo) -> tarfile.TarInfo:
+    info.uid = 0
+    info.gid = 0
+    info.uname = ""
+    info.gname = ""
+    info.mtime = 0
+    if info.isdir():
+        info.mode = 0o755
+    elif info.isfile():
+        info.mode = 0o755 if (info.mode & 0o111) else 0o644
+    return info
+
+
+def _build_deterministic_patch_bundle(patch_bundle: Path, patch_script: Path, patch_src: Path) -> None:
+    def _dir_info(name: str) -> tarfile.TarInfo:
+        info = tarfile.TarInfo(name)
+        info.type = tarfile.DIRTYPE
+        info.mode = 0o755
+        info.size = 0
+        return _normalize_tarinfo(info)
+
+    patch_bundle.parent.mkdir(parents=True, exist_ok=True)
+    with patch_bundle.open("wb") as raw:
+        with gzip.GzipFile(fileobj=raw, mode="wb", mtime=0, filename="") as gz:
+            with tarfile.open(fileobj=gz, mode="w", format=tarfile.GNU_FORMAT) as tar:
+                tar.addfile(_dir_info("patch"))
+                tar.addfile(_dir_info("patch/src"))
+
+                patch_script_info = _normalize_tarinfo(
+                    tar.gettarinfo(str(patch_script), arcname="patch/patch.sh")
+                )
+                with patch_script.open("rb") as fh:
+                    tar.addfile(patch_script_info, fh)
+
+                for child in sorted(patch_src.rglob("*"), key=lambda p: p.relative_to(patch_src).as_posix()):
+                    rel = child.relative_to(patch_src).as_posix()
+                    arcname = f"patch/src/{rel}"
+                    if child.is_dir():
+                        tar.addfile(_normalize_tarinfo(tar.gettarinfo(str(child), arcname=arcname)))
+                        continue
+                    if child.is_file():
+                        info = _normalize_tarinfo(tar.gettarinfo(str(child), arcname=arcname))
+                        with child.open("rb") as fh:
+                            tar.addfile(info, fh)
 
 
 def _default_profile_for_stack(stack_id: str) -> str:
@@ -885,9 +932,7 @@ def render_files(context: Dict[str, Any]) -> None:
                 encoding="utf-8",
             )
         os.chmod(patch_script, 0o755)
-        with tarfile.open(patch_bundle, "w:gz") as tar:
-            tar.add(patch_script, arcname="patch/patch.sh")
-            tar.add(patch_src, arcname="patch/src")
+        _build_deterministic_patch_bundle(patch_bundle, patch_script, patch_src)
         generated_patch_bundle = str(patch_bundle.relative_to(out_dir))
 
     print("生成完成（CloverSec-CTF-Build-Dockerizer）")

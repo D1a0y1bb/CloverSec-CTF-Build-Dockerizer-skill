@@ -197,23 +197,28 @@ stacks:
         - nginx.conf
         - httpd.conf
         - server.xml
+        - vsftpd.conf
+        - config.xml
       any_of_dirs:
         - check
         - conf
         - config
+        - configs
+        - Writeup
+        - Write Up
     defaults:
       base_image: "debian:bookworm-slim"
       workdir: "/app"
       expose_ports:
         - "80"
-      start_cmd: "bash -lc 'if command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v /usr/sbin/sshd >/dev/null 2>&1; then exec /usr/sbin/sshd -D -e; else exec /bin/bash; fi'"
+      start_cmd: "bash -lc 'if command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v httpd >/dev/null 2>&1; then exec httpd -D FOREGROUND; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v mysqld >/dev/null 2>&1; then exec mysqld --user=mysql; elif command -v /usr/sbin/sshd >/dev/null 2>&1; then exec /usr/sbin/sshd -D -e; else exec /bin/bash; fi'"
       healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
     notes: >
       安全运维模式，适用于服务配置加固与检查驱动型题目。默认走 check-service 语义，
-      并与 secops profile 搭配使用。
+      与 secops profile 搭配使用，并保持与 RDG 语义隔离。
 
   - id: baseunit
-    display_name: BaseUnit (Minimal Service Package)
+    display_name: Base Service Unit
     detect:
       any_of_files: []
       any_of_dirs: []
@@ -225,88 +230,5 @@ stacks:
       start_cmd: "bash -lc 'echo \"[ERROR] baseunit requires explicit start.cmd\" >&2; exit 2'"
       healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
     notes: >
-      纯服务包/纯基座镜像最小单元模式，建议通过 render_component.py 显式指定 component 与 variant。
-
-  - id: secops
-    display_name: Security Ops
-    detect:
-      any_of_files:
-        - sshd_config
-        - nginx.conf
-        - redis.conf
-        - my.cnf
-        - server.xml
-      any_of_dirs:
-        - check
-        - configs
-        - conf
-        - Writeup
-        - Write Up
-    defaults:
-      base_image: "debian:bookworm-slim"
-      workdir: "/app"
-      expose_ports:
-        - "80"
-      start_cmd: "bash -lc 'if command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v httpd >/dev/null 2>&1; then exec httpd -D FOREGROUND; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v /usr/sbin/sshd >/dev/null 2>&1; then exec /usr/sbin/sshd -D -e; else exec /bin/bash; fi'"
-      healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
-    notes: >
-      适用于安全运维/配置加固类题目，默认采用 check-service 判定，
-      并保留 ttyd + sshd 登录链路与 ctf 普通账户的防御修复工作流。
-
-  - id: baseunit
-    display_name: Base Unit
-    detect:
-      any_of_files: []
-      any_of_dirs: []
-    defaults:
-      base_image: "debian:bookworm-slim"
-      workdir: "/app"
-      expose_ports:
-        - "80"
-      start_cmd: "bash -lc 'exec /bin/bash'"
-      healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
-    notes: >
-      适用于纯服务包/纯基座镜像最小单元制作。
-      不参与自动侦测，建议通过 render_component.py 或显式 stack=baseunit 使用。
-
-  - id: secops
-    display_name: Security Operations
-    detect:
-      any_of_files:
-        - sshd_config
-        - redis.conf
-        - my.cnf
-        - nginx.conf
-        - httpd.conf
-        - vsftpd.conf
-        - config.xml
-      any_of_dirs:
-        - check
-        - conf
-        - Writeup
-    defaults:
-      base_image: "debian:bookworm-slim"
-      workdir: "/app"
-      expose_ports:
-        - "80"
-      start_cmd: "bash -lc 'if command -v nginx >/dev/null 2>&1; then exec nginx -g \"daemon off;\"; elif command -v apache2-foreground >/dev/null 2>&1; then exec apache2-foreground; elif command -v redis-server >/dev/null 2>&1; then exec redis-server --protected-mode no --bind 0.0.0.0; elif command -v mysqld >/dev/null 2>&1; then exec mysqld --user=mysql; else exec /bin/bash; fi'"
-      healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
-    notes: >
-      适用于安全运维/安全配置类题目。默认沿用 check-service 判定与 defense 登录链路，
-      但作为独立 stack 与 RDG 分离，便于表达服务配置加固题、运维排障题和专项安全配置题。
-
-  - id: baseunit
-    display_name: Base Service Unit
-    detect:
-      any_of_files: []
-      any_of_dirs: []
-    defaults:
-      base_image: "alpine:3.20"
-      workdir: "/app"
-      expose_ports:
-        - "80"
-      start_cmd: ""
-      healthcheck_cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
-    notes: >
-      适用于“纯服务包/纯基座镜像最小单元”构建。默认不自动侦测，建议显式指定 stack=baseunit
-      或通过 render_component.py 从 components.yaml 生成。
+      纯服务包/纯基座镜像最小单元模式。建议通过 render_component.py 显式指定 component 与 variant，
+      不依赖自动侦测。

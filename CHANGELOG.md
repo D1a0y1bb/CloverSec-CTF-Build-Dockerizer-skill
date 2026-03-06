@@ -21,6 +21,7 @@
   - `examples/node-awdp-basic`
   - `examples/scenario-awd-basic`
   - `examples/scenario-awdp-basic`
+  - `examples/scenario-vulhub-like-basic`
 - 新增日文完整文档：`README.ja.md`。
 - 新增 `scripts/validate_context.py`，将 `validate.sh` 的 challenge 上下文解析逻辑稳定下沉到 Python。
 
@@ -31,11 +32,13 @@
   - 强制生成 `/changeflag.sh`
   - 对 `awdp` 自动生成 `patch/src/`、`patch/patch.sh`、`patch_bundle.tar.gz`
   - 非 `rdg/secops` 栈可在 `profile!=jeopardy` 下复用 defense block
+  - `patch_bundle.tar.gz` 改为确定性打包，避免重复回归触发二进制漂移
 - `parse_config_block.py`、`derive_config.py` 升级为 V2 模型，兼容 legacy `challenge.rdg` 输入，但推荐输出 `challenge.defense`。
 - `validate.sh` 升级：
   - `/changeflag.sh` 纳入硬规则
   - `profile` / `defense` / `secops` 场景进入统一门禁
   - 修复 challenge 上下文解析链路，消除嵌入式 Python 语法与兼容性问题
+- `data/stacks.yaml` 去除重复 `secops/baseunit` 定义，`utils.load_stack_defs` 对重复 stack id 改为显式报错，避免静默覆盖。
 - `smoke_test.sh` 与 `validate_examples.sh` 增强：
   - 识别 `scenario.yaml`
   - 调用 `render_scenario.py` / `validate_scenario.py`

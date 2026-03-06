@@ -6,7 +6,7 @@
 
 - 把多个单题目目录或 baseunit 组件渲染到统一输出目录；
 - 生成仅供本地联调使用的 `docker-compose.yml`；
-- 保持平台最终交付仍然是**每个服务各自的 `Dockerfile + start.sh`**。
+- 保持平台最终交付仍然是**每个服务各自的 `Dockerfile + start.sh + changeflag.sh`**。
 
 ## 设计边界
 
@@ -122,11 +122,13 @@ patch_bundle.tar.gz
       challenge.yaml
       Dockerfile
       start.sh
+      changeflag.sh
       ...
     <service-b>/
       challenge.yaml
       Dockerfile
       start.sh
+      changeflag.sh
       ...
 ```
 
@@ -166,6 +168,32 @@ scenario:
 
 渲染后，`services/web1/` 必须存在 AWDP patch 目录与 `patch_bundle.tar.gz`。
 
+## 示例 3：Vulhub-like 迁移场景
+
+```yaml
+scenario:
+  name: scenario-vulhub-like-basic
+  mode: jeopardy
+  services:
+    - name: web1
+      challenge_path: ../python-loopback-ssrf-basic/challenge.yaml
+      challenge:
+        name: scenario-vulhub-web1
+      host_ports:
+        - "15000"
+    - name: redis1
+      component: redis
+      variant: 7.2-alpine
+      challenge:
+        name: scenario-vulhub-redis1
+      host_ports:
+        - "16379"
+```
+
+该示例对应目录：
+
+- `src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml`
+
 ## 命令示例
 
 渲染：
@@ -191,4 +219,15 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd-basic \
   --config /tmp/scenario-awd-basic/scenario.yaml \
   --validate-rendered
+```
+
+Vulhub-like 示例渲染与校验：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
+  --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml \
+  --output /tmp/scenario-vulhub-like
+
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+  --output /tmp/scenario-vulhub-like
 ```
