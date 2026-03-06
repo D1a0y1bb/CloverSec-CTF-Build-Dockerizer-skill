@@ -2,6 +2,38 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.0.2 - 2026-03-06
+
+### 变更
+
+- README 体系重写为“中文默认 + 三语完整等价 + 中文兼容入口”：
+  - `README.md`：中文默认完整手册
+  - `README.en.md`：英文完整手册（不再是 legacy 短入口）
+  - `README.ja.md`：日文完整手册
+  - `README.zh-CN.md`：中文兼容入口（历史链接保留）
+- 新增“版本演进叙事”并覆盖 `v1.5.0 -> v2.0.0 -> v2.0.1 -> v2.0.2` 全链路说明。
+- 补齐并扩展高价值文档板块：
+  - 一键安装与技能发现
+  - Agent-Orchestrated 流程与 `CONFIG PROPOSAL` 确认门
+  - AI 编程工具实战（Codex/Cursor/Trae/Claude Code/Copilot Chat/Aider）
+  - 竞赛模式构建手册（Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Vulhub-like）
+  - 文件级目录索引、FAQ、排障与发布验收清单
+  - Workflow 截图与 Build_test 真实样例说明
+- 移除三语 README 中的“参考资料”章节，改为仓库内文档与命令导航。
+- `scripts/doc_guard.py` 增强 README 结构守卫：
+  - 校验四个 README 文件存在与语言互链完整性
+  - 校验关键章节存在（重点更新、AI 工具、模式手册、目录索引、FAQ）
+  - 校验三份完整 README 的版本号与 `VERSION` 一致
+  - 校验不再出现 `References/参考资料/参考` 章节
+- `scripts/publish_guard.py` 新增发布前文档守卫：
+  - 校验 README 资产完整性
+  - 校验 `README.en.md` 非 legacy 短入口
+  - 校验 `README.zh-CN.md` 为兼容入口并指向 `README.md`
+
+### 发布
+
+- 本版本为“文档与使用体验增强版”，不引入新的运行时行为变更。
+
 ## v2.0.1 - 2026-03-06
 
 ### 变更
@@ -23,8 +55,8 @@
 - 新增 V2 配置主口径：`challenge.profile` 与 `challenge.defense`，覆盖 `jeopardy / rdg / awd / awdp / secops` 五类 profile。
 - 新增独立技术栈：`secops`、`baseunit`。
 - 新增 `data/profiles.yaml`，统一管理 profile 默认行为。
-- 新增 `data/components.yaml` 与 `scripts/render_component.py`，支持指定组件和指定版本变体生成“纯服务包 / 纯基座镜像最小单元”。
-- 新增 `data/scenario_schema.md`、`data/validate_scenario_rules.yaml`、`scripts/render_scenario.py`、`scripts/validate_scenario.py`，支持 AWD / AWDP / Vulhub-like 本地多服务场景编排与校验。
+- 新增 `src/CloverSec-CTF-Build-Dockerizer/data/components.yaml` 与 `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py`，支持指定组件和指定版本变体生成“纯服务包 / 纯基座镜像最小单元”。
+- 新增 `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md`、`src/CloverSec-CTF-Build-Dockerizer/data/validate_scenario_rules.yaml`、`src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py`、`src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py`，支持 AWD / AWDP / Vulhub-like 本地多服务场景编排与校验。
 - 新增示例：
   - `examples/baseunit-redis-basic`
   - `examples/baseunit-sshd-basic`
@@ -36,7 +68,7 @@
   - `examples/scenario-awdp-basic`
   - `examples/scenario-vulhub-like-basic`
 - 新增日文完整文档：`README.ja.md`。
-- 新增 `scripts/validate_context.py`，将 `validate.sh` 的 challenge 上下文解析逻辑稳定下沉到 Python。
+- 新增 `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_context.py`，将 `validate.sh` 的 challenge 上下文解析逻辑稳定下沉到 Python。
 
 ### 变更
 

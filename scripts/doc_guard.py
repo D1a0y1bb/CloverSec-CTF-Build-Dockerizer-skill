@@ -10,6 +10,41 @@ from pathlib import Path
 from typing import Iterable
 
 VERSION_RE = r"v[0-9]+\.[0-9]+\.[0-9]+(?:[a-z0-9.-]+)?"
+FULL_READMES = ("README.md", "README.en.md", "README.ja.md")
+ALL_READMES = FULL_READMES + ("README.zh-CN.md",)
+
+README_REQUIRED_SECTIONS = {
+    "README.md": (
+        r"^## v2\.0\.2 重点更新\s*$",
+        r"^## AI 编程工具实战用法\s*$",
+        r"^## 竞赛模式构建手册\s*$",
+        r"^## 文件级目录索引\s*$",
+        r"^## FAQ 与常见排障\s*$",
+    ),
+    "README.en.md": (
+        r"^## v2\.0\.2 Highlights\s*$",
+        r"^## AI Coding Playbook\s*$",
+        r"^## Competition Mode Build Guide\s*$",
+        r"^## File-Level Directory Index\s*$",
+        r"^## FAQ and Troubleshooting\s*$",
+    ),
+    "README.ja.md": (
+        r"^## v2\.0\.2 更新ハイライト\s*$",
+        r"^## AI コーディング実践ガイド\s*$",
+        r"^## 競技モード構築ガイド\s*$",
+        r"^## ファイル単位ディレクトリ索引\s*$",
+        r"^## FAQ とトラブルシュート\s*$",
+    ),
+}
+
+README_REQUIRED_LINKS = {
+    "README.md": ("README.en.md", "README.ja.md", "README.zh-CN.md"),
+    "README.en.md": ("README.md", "README.ja.md", "README.zh-CN.md"),
+    "README.ja.md": ("README.md", "README.en.md", "README.zh-CN.md"),
+    "README.zh-CN.md": ("README.md", "README.en.md", "README.ja.md"),
+}
+
+README_VERSION_CHAIN = ("v1.5.0", "v2.0.0", "v2.0.1", "v2.0.2")
 
 
 class Counter:
@@ -55,7 +90,9 @@ def extract_readme_version(text: str) -> str:
 
 def collect_doc_files(root: Path) -> list[Path]:
     skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
-    files: list[Path] = [root / "README.md", skill_dir / "SKILL.md"]
+    files: list[Path] = [root / name for name in ALL_READMES]
+    files.append(root / "CHANGELOG.md")
+    files.append(skill_dir / "SKILL.md")
     docs_dir = skill_dir / "docs"
     if docs_dir.is_dir():
         files.extend(sorted(docs_dir.glob("*.md")))
@@ -75,7 +112,10 @@ def find_text_hits(files: Iterable[Path], pattern: str, flags: int = 0) -> list[
 
 def normalize_candidate(raw: str) -> str:
     cand = raw.strip()
-    if " " in cand:
+    for delimiter in (" --", " |", " &&", " ||", " ;"):
+        if delimiter in cand:
+            cand = cand.split(delimiter, 1)[0]
+    if " " in cand and "/" not in cand:
         cand = cand.split()[0]
     cand = cand.rstrip(".,;:)]")
     return cand
@@ -92,7 +132,9 @@ def should_check_candidate(cand: str) -> bool:
         return False
     if any(ch in cand for ch in ("*", "{", "}", "$", "|")):
         return False
-    return cand == "README.md" or cand == "VERSION" or cand.startswith("src/") or cand.startswith("scripts/")
+    if cand in {"README.md", "README.en.md", "README.ja.md", "README.zh-CN.md", "VERSION", "CHANGELOG.md", "LICENSE"}:
+        return True
+    return cand.startswith("src/") or cand.startswith("scripts/") or cand.startswith("docs/") or cand.startswith("Build_test/")
 
 
 def check_missing_refs(root: Path, docs: Iterable[Path]) -> list[str]:
@@ -144,6 +186,70 @@ def check_additional_consistency(counter: Counter, docs: list[Path]) -> None:
             print(item, file=sys.stderr)
     else:
         counter.log_info("/flag 契约描述检查通过")
+
+
+def has_readme_link(text: str, target: str) -> bool:
+    return f"({target})" in text or f'href="{target}"' in text
+
+
+def check_readme_set(counter: Counter, root: Path, repo_version: str) -> None:
+    readme_texts: dict[str, str] = {}
+
+    for name in ALL_READMES:
+        path = root / name
+        if not path.exists():
+            counter.log_error(f"缺少 README 文件：{name}")
+            continue
+        text = read_text(path)
+        readme_texts[name] = text
+        counter.log_info(f"检测到 README 文件：{name}")
+
+    for name, links in README_REQUIRED_LINKS.items():
+        text = readme_texts.get(name)
+        if text is None:
+            continue
+        for link in links:
+            if not has_readme_link(text, link):
+                counter.log_error(f"{name} 缺少语言互链：{link}")
+
+    for name in FULL_READMES:
+        text = readme_texts.get(name)
+        if text is None:
+            continue
+
+        version = extract_readme_version(text)
+        if not version:
+            counter.log_error(f"{name} 缺少可解析 VERSION 元信息")
+        elif version != repo_version:
+            counter.log_error(f"{name} VERSION({version}) 与 VERSION 文件({repo_version}) 不一致")
+        else:
+            counter.log_info(f"{name} VERSION 与 VERSION 文件一致")
+
+        for token in README_VERSION_CHAIN:
+            if token not in text:
+                counter.log_error(f"{name} 缺少版本演进节点：{token}")
+
+        for section_re in README_REQUIRED_SECTIONS.get(name, ()):
+            if not re.search(section_re, text, flags=re.MULTILINE):
+                counter.log_error(f"{name} 缺少关键章节：{section_re}")
+
+    zh_compat = readme_texts.get("README.zh-CN.md")
+    if zh_compat is not None:
+        if "兼容" not in zh_compat:
+            counter.log_warn("README.zh-CN.md 未检测到“兼容”说明")
+        if repo_version not in zh_compat:
+            counter.log_warn("README.zh-CN.md 未检测到当前版本号")
+        if len(zh_compat.splitlines()) > 80:
+            counter.log_warn("README.zh-CN.md 行数偏多，可能偏离“兼容入口页”定位")
+
+    en_text = readme_texts.get("README.en.md")
+    if en_text and re.search(r"^#\\s*Legacy English Entry\\s*$", en_text, flags=re.MULTILINE):
+        counter.log_error("README.en.md 仍为 legacy 短入口标题，未升级为完整文档")
+
+    banned_heading_re = re.compile(r"^##\\s*(References|参考資料|参考|参考资料)\\s*$", flags=re.MULTILINE)
+    for name, text in readme_texts.items():
+        if banned_heading_re.search(text):
+            counter.log_error(f"{name} 仍包含被移除章节：References/参考资料")
 
 
 def main() -> int:
@@ -202,13 +308,7 @@ def main() -> int:
         counter.log_info("文档路径引用检查通过（引用目标均存在）")
 
     repo_version = version_file.read_text(encoding="utf-8", errors="ignore").strip()
-    readme_version = extract_readme_version(read_text(readme))
-    if not readme_version:
-        counter.log_warn("README 缺少可解析的 VERSION 元信息")
-    elif readme_version != repo_version:
-        counter.log_warn(f"README 顶部 VERSION({readme_version}) 与 VERSION 文件({repo_version}) 不一致")
-    else:
-        counter.log_info("README 顶部 VERSION 与 VERSION 文件一致")
+    check_readme_set(counter, root, repo_version)
 
     text = read_text(readme)
     phase_template_enabled = bool(

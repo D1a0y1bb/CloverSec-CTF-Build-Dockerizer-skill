@@ -5,11 +5,16 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 VERSION_RE = r"^v[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.-]+)?$"
+VERSION_CAPTURE_RE = r"v[0-9]+\.[0-9]+\.[0-9]+(?:[a-z0-9.-]+)?"
+
+REQUIRED_READMES = ("README.md", "README.en.md", "README.ja.md", "README.zh-CN.md")
+FULL_READMES = ("README.md", "README.en.md", "README.ja.md")
 
 ALLOWED_PATTERNS = [
     "VERSION",
@@ -102,7 +107,89 @@ def parse_porcelain_z(blob: bytes) -> list[str]:
     return out
 
 
+def read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def extract_readme_version(text: str) -> str:
+    patterns = [
+        rf"^\s*VERSION[：:]\s*({VERSION_CAPTURE_RE})\s*$",
+        rf"<strong>\s*VERSION\s*</strong>\s*[：:]\s*({VERSION_CAPTURE_RE})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    return ""
+
+
+def has_readme_link(text: str, target: str) -> bool:
+    return f"({target})" in text or f'href="{target}"' in text
+
+
+def ensure_publish_docs(root: Path) -> int:
+    version_file = root / "VERSION"
+    if not version_file.exists():
+        print(f"[ERROR] VERSION 文件缺失：{version_file}", file=sys.stderr)
+        return 5
+
+    repo_version = version_file.read_text(encoding="utf-8", errors="ignore").strip()
+    if not repo_version:
+        print("[ERROR] VERSION 为空", file=sys.stderr)
+        return 5
+
+    texts: dict[str, str] = {}
+    errors: list[str] = []
+
+    for name in REQUIRED_READMES:
+        path = root / name
+        if not path.exists():
+            errors.append(f"缺少 README 文件：{name}")
+            continue
+        texts[name] = read_text(path)
+
+    for name in FULL_READMES:
+        text = texts.get(name)
+        if text is None:
+            continue
+        version = extract_readme_version(text)
+        if not version:
+            errors.append(f"{name} 缺少可解析 VERSION 元信息")
+        elif version != repo_version:
+            errors.append(f"{name} VERSION({version}) 与 VERSION({repo_version}) 不一致")
+
+    en_text = texts.get("README.en.md", "")
+    if re.search(r"^#\s*Legacy English Entry\s*$", en_text, flags=re.MULTILINE):
+        errors.append("README.en.md 仍为 Legacy English Entry 短页")
+
+    zh_compat = texts.get("README.zh-CN.md", "")
+    if zh_compat:
+        if not has_readme_link(zh_compat, "README.md"):
+            errors.append("README.zh-CN.md 未链接 README.md")
+        if "兼容" not in zh_compat:
+            errors.append("README.zh-CN.md 未体现兼容入口定位")
+
+    for name in ("README.md", "README.en.md", "README.ja.md"):
+        text = texts.get(name, "")
+        for target in ("README.md", "README.en.md", "README.ja.md", "README.zh-CN.md"):
+            if name == target:
+                continue
+            if not has_readme_link(text, target):
+                errors.append(f"{name} 缺少语言互链：{target}")
+
+    if errors:
+        print("[ERROR] 发布前 README 守卫失败：", file=sys.stderr)
+        for item in errors:
+            print(f"  - {item}", file=sys.stderr)
+        return 5
+    return 0
+
+
 def cmd_stage(root: Path) -> int:
+    guard_rc = ensure_publish_docs(root)
+    if guard_rc != 0:
+        return guard_rc
+
     proc = subprocess.run(
         ["git", "-C", str(root), "status", "--porcelain", "-z"],
         check=False,

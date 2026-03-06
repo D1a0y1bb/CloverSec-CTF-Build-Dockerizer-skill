@@ -1,4 +1,4 @@
-# 平台契约（Platform Contract, v2.0.1）
+# 平台契约（Platform Contract, v2.0.2）
 
 本文档定义交付到目标平台时必须满足的运行契约。
 
