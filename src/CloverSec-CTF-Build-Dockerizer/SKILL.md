@@ -1,6 +1,8 @@
 ---
 name: CloverSec-CTF-Build-Dockerizer
-description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag(可选)/check，并执行契约校验。
+description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。
+metadata:
+  short-description: 四叶草安全题目容器交付、BaseUnit 构建与 Scenario 编排
 argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit --profile jeopardy|rdg|awd|awdp|secops --port 80 --start '...'"
 disable-model-invocation: true
 allowed-tools:
@@ -13,13 +15,34 @@ allowed-tools:
 
 # CloverSec-CTF-Build-Dockerizer
 
-**硬约束：平台固定使用 `/start.sh` 启动**
+## 一句话定位
 
-**镜像根目录默认必须包含 `/flag` 且可读（在支持的 defense profile 中显式设置 include_flag_artifact=false 时可放行）**
+四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向题目源码、历史环境、服务基座与多服务本地场景的标准化交付：自动识别技术栈与运行时，生成符合平台契约的 `Dockerfile` / `start.sh` / `changeflag.sh` / `flag`（可选）/ `check` 产物，并补齐 BaseUnit 组件渲染与 Scenario 本地编排所需的校验链路。
 
-**镜像中必须存在 `/bin/bash`**
+当你要把 Jeopardy、RDG、AWD、AWDP、SecOps 题目，或指定版本服务组件、Vulhub-like 本地场景整理为四叶草安全-创研中心统一规范的容器交付件时，使用本技能。
 
-**能力边界：当前支持 Jeopardy/RDG/AWD/AWDP/SecOps，支持 BaseUnit 组件渲染与 Scenario 本地编排；平台最终交付仍为单 Dockerfile+start.sh+changeflag.sh。**
+## 能力边界
+
+- 本技能负责：题目容器交付标准化、技术栈侦测、`profile/defense` 归一化、`Dockerfile/start.sh/changeflag.sh/check` 生成、BaseUnit 组件渲染、Scenario 本地编排输出、静态校验与冒烟回归。
+- 本技能不负责：替代人工设计题目业务逻辑、替代真实业务源码修复、替代外部平台注册发布、把 `docker-compose` 直接当成平台最终交付物。
+- 推荐与 `CloverSec-CTF-Writeup-Scaffold` 协同，但不依赖文档 skill 才能完成环境交付。
+
+## 适用场景
+
+- 用户提供题目源码，希望自动生成符合内部规范与平台契约的单容器交付件。
+- 用户提供历史 `Dockerfile`、零散脚本、半成品 `challenge.yaml`，希望整理为统一的 V2 配置与可回归渲染目录。
+- 用户需要基于指定版本服务组件快速生成纯基座镜像最小单元，例如 `mysql`、`redis`、`sshd`、`ttyd`、`apache`、`nginx`、`tomcat`、`php-fpm`、`vsftpd`、`weblogic`。
+- 用户需要用 `scenario.yaml` 描述 AWD、AWDP、Vulhub-like 多服务本地场景，并输出本地编排结果与每个服务的最终交付目录。
+
+## 注意事项
+
+- 硬约束：平台固定使用 `/start.sh` 启动
+
+- 镜像根目录默认必须包含 `/flag` 且可读（在支持的 defense profile 中显式设置 include_flag_artifact=false 时可放行）
+- 镜像中必须存在 `/bin/bash`
+
+- 能力边界：当前支持 Jeopardy/RDG/AWD/AWDP/SecOps，支持 BaseUnit 组件渲染与 Scenario 本地编排；平台最终交付仍为单 Dockerfile+start.sh+changeflag.sh。
+
 
 ## 快速开始
 
@@ -66,10 +89,6 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
   - 本文 `11 栈模板索引` <-> 白皮书 `8. 十一栈能力对照`
   - 本文 `validate 规则速查` <-> 白皮书 `10. 校验系统`
   - 本文 `命令速查/附录` <-> 白皮书 `12-15`
-
-## 一句话定位
-
-当你要把 Web/Pwn/AI/RDG/AWD/AWDP/SecOps 题目或 BaseUnit 组件渲染为平台可交付容器时，使用本技能可以稳定生成并校验交付件。
 
 ## 输入契约（challenge.yaml 字段映射）
 

@@ -1,0 +1,8 @@
+interface:
+  display_name: "CloverSec CTF Build Dockerizer"
+  short_description: "标准化题目容器交付、BaseUnit 构建与 Scenario 编排"
+  brand_color: "#2563EB"
+  default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
+
+policy:
+  allow_implicit_invocation: true

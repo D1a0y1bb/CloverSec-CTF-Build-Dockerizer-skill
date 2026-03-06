@@ -13,13 +13,13 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.3-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.3--r1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.0.3</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.0.3-r1</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
@@ -36,6 +36,8 @@
 4、重要修复与改进包括：解决了 stacks.yaml 中容易出现的重复定义问题，load_stack_defs 遇到重复 id 时会直接抛出报错并附带 Warning，强制要求修正而不是默默容忍；整体代码进行了精简和优化，逻辑更清晰、体积更小；文档体验全面升级，默认 README.md 改为中文完整手册，全部重新润色表述，不再依赖 AI 自动生成；同时补充了英文和日文版本的 README，项目显得更加国际化；新增了针对每种模式的独立构建手册（分别覆盖 Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），方便按需查阅；还增加了文件级目录索引、常见问题 FAQ、排障指南以及发布验收清单等实用内容，让新手和老手都能更快上手。
 
 5、维护说明：V2 之后会继续以兼容优先的方式迭代；如发现问题或契约错位，请及时提交 [Issues](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/issues)，也欢迎按现有模型继续做二次开发与适配。
+
+6、展示层收口补充：`v2.0.3-r1` 不调整渲染、校验、BaseUnit、Scenario 等运行时行为，重点完成技能展示层收口。当前 `SKILL.md` 顶部说明已经前移为“`一句话定位 / 能力边界 / 适用场景 / 注意事项`”结构，同时新增 `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml`，用于 Codex UI 中的 Skill 卡片展示、短描述与默认提示词配置。
 
 ## 核心能力矩阵
 
@@ -465,7 +467,7 @@ bash scripts/release_build.sh
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.0.3
+bash scripts/publish_release.sh --version v2.0.3-r1
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

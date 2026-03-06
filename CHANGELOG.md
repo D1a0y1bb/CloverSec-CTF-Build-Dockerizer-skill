@@ -2,6 +2,18 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.0.3-r1 - 2026-03-06
+
+### 变更
+
+- 新增 `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml`，用于 Codex UI 中的 Skill 卡片展示、短描述与默认提示词配置。
+- `src/CloverSec-CTF-Build-Dockerizer/SKILL.md` 顶部说明结构前移，采用 `一句话定位 / 能力边界 / 适用场景 / 注意事项` 的前置展示方式，便于在技能详情页中直接阅读。
+- `README.md` 追加 `v2.0.3-r1` 补充说明，并同步三语 README 顶部版本号到 `v2.0.3-r1`。
+
+### 发布
+
+- 本版本为展示层与文档收口发布，不引入 `render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 等运行时逻辑变更。
+
 ## v2.0.3 - 2026-03-06
 
 ### 变更
