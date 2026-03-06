@@ -95,6 +95,27 @@ npx -y skills add \
 
 導入後は examples を 1 本通しで実行し、Docker とスクリプト依存がローカルで正常か確認してください。
 
+### Codex UI 表示戦略
+
+Codex UI における Skill カードの表示内容は `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml` で制御します。主に次の項目を定義します。
+
+- `display_name`：UI 上のカードタイトル
+- `short_description`：タイトル下のサブ説明
+- `brand_color`：カードのブランドカラー
+- `default_prompt`：試用・起動時に入る既定プロンプト
+- `allow_implicit_invocation`：条件一致時にモデルが暗黙起動できるか
+
+現在の既定プロンプト戦略は、先に技術スタックと `profile` を自動検出し、その後に準拠した `Dockerfile` / `start.sh` / `changeflag.sh` を生成し、最後に `validate` と配布ガイダンスを実行するという流れです。この層は Codex UI での見え方と起動方法だけに影響し、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` の実行時挙動は変えません。
+
+後で Codex 上のカード名、短い説明、試用プロンプトを調整したい場合は、README 本文より先にこのファイルを編集してください。
+
+```yaml
+interface:
+  display_name: "CloverSec CTF Build Dockerizer"
+  short_description: "标准化题目容器交付、BaseUnit 构建与 Scenario 编排"
+  default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
+```
+
 ## クイックスタート
 
 ### Agent-Orchestrated フロー（推奨）

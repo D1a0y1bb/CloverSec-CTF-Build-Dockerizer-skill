@@ -114,6 +114,27 @@ npx skills add https://github.com/d1a0y1bb/cloversec-ctf-build-dockerizer-skill 
 
 安装后，建议先用示例目录做一次完整闭环，确认 Docker 与脚本依赖可用。
 
+### Codex UI 展示策略
+
+当前 Skill 在 Codex UI 中的展示信息由 `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml` 控制，主要包括：
+
+- `display_name`：技能卡片标题
+- `short_description`：技能卡片副标题
+- `brand_color`：卡片品牌色
+- `default_prompt`：点击试用或直接调用时的默认提示词
+- `allow_implicit_invocation`：允许模型在匹配场景下隐式触发该 Skill
+
+当前默认提示词策略是：先让 Agent 自动探测技术栈与 `profile`，再生成合规的 `Dockerfile` / `start.sh` / `changeflag.sh`，最后执行 `validate` 并给出交付建议。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变 `render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 的运行时逻辑。
+
+如果后续你想调整 Codex 里的卡片标题、简介文案或试用提示词，优先改这里，而不是去改 `README` 正文：
+
+```yaml
+interface:
+  display_name: "CloverSec CTF Build Dockerizer"
+  short_description: "标准化题目容器交付、BaseUnit 构建与 Scenario 编排"
+  default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
+```
+
 ## 如何快速开始
 
 ### Agent-Orchestrated 流程（推荐）
