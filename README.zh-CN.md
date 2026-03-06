@@ -3,294 +3,186 @@
 <p align="center">
   <a href="README.md"><strong>English</strong></a>
   <span> · </span>
-  <a href="README.en.md"><strong>Legacy English Link</strong></a>
+  <a href="README.ja.md"><strong>日本語</strong></a>
+  <span> · </span>
+  <a href="README.en.md"><strong>Legacy English Entry</strong></a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.5.0-2563eb?style=for-the-badge" alt="Version" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.5.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
-</p>
+<p align="center"><code><strong>VERSION</strong>: v2.0.0</code></p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.5.0</code></p>
+四叶草安全题目容器交付引擎 `v2.0.0`，用于 Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario 本地编排的统一构建与校验。
 
-四叶草安全-创研中心竞赛专用题目容器构建 Skill，服务于 CTF 容器题目交付场景（Web / Pwn / AI / RDG-Docker）。它将题目目录转化为平台可直接运行的交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少“人工试错 + 临场修补”带来的不确定性。
+## v2.0.0 重点更新
 
-## What's New in v1.5.0
-
-`v1.5.0` 是面向可维护性的收敛版本，核心目标是：文档/架构口径对齐、治理脚本 Python 主实现、以及 PHP/Node/Java 运行时版本可选择能力。
-
-本版补齐了高影响文档缺口：Pwn 统一口径为 `xinetd/tcpserver/socat`，RDG 的 `/flag` 可选策略在 README/契约文档中一致呈现，并新增架构总览与目录指引文档用于维护导航。
-
-治理链路方面，`doc_guard/release_build/generate_sbom/sync` 已迁移为 Python 主实现，`.sh` 入口保留为兼容 wrapper；`publish_release.sh` 通过 `publish_guard.py` 承担版本读取和提交白名单判定，降低 shell 解析风险。
-
-<details>
-<summary><b>v1.5.0 实施重点</b></summary>
-
-- 新增 `data/runtime_profiles.yaml`，提供 php/node/java 运行时档位映射。
-- `derive_config.py` 输出运行时档位候选与推荐镜像证据。
-- `render.py` 支持 `--runtime-profile`，并保持 `base_image` 最终覆盖优先级。
-- legacy 运行时镜像在 `validate.sh` 输出 WARN（不阻断），用于题目兼容提醒。
-
-</details>
-
-## RDG 回归样例
-
-`src/CloverSec-CTF-Build-Dockerizer/examples` 新增两个 RDG 回归样例：
-
-- `rdg-php-hardening-basic`（PHP 审计类题目形态）
-- `rdg-python-ssti-basic`（Python SSTI 类题目形态）
-
-两个样例均覆盖 `ttyd + sshd + check_service` 默认流程，并包含可执行的真实 check 脚本；其中 Python 样例额外覆盖 `include_flag_artifact=false` 的无 flag 判定路径。
-
-### RDG 开关示例（运维型题目）
-
-对于 WebLogic 运维题等“不需要选手登录容器”的场景，可以显式关闭双通道：
-
-```yaml
-challenge:
-  stack: rdg
-  rdg:
-    enable_ttyd: false
-    enable_sshd: false
-    scoring_mode: check_service
-    include_flag_artifact: false
-    check_enabled: true
-    check_script_path: "check/check.sh"
-```
+- 平台交付硬契约升级：每次渲染默认产出 `Dockerfile + start.sh + changeflag.sh`。
+- 配置模型升级：`challenge.profile` + `challenge.defense` 成为主口径，`challenge.rdg` 保留兼容输入。
+- 新增独立栈：`stack=secops`、`stack=baseunit`。
+- 新增组件最小单元渲染：
+  - `data/components.yaml`
+  - `scripts/render_component.py`
+- 新增场景编排链路：
+  - `scripts/render_scenario.py`
+  - `scripts/validate_scenario.py`
+  - `data/scenario_schema.md`
+- 新增 AWDP 固定补丁契约：
+  - `patch/src/`
+  - `patch/patch.sh`
+  - `patch_bundle.tar.gz`
+- 完整多语言文档：英文 / 中文 / 日文。
 
 ## 核心能力矩阵
 
-| 能力 | 入口脚本 | 作用 | 输出/结果 |
+| 能力 | 入口脚本 | 作用 | 输出 |
 |---|---|---|---|
-| 自动探测 | `derive_config.py` | 识别栈、端口、启动命令候选 | `CONFIG PROPOSAL` 输入依据 |
-| 配置解析 | `parse_config_block.py` | 把确认块转为 `challenge.yaml` | 标准化配置 |
-| 渲染生成 | `render.py` | 生成 Docker 交付文件 | `Dockerfile` / `start.sh` / `flag(可选)` / `check/check.sh` |
-| 静态校验 | `validate.sh` | 校验平台硬约束与规则 | ERROR/WARN/INFO |
-| 样例回归 | `validate_examples.sh` | 批量验证示例目录 | 回归通过/失败清单 |
-| 打包发布 | `release_build.sh` | 生成版本目录和 zip | `dist/...-vX.Y.Z.zip` |
-| 一键发布 | `publish_release.sh` | commit/tag/release/上传资产 | GitHub Release 可下载包 |
-
-## 一键安装
-
-推荐使用 Codex 或 Trae 一键化安装，安装后即可在题目目录中调用该 Skill 执行自动探测与构建。
-
-![Install with Codex or Trae](docs/assets/readme/install-codex-trae.png)
-
-```bash
-npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --skill cloversec-ctf-build-dockerizer --agent codex -y
-```
-
-如果需要先确认仓库可安装能力，可先执行：
-
-```bash
-npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --list
-```
+| 自动提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py` | 推断栈/端口/启动命令/profile | `config_proposal` |
+| 提案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | 解析 `CONFIG PROPOSAL` 到 `challenge.yaml` | 标准化配置 |
+| 单题渲染 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 生成平台交付件 | `Dockerfile/start.sh/changeflag.sh/(flag可选)` |
+| 组件渲染 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | 组件+版本最小单元构建 | 可直接构建目录 |
+| 场景渲染 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | 多服务本地场景编排 | 服务目录 + `docker-compose.yml` |
+| 场景校验 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py` | 校验 profile/端口/AWDP 契约 | pass/fail |
+| 契约校验 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | 平台硬规则 + 风险检查 | ERROR/WARN/INFO |
+| 样例回归 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh` | 全量样例回归 | 汇总结果 |
 
 ## 快速开始
 
-### Agent 快速编排
-
-```text
-标准 Prompt：请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。先自动探测并输出 CONFIG PROPOSAL；我确认 OK 后，再生成 Dockerfile/start.sh/flag(可选) 并运行 validate。
-```
-
-这个流程的价值在于先确认配置、再生成产物，避免 AI 直接跳过关键约束。你也可以使用更短的业务表达式触发同样流程，例如：
-
-```text
-省事 Prompt：当前项目下 src 目录是我设计的一道关于 node.js 的 CTF 题目，请帮我构建为一个完整的 docker 镜像。
-```
-
-### 手动命令链
+### 1）渲染单题目录
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
 
-### 运行时兼容选择（PHP/Node/Java）
-
-当题目源码依赖特定老版本运行时时，可显式指定运行时档位：
+### 2）渲染 BaseUnit 组件
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --runtime-profile php74-apache --output .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
+  --component redis \
+  --variant 7.2-alpine \
+  --output /tmp/baseunit-redis
 ```
 
-`--base-image` 仍是最终覆盖手段；命中 legacy 档位时 `validate.sh` 会给出 WARN 提示（不阻断）。
-
-## 自动化流程实录（本地化截图）
-
-Prompt 驱动入口：
-
-![workflow-01](docs/assets/readme/workflow-01-quick-prompt.png)
-
-落地构建前的关键确认：
-
-![workflow-02](docs/assets/readme/workflow-02-prebuild-decision.png)
-
-发现异常后的闭环处理：
-
-![workflow-03](docs/assets/readme/workflow-03-error-closure.png)
-
-生成交付文件并进入构建：
-
-![workflow-04](docs/assets/readme/workflow-04-auto-build.png)
-
-自动验收测试执行：
-
-![workflow-05](docs/assets/readme/workflow-05-auto-validation.png)
-
-强制验收检查：
-
-![workflow-06](docs/assets/readme/workflow-06-hard-check.png)
-
-验收后交付清单：
-
-![workflow-07](docs/assets/readme/workflow-07-delivery-checklist.png)
-
-## Build_test 真实样例
-
-`Build_test` 目录包含 2 个由本 Skill 生成与校验的题目案例，可直接用于复现实战构建流程。
-
-| Case Name | Stack | Exposed Port | Start Command | Core Files |
-|---|---|---:|---|---|
-| `CTF-NodeJs RCE-Test1` | `node` | `3000` | `node app.js` | `challenge.yaml` / `Dockerfile` / `start.sh` / `app.js` |
-| `CTF-Python沙箱逃逸-Test2` | `python` | `5000` | `python app.py` | `challenge.yaml` / `Dockerfile` / `start.sh` / `题目源码 app.py` |
-
-示例验证命令：
+### 3）渲染 AWD/AWDP 本地场景
 
 ```bash
-# Node 例子
-cd "Build_test/CTF-NodeJs RCE-Test1"
-npm ci
-bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
+  --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-awd-basic/scenario.yaml \
+  --output /tmp/scenario-awd
 
-# Python 例子
-cd "../CTF-Python沙箱逃逸-Test2"
-bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+  --output /tmp/scenario-awd
 ```
 
-示例构建与运行：
+## 平台交付契约（V2）
+
+每次渲染都必须满足：
+
+- 镜像中存在且可执行 `/start.sh`
+- 镜像中存在且可执行 `/changeflag.sh`
+- 镜像中存在 `/bin/bash`
+- Dockerfile 存在 `EXPOSE`
+- `start.sh` 必须启动真实服务，禁止空转保活
+
+`/flag` 规则：
+
+- 默认必须交付
+- 仅当防御 profile 场景显式设置 `include_flag_artifact=false` 时可放行（常见于 RDG/AWDP/SecOps 的 check-service 题型）
+
+## V2 profile/defense 口径
+
+支持 profile：
+
+- `jeopardy`
+- `rdg`
+- `awd`
+- `awdp`
+- `secops`
+
+优先级：
+
+- 主输入：`challenge.defense`
+- 兼容输入：`challenge.rdg`
+- 引擎内部归一化后统一渲染行为
+
+## BaseUnit 首批组件（10类）
+
+- `mysql`
+- `redis`
+- `sshd`
+- `ttyd`
+- `apache`
+- `nginx`
+- `tomcat`
+- `php-fpm`
+- `vsftpd`
+- `weblogic`
+
+可用 `render_component.py --list` 查看所有变体。
+
+## AWD/AWDP/Vulhub-like 边界
+
+Scenario 生成的 `docker-compose.yml` 仅用于本地编排验证，不作为平台最终交付物。
+
+平台最终交付仍是单服务目录中的：
+
+- `Dockerfile`
+- `start.sh`
+- `changeflag.sh`
+
+### Vulhub-like 迁移路径
+
+从 Vulhub 这类多服务编排迁移时，建议按下面做：
+
+1. 先把每个服务拆成“单题目录”或 `baseunit` 组件变体
+2. 再用 `scenario.yaml` 描述服务关系与端口映射
+3. 用 `render_scenario.py` + `validate_scenario.py` 做本地回归
+4. 最后把每个服务目录按单容器交付到平台
+
+## AWDP 补丁流程
+
+当服务渲染为 `profile=awdp` 时，必须存在：
+
+- `patch/src/`
+- 可执行 `patch/patch.sh`
+- 包含上述内容的 `patch_bundle.tar.gz`
+
+## SecOps 与 AWD 差异
+
+| 维度 | AWD | SecOps |
+|---|---|---|
+| 核心目标 | 攻防对抗 + 可用性维护 | 安全加固与配置治理 |
+| 常见实现 | web/pwn 栈 + `profile=awd` | `stack=secops` + `profile=secops` |
+| 登录运维 | 通常开启 | 按安全策略可开关 |
+| 评分模式 | 攻防平台逻辑或服务检查 | 服务检查 + 加固检查 |
+
+## 验收与发布
 
 ```bash
-# Node
-cd "Build_test/CTF-NodeJs RCE-Test1"
-npm ci
-docker build -t ctf-node-rce:latest .
-docker run -d -p 13000:3000 ctf-node-rce:latest /start.sh
-
-# Python
-cd "../CTF-Python沙箱逃逸-Test2"
-docker build -t ctf-python-sandbox:latest .
-docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
-```
-
-<details>
-<summary><b>Build_test 提交策略说明</b></summary>
-
-`Build_test` 保留业务可复现所需文件（含题目源码与构建产物描述），但会移除阻塞协作的元数据（例如嵌套 `.git` 与 `.DS_Store`）。为控制仓库体积与评审噪音，`Build_test/**/node_modules/` 不再跟踪；需要本地运行 Node 样例时请先执行 `npm ci` 恢复依赖。
-
-</details>
-
-## 平台硬约束
-
-交付镜像必须满足以下平台契约：平台固定通过 `/start.sh` 启动容器；镜像内必须可用 `/bin/bash`；`Dockerfile` 必须声明 `EXPOSE`；并且禁止使用 `sleep infinity` 这类空转保活方式。`/flag` 默认仍为硬约束，但 RDG 可在 `include_flag_artifact=false` 时显式放行（适配 check-service 判定）。从 `v1.4.0` 开始，localhost 监听默认进入门禁检查，特殊 SSRF/内网链路题型可通过 `challenge.platform.allow_loopback_bind=true` 显式豁免。
-
-详细契约文档见：[platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
-
-## 支持栈矩阵
-
-| Stack | 默认端口 | 启动示例 |
-|---|---:|---|
-| node | 3000 | `exec node server.js` |
-| php | 80 | `exec apache2-foreground` |
-| python | 5000 | `exec python app.py` / `exec gunicorn ...` |
-| java | 8080 | `exec java -jar app.jar` |
-| tomcat | 8080 | `exec catalina.sh run` |
-| lamp | 80 | 数据库后台 + Apache 前台 |
-| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` / `exec socat ...` |
-| ai | 5000 | `exec gunicorn ...` |
-| rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
-
-## 仓库结构
-
-```text
-.
-├── Build_test/
-│   ├── CTF-NodeJs RCE-Test1/
-│   └── CTF-Python沙箱逃逸-Test2/
-├── docs/assets/readme/
-├── src/CloverSec-CTF-Build-Dockerizer/
-│   ├── SKILL.md
-│   ├── data/
-│   ├── templates/
-│   ├── scripts/
-│   ├── examples/
-│   └── docs/
-├── scripts/
-│   ├── sync.sh
-│   ├── sync.py
-│   ├── doc_guard.sh
-│   ├── doc_guard.py
-│   ├── release_build.sh
-│   ├── release_build.py
-│   ├── publish_release.sh
-│   ├── publish_guard.py
-│   ├── generate_sbom.sh
-│   └── generate_sbom.py
-├── CHANGELOG.md
-└── VERSION
-```
-
-## 设计文档导航
-
-- [架构总览](src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md)
-- [目录指引](src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md)
-- [平台契约](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
-- [栈配置手册](src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md)
-
-## 发布流程
-
-```bash
-# 标准打包
-bash scripts/release_build.sh
-
-# 一键发布（commit/tag/release/asset）
-bash scripts/publish_release.sh --version v1.5.0
-```
-
-## 更新记录
-
-版本迭代与变更细节见：[CHANGELOG.md](CHANGELOG.md)
-
-## FAQ
-
-### Q1：`Build_test` 的用途是什么？
-`Build_test` 用于展示 Skill 的真实生成结果与可复现验收链路，便于团队在 PR 或交付前快速做回归验证。
-
-### Q2：`npx skills add` 是否依赖 GitHub Release 附件？
-不依赖。`npx skills add` 主要读取仓库内容，Release 附件用于版本归档与离线分发。
-
-### Q3：为什么 `/start.sh`、`/flag`、`/bin/bash` 是硬性要求？
-这些是平台运行契约的一部分。RDG 场景若使用 `check_service` 判定，可通过 `include_flag_artifact=false` 显式关闭 `/flag` 产物。
-
-## 维护与贡献
-
-建议在 PR / 合并前至少执行如下检查，确保文档、技能识别和发布产物链路没有回归：
-
-```bash
+bash scripts/doc_guard.sh
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list
-bash scripts/release_build.sh --skip-checks
+bash scripts/release_build.sh
+bash scripts/publish_release.sh --version v2.0.0
 ```
 
-维护团队：四叶草安全-网络安全人才培养与创新研究中心。
+## 文档索引
 
-## License
+- 技能协议：`src/CloverSec-CTF-Build-Dockerizer/SKILL.md`
+- 输入 Schema：`src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
+- 平台契约：`src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
+- 架构总览：`src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md`
+- 栈手册：`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
+- 场景 Schema：`src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md`
 
-This project is licensed under the [MIT License](LICENSE).
+## 参考资料
+
+- [Vulhub](https://github.com/vulhub/vulhub)
+- [Quick Start CTF mode docs](https://quickstart-ctf.github.io/quickstart/mode.html)
+- [AWDP patch workflow reference (CN)](https://www.cn-sec.com/archives/1948396.html)

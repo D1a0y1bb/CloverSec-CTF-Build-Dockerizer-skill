@@ -1,7 +1,7 @@
 ---
 name: CloverSec-CTF-Build-Dockerizer
-description: 四叶草安全-创研中心竞赛专用题目容器构建Skills，面向 CTF Jeopardy（Web/Pwn/AI）与 RDG（Docker）模式的容器交付引擎：自动探测栈、生成合规 Dockerfile/start.sh/flag(可选)+check 脚手架、执行规则校验并给出可修复建议，实现标准化工作流程的质量对齐。
-argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg --port 80 --start '...'"
+description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag(可选)/check，并执行契约校验。
+argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit --profile jeopardy|rdg|awd|awdp|secops --port 80 --start '...'"
 disable-model-invocation: true
 allowed-tools:
   - Bash
@@ -19,12 +19,12 @@ allowed-tools:
 
 **镜像中必须存在 `/bin/bash`**
 
-**能力边界：当前支持 Jeopardy 模式（Web/Pwn/AI）与 RDG（Docker）模式，不支持 AWD/AWDP 竞赛模式编排。**
+**能力边界：当前支持 Jeopardy/RDG/AWD/AWDP/SecOps，支持 BaseUnit 组件渲染与 Scenario 本地编排；平台最终交付仍为单 Dockerfile+start.sh+changeflag.sh。**
 
 ## 快速开始
 
 1. 进入示例目录。
-2. 用 `render.py` 生成 `Dockerfile/start.sh/flag(可选)+check 脚手架`。
+2. 用 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)+check 脚手架`。
 3. 用 `validate.sh` 做静态校验。
 4. 本地 `docker build`。
 5. 本地 `docker run ... /start.sh`。
@@ -63,13 +63,13 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
   - 本文 `输入契约` <-> 白皮书 `5. 输入契约`
   - 本文 `AI Orchestrated Mode` <-> 白皮书 `6. AI Orchestrated Wizard`
   - 本文 `手动模式` <-> 白皮书 `7. 手动模式`
-  - 本文 `9 栈模板索引` <-> 白皮书 `8. 九栈能力对照`
+  - 本文 `11 栈模板索引` <-> 白皮书 `8. 十一栈能力对照`
   - 本文 `validate 规则速查` <-> 白皮书 `10. 校验系统`
   - 本文 `命令速查/附录` <-> 白皮书 `12-15`
 
 ## 一句话定位
 
-当你要把 Web、Pwn、AI 与 RDG（Docker）模式题目源码变成平台可运行镜像时，使用本技能可以稳定生成并校验交付件。
+当你要把 Web/Pwn/AI/RDG/AWD/AWDP/SecOps 题目或 BaseUnit 组件渲染为平台可交付容器时，使用本技能可以稳定生成并校验交付件。
 
 ## 输入契约（challenge.yaml 字段映射）
 
@@ -77,6 +77,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 |---|---|---|---|---|
 | `challenge.name` | 是 | 无 | `node-basic` | 用于标识题目，不直接进模板 |
 | `challenge.stack` | 否 | 侦测结果 | `node` | 选择 `templates/<stack>/` |
+| `challenge.profile` | 否 | stack 映射默认 | `awd` | V2 profile 主口径（`jeopardy/rdg/awd/awdp/secops`） |
 | `challenge.base_image` | 否 | `stacks.yaml` | `node:20-alpine` | `{{BASE_IMAGE}}` |
 | `challenge.workdir` | 否 | `stacks.yaml` | `/app` | `{{WORKDIR}}`，并要求 start.sh `cd` |
 | `challenge.app_src` | 否 | `.` | `.` | `{{APP_SRC}}` |
@@ -103,6 +104,16 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.extra.user` | 否 | 空 | `www-data` | 当前不直接渲染 |
 | `challenge.extra.npm_install_block` | 否 | 自动生成 | `RUN npm ci ...` | `{{NPM_INSTALL_BLOCK}}` |
 | `challenge.extra.pip_requirements_block` | 否 | 自动生成 | `RUN pip install ...` | `{{PIP_REQUIREMENTS_BLOCK}}` |
+| `challenge.defense.enable_sshd` | 否 | `profiles.yaml` | `true` | V2 defense 主口径（优先于 legacy `rdg`） |
+| `challenge.defense.sshd_port` | 否 | `profiles.yaml` | `22` | defense sshd 端口 |
+| `challenge.defense.enable_ttyd` | 否 | `profiles.yaml` | `true` | defense ttyd 开关 |
+| `challenge.defense.ttyd_port` | 否 | `profiles.yaml` | `8022` | defense ttyd 端口 |
+| `challenge.defense.ctf_user` | 否 | `profiles.yaml` | `ctf` | defense 选手用户 |
+| `challenge.defense.ctf_password` | 否 | `profiles.yaml` | `123456` | defense 选手口令 |
+| `challenge.defense.scoring_mode` | 否 | `profiles.yaml` | `check_service` | 判定模式（`check_service/flag`） |
+| `challenge.defense.include_flag_artifact` | 否 | `profiles.yaml` | `false` | 仅放行 `/flag`，不放行 `/changeflag.sh` |
+| `challenge.defense.check_enabled` | 否 | `profiles.yaml` | `true` | check 门禁开关 |
+| `challenge.defense.check_script_path` | 否 | `profiles.yaml` | `check/check.sh` | check 脚本路径 |
 | `challenge.rdg.enable_sshd` | 否 | `true` | `true` | RDG sshd 登录开关 |
 | `challenge.rdg.sshd_port` | 否 | `22` | `22` | RDG sshd 端口 |
 | `challenge.rdg.sshd_password_auth` | 否 | `true` | `true` | RDG sshd 密码认证 |
@@ -116,7 +127,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG check 脚本契约（v1.4.0-r2）
+### RDG/Defense check 脚本契约（v2.0.0）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -142,7 +153,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `HEALTHCHECK_BLOCK`
 - `STACK_FLAG_BLOCK`
 
-## validate 自动修复与发布门禁（v1.4.0-r2）
+## validate 自动修复与发布门禁（v2.0.0）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。
@@ -209,7 +220,7 @@ AI 必须按固定顺序提问，且每题都带默认值：
 
 Q1 技术栈 + 运行时档位（仅 php/node/java 显示档位候选）
 默认：`<stack_guess.id> + <recommended_profile>`
-可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg` + runtime profile 候选（若有）
+可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit` + runtime profile 候选（若有）
 
 Q2 容器端口 
 默认：`<port_guess.ports>` 
@@ -254,7 +265,8 @@ Step 1 末尾硬规则（必须执行）：
 
 ```yaml
 CONFIG PROPOSAL:
-  stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg>
+  stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit>
+  profile: <jeopardy|rdg|awd|awdp|secops>
   base_image: <string|optional> # 由运行时档位映射或手动指定
   workdir: <string>
   app_src: <string>
@@ -277,7 +289,7 @@ CONFIG PROPOSAL:
     timeout: "5s"
     retries: 3
     start_period: "10s"
-  rdg:
+  defense:
     enable_ttyd: true
     ttyd_port: "8022"
     ttyd_login_cmd: "/bin/bash"
@@ -293,6 +305,11 @@ CONFIG PROPOSAL:
     include_flag_artifact: true
     check_enabled: true
     check_script_path: "check/check.sh"
+  rdg: # legacy compatibility input, optional
+    enable_ttyd: true
+    ttyd_port: "8022"
+    enable_sshd: true
+    sshd_port: "22"
 ```
 
 3. YAML 块后必须原样输出以下两句话（不得改写）：
@@ -325,7 +342,7 @@ AI 自动完成（按顺序）：
    - 采用 Step 1 中最后一版 `CONFIG PROPOSAL`。
 2. 用户回复 YAML：
    - 先执行 `parse_config_block.py` 从 stdin 解析为 `challenge.yaml`。
-3. 执行 `render.py` 生成 `Dockerfile/start.sh/flag(可选)+check 脚手架`。
+3. 执行 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)+check 脚手架`。
 4. 执行 `validate.sh` 做静态校验。
 
 推荐命令链：
@@ -347,7 +364,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <project_dir>/Docker
 
 AI 必须输出：
 
-- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`flag(可选)`、`check/check.sh(按 rdg.check_enabled 生成，需替换为真实检查逻辑)`
+- 最终文件清单：`challenge.yaml`、`Dockerfile`、`start.sh`、`changeflag.sh`、`flag(可选)`、`check/check.sh(按 defense.check_enabled 生成，需替换为真实检查逻辑)`
 - 本地测试命令：`docker build` + `docker run ... /start.sh`
 - 平台导入提醒：端口映射、固定 `/start.sh` 启动、动态 flag 依赖 bash
 
@@ -379,7 +396,7 @@ docker build -t <image>:latest .
 docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 ```
 
-## 9 栈最小模板库索引
+## 11 栈最小模板库索引
 
 ### Node
 
@@ -624,6 +641,39 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/start.sh.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/README.md`
 
+### SecOps
+
+适用：
+
+- 安全运维类配置加固题（nginx/redis/mysql/ssh/tomcat 等）
+- 需要 profile 与 check_service 协同判定
+
+默认：
+
+- 推荐 `stack=secops` + `profile=secops`
+- 端口包含业务端口及按需运维通道端口
+
+模板路径：
+
+- `src/CloverSec-CTF-Build-Dockerizer/templates/secops/Dockerfile.tpl`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/secops/start.sh.tpl`
+
+### BaseUnit
+
+适用：
+
+- 指定服务包/指定版本的纯基座最小镜像单元
+
+默认：
+
+- 推荐通过 `render_component.py` 按 `component+variant` 生成
+- 首批组件：`mysql/redis/sshd/ttyd/apache/nginx/tomcat/php-fpm/vsftpd/weblogic`
+
+模板路径：
+
+- `src/CloverSec-CTF-Build-Dockerizer/templates/baseunit/Dockerfile.tpl`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/baseunit/start.sh.tpl`
+
 ## validate 规则速查
 
 ### 常见 ERROR
@@ -819,7 +869,7 @@ bash scripts/sync.sh --codex-dir
 
 - 业务代码漏洞修复。
 - 数据库业务逻辑设计。
-- AWD/AWDP 赛制编排。
+- AWD/AWDP 通过 profile 与 scenario 在 v2 落地，compose 仅用于本地编排验证。
 
 本技能只处理：
 

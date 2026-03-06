@@ -139,6 +139,9 @@ def main() -> int:
             env = os.environ.copy()
             env["VALIDATE_ENFORCE_DIGEST"] = "1"
             run(["bash", str(src_skill_dir / "scripts" / "validate_examples.sh")], env=env)
+            # validate_examples 会触发 Python 脚本执行并再次生成 __pycache__，
+            # 需要在隐私扫描前做二次清理，避免绝对路径残留导致误报。
+            cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
             privacy_scan([root / "README.md", src_skill_dir])
             run(["bash", str(root / "scripts" / "doc_guard.sh")])
         else:

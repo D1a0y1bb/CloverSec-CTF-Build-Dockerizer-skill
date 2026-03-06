@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM redis:7.2-alpine
+FROM redis:7.2-alpine@sha256:5f8bafd0669a697ee564ad825c2a63e6b60b0a67c02b0089f8a250051ab6fe85
 
 
 # SecOps 强化模板：面向安全运维/配置加固题目，默认 check-service 判定。

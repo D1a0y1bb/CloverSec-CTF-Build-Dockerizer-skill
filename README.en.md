@@ -1,6 +1,10 @@
-# CloverSec-CTF-Build-Dockerizer (Legacy English Entry)
+# Legacy English Entry
 
-This file is kept for backward compatibility with historical links.
+The canonical English documentation is:
 
-- Main English README: [README.md](README.md)
-- Simplified Chinese README: [README.zh-CN.md](README.zh-CN.md)
+- [README.md](README.md)
+
+Other full language editions:
+
+- [简体中文](README.zh-CN.md)
+- [日本語](README.ja.md)

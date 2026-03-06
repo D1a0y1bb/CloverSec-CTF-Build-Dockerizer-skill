@@ -3,295 +3,188 @@
 <p align="center">
   <a href="README.zh-CN.md"><strong>简体中文</strong></a>
   <span> · </span>
-  <a href="README.en.md"><strong>English</strong></a>
-</p>
-
-
-<p align="center">
-  <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
+  <a href="README.ja.md"><strong>日本語</strong></a>
+  <span> · </span>
+  <a href="README.en.md"><strong>Legacy English Entry</strong></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v1.5.0-2563eb?style=for-the-badge" alt="Version" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/CTF-Jeopardy-16a34a?style=for-the-badge" alt="Scope" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-9-f59e0b?style=for-the-badge" alt="Stacks" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v1.5.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v1.5.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.0.0</code></p>
 
-CloverSec-CTF-Build-Dockerizer is a delivery-focused skill for CTF challenge delivery across Web, Pwn, AI, and RDG(Docker) tracks. It transforms challenge directories into platform-ready artifacts and enforces contract checks so teams can move from authoring to release with reproducible quality instead of one-off manual fixes.
+CloverSec-CTF-Build-Dockerizer is a delivery engine for CTF challenge containers across Jeopardy, RDG, AWD/AWDP-compatible profile workflows, SecOps hardening tracks, BaseUnit service images, and local Scenario orchestration.
 
-## What's New in v1.5.0
+## What's New in v2.0.0
 
-`v1.5.0` is a convergence release focused on three axes: architecture/documentation consistency, Python-first governance tooling, and runtime compatibility choice for PHP/Node/Java challenge delivery.
-
-The docs and contract set are now aligned with implementation details: Pwn wording is unified to `xinetd/tcpserver/socat`, RDG flag optionality (`include_flag_artifact=false`) is consistently documented, and architecture/directory guides are added for maintainers.
-
-Release governance scripts are migrated to Python mainline (`doc_guard.py`, `release_build.py`, `generate_sbom.py`, `sync.py`) while keeping `.sh` entrypoints stable as compatibility wrappers. `publish_release.sh` now delegates high-risk parsing/staging checks to `publish_guard.py`.
-
-<details>
-<summary><b>v1.5.0 implementation highlights</b></summary>
-
-- Added runtime profile source `data/runtime_profiles.yaml` for `php/node/java`.
-- `derive_config.py` now emits runtime profile candidates and a recommended profile/base image.
-- `render.py` supports `--runtime-profile`, with deterministic precedence under `--base-image`.
-- `validate.sh` adds non-blocking WARN for legacy runtime images (compatibility-only signal).
-
-</details>
+- Enforced platform contract output: every render now emits `Dockerfile`, `start.sh`, and `changeflag.sh`.
+- Introduced V2 config model: `challenge.profile` + `challenge.defense` as primary interface; legacy `challenge.rdg` still accepted.
+- Added independent `stack=secops` and `stack=baseunit`.
+- Added component renderer:
+  - `data/components.yaml`
+  - `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py`
+- Added scenario pipeline:
+  - `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py`
+  - `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py`
+  - `data/scenario_schema.md`
+- Added AWDP patch contract scaffolding:
+  - `patch/src/`
+  - `patch/patch.sh`
+  - `patch_bundle.tar.gz`
+- Added full multilingual docs: English, Chinese, Japanese.
 
 ## Core Capability Matrix
 
-| Capability | Entry Script | Purpose | Output/Result |
+| Capability | Entry | Purpose | Output |
 |---|---|---|---|
-| Auto Detection | `derive_config.py` | Detect stack, ports, and start-command candidates | Input basis for `CONFIG PROPOSAL` |
-| Config Parsing | `parse_config_block.py` | Convert confirmation block to `challenge.yaml` | Normalized config |
-| Render | `render.py` | Generate container delivery files | `Dockerfile` / `start.sh` / `flag(optional)` / `check/check.sh` |
-| Static Validation | `validate.sh` | Enforce platform contract and rules | ERROR/WARN/INFO report |
-| Example Regression | `validate_examples.sh` | Batch-check sample directories | pass/fail summary |
-| Packaging | `release_build.sh` | Build versioned folder and zip | `dist/...-vX.Y.Z.zip` |
-| One-Command Publish | `publish_release.sh` | commit/tag/release/asset upload | downloadable GitHub Release |
-
-## One-Command Install
-
-Use Codex or Trae to install the skill in one command, then call it directly in your challenge workspace.
-
-![Install with Codex or Trae](docs/assets/readme/install-codex-trae.png)
-
-```bash
-npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --skill cloversec-ctf-build-dockerizer --agent codex -y
-```
-
-If you want to verify skill discovery first:
-
-```bash
-npx -y skills add https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill --list
-```
+| Auto proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py` | Infer stack, ports, start command, profile hints | `config_proposal` |
+| Proposal parser | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert `CONFIG PROPOSAL` into `challenge.yaml` | normalized config |
+| Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform-ready delivery files | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
+| BaseUnit render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Build component+variant minimal units | standard delivery dir |
+| Scenario render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | Render multi-service local scenario | service dirs + `docker-compose.yml` |
+| Scenario validate | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py` | Validate mode/profile/ports/AWDP patch contract | static pass/fail |
+| Contract validate | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform hard rules and policy checks | ERROR/WARN/INFO |
+| Example regression | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh` | Batch regression on examples and scenarios | pass/fail summary |
 
 ## Quick Start
 
-### Agent-Orchestrated Flow
-
-```text
-Standard prompt: Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory. Run auto-detection and output CONFIG PROPOSAL first; after I reply OK, generate Dockerfile/start.sh/flag(optional) and run validate.
-```
-
-This approach intentionally gates generation behind confirmation so stack assumptions and runtime contracts are aligned before artifacts are rendered. A shorter business prompt can trigger the same flow:
-
-```text
-Shortcut prompt: The src directory in this project is my Node.js CTF challenge. Please build it into a complete Docker image.
-```
-
-### Manual Command Chain
+### 1) Render a challenge directory
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
 
-### Runtime Compatibility Selection (PHP/Node/Java)
-
-If the challenge source requires a specific runtime generation, select a profile explicitly:
+### 2) Render a BaseUnit component
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --runtime-profile php74-apache --output .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
+  --component redis \
+  --variant 7.2-alpine \
+  --output /tmp/baseunit-redis
 ```
 
-`--base-image` remains the final override path. Legacy profiles are allowed for compatibility and flagged by `validate.sh` as WARN.
-
-## Workflow Screenshots (Localized Assets)
-
-Prompt entry:
-
-![workflow-01](docs/assets/readme/workflow-01-quick-prompt.png)
-
-Pre-build decision checkpoint:
-
-![workflow-02](docs/assets/readme/workflow-02-prebuild-decision.png)
-
-Error closure and follow-up:
-
-![workflow-03](docs/assets/readme/workflow-03-error-closure.png)
-
-Automatic artifact generation and build:
-
-![workflow-04](docs/assets/readme/workflow-04-auto-build.png)
-
-Automated acceptance tests:
-
-![workflow-05](docs/assets/readme/workflow-05-auto-validation.png)
-
-Hard acceptance checks:
-
-![workflow-06](docs/assets/readme/workflow-06-hard-check.png)
-
-Delivery checklist after validation:
-
-![workflow-07](docs/assets/readme/workflow-07-delivery-checklist.png)
-
-## Build_test Real Examples
-
-`Build_test` includes two real challenge outputs generated and validated through this skill, so teams can run reproducible build and acceptance checks.
-
-| Case Name | Stack | Exposed Port | Start Command | Core Files |
-|---|---|---:|---|---|
-| `CTF-NodeJs RCE-Test1` | `node` | `3000` | `node app.js` | `challenge.yaml` / `Dockerfile` / `start.sh` / `app.js` |
-| `CTF-Python沙箱逃逸-Test2` | `python` | `5000` | `python app.py` | `challenge.yaml` / `Dockerfile` / `start.sh` / `challenge source app.py` |
-
-Validation commands:
+### 3) Render a local AWD/AWDP scenario
 
 ```bash
-# Node example
-cd "Build_test/CTF-NodeJs RCE-Test1"
-npm ci
-bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
+  --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-awd-basic/scenario.yaml \
+  --output /tmp/scenario-awd
 
-# Python example
-cd "../CTF-Python沙箱逃逸-Test2"
-bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+  --output /tmp/scenario-awd
 ```
 
-Build and run:
+## Platform Contract (V2)
+
+Every render must satisfy:
+
+- `/start.sh` exists and is executable.
+- `/changeflag.sh` exists and is executable.
+- `/bin/bash` is available in image.
+- Dockerfile declares `EXPOSE`.
+- `start.sh` launches real service processes (no idle keepalive patterns).
+
+`/flag` behavior:
+
+- default: required artifact
+- optional only when `include_flag_artifact=false` in non-jeopardy defense profiles (commonly RDG/AWDP/SecOps check-service delivery)
+
+## V2 Profiles and Defense
+
+Supported profiles:
+
+- `jeopardy`
+- `rdg`
+- `awd`
+- `awdp`
+- `secops`
+
+V2 precedence:
+
+- primary: `challenge.defense`
+- compatibility: `challenge.rdg`
+- render normalization maps both into one runtime behavior model
+
+## BaseUnit Components (initial batch)
+
+- `mysql`
+- `redis`
+- `sshd`
+- `ttyd`
+- `apache`
+- `nginx`
+- `tomcat`
+- `php-fpm`
+- `vsftpd`
+- `weblogic`
+
+Use `render_component.py --list` to inspect current variants.
+
+## AWD/AWDP/Vulhub-like Boundary
+
+`docker-compose.yml` generated by Scenario mode is **local orchestration output only**.
+
+Platform final delivery remains per-service:
+
+- `Dockerfile`
+- `start.sh`
+- `changeflag.sh`
+
+This keeps compatibility with target platforms that require single-container challenge units.
+
+### Vulhub-like Migration Path
+
+When migrating a Vulhub-style multi-service environment:
+
+1. split each service into a single challenge folder or a `baseunit` component variant
+2. express the service graph in `scenario.yaml`
+3. render and validate locally with `render_scenario.py` + `validate_scenario.py`
+4. deliver each rendered service directory independently to the target platform
+
+## AWDP Patch Workflow
+
+For services rendered as `profile=awdp`, V2 enforces:
+
+- `patch/src/`
+- executable `patch/patch.sh`
+- `patch_bundle.tar.gz` containing both entries above
+
+## SecOps vs AWD (practical difference)
+
+| Topic | AWD | SecOps |
+|---|---|---|
+| Goal | attack + maintain availability | hardening and config governance |
+| Typical stack | web/pwn stacks + `profile=awd` | `stack=secops` + `profile=secops` |
+| Login channel | usually enabled for operation | enabled/disabled per hardening policy |
+| Scoring | service check or attack/defense platform logic | check-service and hardening checks |
+
+## Validation and Release
 
 ```bash
-# Node
-cd "Build_test/CTF-NodeJs RCE-Test1"
-npm ci
-docker build -t ctf-node-rce:latest .
-docker run -d -p 13000:3000 ctf-node-rce:latest /start.sh
-
-# Python
-cd "../CTF-Python沙箱逃逸-Test2"
-docker build -t ctf-python-sandbox:latest .
-docker run -d -p 15000:5000 ctf-python-sandbox:latest /start.sh
-```
-
-<details>
-<summary><b>Build_test commit boundary</b></summary>
-
-`Build_test` keeps reproducibility-critical business files (challenge code and delivery configs) while removing metadata that can break repository operations (nested `.git`, `.DS_Store`). To control repository size and review noise, `Build_test/**/node_modules/` is not tracked; restore Node dependencies with `npm ci` when needed.
-
-</details>
-
-## RDG Regression Examples
-
-Two RDG examples are included in `src/CloverSec-CTF-Build-Dockerizer/examples` for regression and CI coverage:
-
-- `rdg-php-hardening-basic` (from PHP hardening challenge pattern)
-- `rdg-python-ssti-basic` (from Python SSTI challenge pattern)
-
-Both examples now cover `ttyd + sshd + check_service` defaults with executable check scripts. The Python example explicitly validates `include_flag_artifact=false` to cover non-flag scoring mode.
-
-### RDG Toggle Example (Ops-Only Challenge)
-
-For scenarios such as WebLogic maintenance challenges where player shell login is not required, you can disable both channels:
-
-```yaml
-challenge:
-  stack: rdg
-  rdg:
-    enable_ttyd: false
-    enable_sshd: false
-    scoring_mode: check_service
-    include_flag_artifact: false
-    check_enabled: true
-    check_script_path: "check/check.sh"
-```
-
-## Platform Hard Constraints
-
-Delivery artifacts must comply with platform contracts: containers are started from `/start.sh`; `/bin/bash` must be present; Dockerfile must declare `EXPOSE`; and idle keepalive patterns like `sleep infinity` are forbidden. `/flag` is mandatory by default, with one RDG exception: `include_flag_artifact=false` for check-service-only challenge delivery. From `v1.4.0`, localhost binding is enforced by default with a controlled escape hatch: `challenge.platform.allow_loopback_bind=true`.
-
-Contract reference: [platform_contract.md](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
-
-## Supported Stack Matrix
-
-| Stack | Default Port | Start Example |
-|---|---:|---|
-| node | 3000 | `exec node server.js` |
-| php | 80 | `exec apache2-foreground` |
-| python | 5000 | `exec python app.py` / `exec gunicorn ...` |
-| java | 8080 | `exec java -jar app.jar` |
-| tomcat | 8080 | `exec catalina.sh run` |
-| lamp | 80 | DB background + Apache foreground |
-| pwn | 10000 | `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` / `exec socat ...` |
-| ai | 5000 | `exec gunicorn ...` |
-| rdg | 80 / 22 / 8022 | `exec apache2-foreground` / `exec python app.py` |
-
-## Repository Structure
-
-```text
-.
-├── Build_test/
-│   ├── CTF-NodeJs RCE-Test1/
-│   └── CTF-Python沙箱逃逸-Test2/
-├── docs/assets/readme/
-├── src/CloverSec-CTF-Build-Dockerizer/
-│   ├── SKILL.md
-│   ├── data/
-│   ├── templates/
-│   ├── scripts/
-│   ├── examples/
-│   └── docs/
-├── scripts/
-│   ├── sync.sh
-│   ├── sync.py
-│   ├── doc_guard.sh
-│   ├── doc_guard.py
-│   ├── release_build.sh
-│   ├── release_build.py
-│   ├── publish_release.sh
-│   ├── publish_guard.py
-│   ├── generate_sbom.sh
-│   └── generate_sbom.py
-├── CHANGELOG.md
-└── VERSION
-```
-
-## Design Docs
-
-- [Architecture Overview](src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md)
-- [Directory Guide](src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md)
-- [Platform Contract](src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md)
-- [Stack Cookbook](src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md)
-
-## Release Workflow
-
-```bash
-# Standard packaging
-bash scripts/release_build.sh
-
-# One-command publish (commit/tag/release/asset)
-bash scripts/publish_release.sh --version v1.5.0
-```
-
-## Changelog
-
-See full version history in [CHANGELOG.md](CHANGELOG.md).
-
-## FAQ
-
-### Q1: What is `Build_test` for?
-It provides real generated outputs and reproducible validation flows for PR review and delivery regression checks.
-
-### Q2: Does `npx skills add` depend on GitHub Release assets?
-No. `npx skills add` installs from repository content, while release assets are for versioned archival/distribution.
-
-### Q3: Why are `/start.sh`, `/flag`, and `/bin/bash` mandatory?
-They are platform contract requirements. In RDG mode, `/flag` can be explicitly disabled with `include_flag_artifact=false` when scoring is driven by check-service.
-
-## Maintenance and Contribution
-
-Before PR/merge, run at least the checks below to ensure no regression in docs, skill discovery, and packaging pipeline:
-
-```bash
+bash scripts/doc_guard.sh
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list
-bash scripts/release_build.sh --skip-checks
+bash scripts/release_build.sh
+bash scripts/publish_release.sh --version v2.0.0
 ```
 
-Maintained by CloverSec R&D Center.
+## Documentation Index
 
-## License
+- Skill spec: `src/CloverSec-CTF-Build-Dockerizer/SKILL.md`
+- Input schema: `src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
+- Platform contract: `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
+- Architecture overview: `src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md`
+- Stack cookbook: `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
+- Scenario schema: `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md`
 
-This project is licensed under the [MIT License](LICENSE).
+## References
+
+- [Vulhub](https://github.com/vulhub/vulhub)
+- [Quick Start CTF mode docs](https://quickstart-ctf.github.io/quickstart/mode.html)
+- [AWDP patch workflow reference (CN)](https://www.cn-sec.com/archives/1948396.html)

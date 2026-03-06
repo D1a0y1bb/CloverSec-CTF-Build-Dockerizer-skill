@@ -1,31 +1,34 @@
-# challenge.yaml 输入 Schema（v1）
+# challenge.yaml Schema (v2.0.0)
 
-本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入格式。渲染器会在字段缺失时按 `data/stacks.yaml` 与 `data/patterns.yaml` 提供默认值或推断值。
+本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入契约。
 
 ## 顶层结构
 
 ```yaml
 challenge:
   name: "example"
-  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg"
+  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit"
+  profile: "jeopardy|rdg|awd|awdp|secops"
+
   base_image: ""
   workdir: "/app"
   app_src: "."
   app_dst: "/app"
+
   expose_ports: ["80"]
   start:
     mode: "cmd|service|supervisor"
     cmd: "node server.js"
     service_name: ""
+
   runtime_deps: []
   build_deps: []
-  flag:
-    path: "/flag"
-    permission: "444"
+
   platform:
     entrypoint: "/start.sh"
     require_bash: true
     allow_loopback_bind: false
+
   healthcheck:
     enabled: true
     cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
@@ -33,7 +36,12 @@ challenge:
     timeout: "5s"
     retries: 3
     start_period: "10s"
-  rdg:
+
+  flag:
+    path: "/flag"
+    permission: "444"
+
+  defense:
     enable_ttyd: true
     ttyd_port: "8022"
     ttyd_login_cmd: "/bin/bash"
@@ -45,10 +53,14 @@ challenge:
     ctf_user: "ctf"
     ctf_password: "123456"
     ctf_in_root_group: false
-    scoring_mode: "check_service"
+    scoring_mode: "check_service|flag"
     include_flag_artifact: true
     check_enabled: true
     check_script_path: "check/check.sh"
+
+  rdg:   # legacy compatibility input
+    ...  # same shape as defense
+
   extra:
     env: { KEY: VALUE }
     copy: [{ from: "x", to: "y" }]
@@ -57,124 +69,90 @@ challenge:
     pip_requirements_block: ""
 ```
 
-## 字段说明
+## 关键字段说明
 
-- `challenge.name`：题目标识字符串。
-- `challenge.stack`：技术栈，可选 `node/php/python/java/tomcat/lamp/pwn/ai/rdg`，缺省时自动侦测。
-- `challenge.base_image`：基础镜像；为空时使用栈默认值。
-  - 说明：`v1.5.0` 起支持运行时档位交互（`runtime_profiles.yaml`），但最终仍写入并生效于 `base_image`。
-- `challenge.workdir`：容器内工作目录。
-- `challenge.app_src`：构建上下文内源代码路径。
-- `challenge.app_dst`：镜像内应用目标路径。
-- `challenge.expose_ports`：暴露端口列表，至少一个。
+- `challenge.stack`
+  - 支持：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit`
+  - 未显式提供时可由探测规则推断。
 
-- `challenge.start.mode`：启动模式。
-  - `cmd`：单服务前台进程。
-  - `service`：服务命令模式。
-  - `supervisor`：多进程编排模式。
-- `challenge.start.cmd`：主启动命令。
-- `challenge.start.service_name`：服务名（`mode=service` 时可用）。
+- `challenge.profile`
+  - 支持：`jeopardy/rdg/awd/awdp/secops`
+  - 默认值：
+    - `stack=rdg` -> `rdg`
+    - `stack=secops` -> `secops`
+    - 其他 -> `jeopardy`
 
-- `challenge.runtime_deps`：运行期系统依赖（apt/apk）。
-- `challenge.build_deps`：构建期依赖（可用于多阶段方案）。
+- `challenge.defense`（V2 主口径）
+  - 用于统一防御注入配置（sshd/ttyd/ctf 用户/评分模式）。
+  - 非 `rdg/secops` 栈在 `profile!=jeopardy` 且开启防御开关时会注入 defense block。
+  - `stack=rdg` 与 `stack=secops` 使用专用模板语义，避免重复注入。
 
-- `challenge.flag.path`：默认 `/flag`。
-- `challenge.flag.permission`：默认 `444`。
+- `challenge.rdg`（legacy）
+  - 继续兼容输入。
+  - 渲染前会与 `challenge.defense` 归一化，冲突时以 `defense` 为主。
 
-- `challenge.platform.entrypoint`：固定 `/start.sh`。
-- `challenge.platform.require_bash`：固定 `true`。
-- `challenge.platform.allow_loopback_bind`：默认 `false`。开启后放行 localhost/127.0.0.1 监听门禁（用于 SSRF/内网链路题型）。
+- `defense.include_flag_artifact`
+  - 默认 `true`。
+  - 设为 `false` 时仅放行 `/flag` 产物，不放行 `/changeflag.sh`。
 
-- `challenge.healthcheck.enabled`：默认 `true`，控制是否渲染 Docker `HEALTHCHECK`。
-- `challenge.healthcheck.cmd`：健康检查命令，默认回退 `stacks.yaml defaults.healthcheck_cmd`。
-- `challenge.healthcheck.interval`：默认 `30s`。
-- `challenge.healthcheck.timeout`：默认 `5s`。
-- `challenge.healthcheck.retries`：默认 `3`。
-- `challenge.healthcheck.start_period`：默认 `10s`。
+## 平台硬约束（V2）
 
-- `challenge.rdg.enable_ttyd`：仅 `stack=rdg` 生效，默认 `true`。
-- `challenge.rdg.ttyd_port`：仅 `stack=rdg` 生效，默认 `8022`。
-- `challenge.rdg.ttyd_login_cmd`：仅 `stack=rdg` 生效，默认 `/bin/bash`。
-- `challenge.rdg.enable_sshd`：仅 `stack=rdg` 生效，默认 `true`。
-- `challenge.rdg.sshd_port`：仅 `stack=rdg` 生效，默认 `22`。
-- `challenge.rdg.sshd_password_auth`：仅 `stack=rdg` 生效，默认 `true`。
-- `challenge.rdg.ttyd_binary_relpath`：仅 `stack=rdg` 生效，默认 `ttyd`。
-- `challenge.rdg.ttyd_install_fallback`：仅 `stack=rdg` 生效，默认 `true`。
-- `challenge.rdg.ctf_user`：仅 `stack=rdg` 生效，默认 `ctf`。
-- `challenge.rdg.ctf_password`：仅 `stack=rdg` 生效，默认 `123456`。
-- `challenge.rdg.ctf_in_root_group`：仅 `stack=rdg` 生效，默认 `false`。
-- `challenge.rdg.scoring_mode`：仅 `stack=rdg` 生效，默认 `check_service`，可选 `check_service/flag`。
-- `challenge.rdg.include_flag_artifact`：仅 `stack=rdg` 生效，默认 `true`。
-- `challenge.rdg.check_enabled`：仅 `stack=rdg` 生效，默认 `true`。
-- `challenge.rdg.check_script_path`：仅 `stack=rdg` 生效，默认 `check/check.sh`（相对 `WORKDIR`）。
-  - 脚本入口建议：`bash check/check.sh [target_ip] [target_port]`
-  - 脚本返回码约定：`0=通过`、`1=失败`、`2=脚本使用/运行错误`
-  - 质量门禁：占位脚本（如 `CHECK_IMPLEMENT_ME/TODO` 或短脚本直接 `exit 0`）会被 `validate.sh` 判定为 `ERROR`。
+每次渲染交付必须包含：
 
-- `challenge.extra.env`：附加环境变量。
-- `challenge.extra.copy`：附加复制列表。
-- `challenge.extra.user`：运行用户（按题目要求启用）。
-- `challenge.extra.npm_install_block`：覆盖 Node 依赖安装块。
-- `challenge.extra.pip_requirements_block`：覆盖 Python 依赖安装块。
+- `Dockerfile`
+- `start.sh`
+- `changeflag.sh`
 
-## 能力边界
+并满足：
 
-- 当前支持 CTF Jeopardy 模式下的 Web/Pwn/AI 以及 RDG（Docker）容器构建。
-- 当前不支持 AWD/AWDP 赛制所需的攻防编排逻辑。
+- 镜像内可执行 `/start.sh`、`/changeflag.sh`
+- 镜像内存在 `/bin/bash`
+- Dockerfile 声明 `EXPOSE`
+- 禁止空转保活（`sleep infinity` 等）
 
-## 平台硬约束
+`flag` 规则：
 
-- 镜像必须包含 `/start.sh` 并可执行。
-- 镜像必须包含 `/flag` 且可读（RDG 且 `include_flag_artifact=false` 时可显式关闭）。
-- 镜像必须包含 `/bin/bash`。
-- Dockerfile 必须包含 `EXPOSE`。
-- 单服务启动必须使用 `exec` 作为 PID1。
-- 禁止 `sleep infinity` 与空转循环保活。
+- 默认必须存在且可读
+- `include_flag_artifact=false` 可放行 `flag`，但不能放行 `changeflag.sh`
 
-## 示例位置
+## AWDP 契约
 
-标准示例：
+当最终 profile 为 `awdp` 时，输出目录必须存在：
 
-- `examples/node-basic/challenge.yaml`
-- `examples/php-apache-basic/challenge.yaml`
-- `examples/python-flask-basic/challenge.yaml`
-- `examples/java-jar-basic/challenge.yaml`
-- `examples/tomcat-war-basic/challenge.yaml`
-- `examples/lamp-basic/challenge.yaml`
-- `examples/pwn-basic/challenge.yaml`
-- `examples/ai-basic/challenge.yaml`
-- `examples/ai-transformers-basic/challenge.yaml`
-- `examples/rdg-php-hardening-basic/challenge.yaml`
-- `examples/rdg-python-ssti-basic/challenge.yaml`
-- `examples/node-multiport-basic/challenge.yaml`
-- `examples/python-supervisor-basic/challenge.yaml`
-- `examples/pwn-socat-basic/challenge.yaml`
-- `examples/tomcat-context-basic/challenge.yaml`
+- `patch/src/`
+- 可执行 `patch/patch.sh`
+- `patch_bundle.tar.gz`（包含以上两者）
 
-兼容示例：
+## BaseUnit 约定
 
-- `examples/node/challenge.yaml`
-- `examples/php/challenge.yaml`
-- `examples/python/challenge.yaml`
-- `examples/java/challenge.yaml`
-- `examples/tomcat/challenge.yaml`
-- `examples/lamp/challenge.yaml`
+- `stack=baseunit` 面向“指定组件 + 指定版本”的纯服务最小单元。
+- 推荐优先通过 `render_component.py` 生成，而不是手写 challenge。
+- 组件定义文件：`data/components.yaml`。
 
-## 校验器附加行为（v1.4.0-r1）
+## Scenario 约定（本地编排）
 
-- `validate.sh --fix`：仅预览安全自动修复（dry-run）。
-- `validate.sh --fix-write`：应用安全自动修复并继续校验。
-- `validate.sh --fix-loopback`：允许修复显式 loopback 绑定参数到 `0.0.0.0`。
-- `VALIDATE_ENFORCE_DIGEST=1`：启用发布级 digest 门禁；非 digest 且非官方白名单镜像会报 `ERROR`。
+- 场景输入：`scenario.yaml`
+- 渲染脚本：`scripts/render_scenario.py`
+- 校验脚本：`scripts/validate_scenario.py`
+- 生成 `docker-compose.yml` 仅用于本地验证，不是平台最终交付。
 
-## 运行时档位说明（v1.5.0）
+## 运行时档位（php/node/java）
 
-- 支持栈：`php/node/java`
 - 数据源：`data/runtime_profiles.yaml`
 - `derive_config.py` 会输出：
   - `runtime_profile_candidates`
   - `recommended_profile`
   - `recommended_base_image`
   - `runtime_profile_evidence`
-- `render.py` 支持 `--runtime-profile <id>` 快速选择档位，优先级位于 `--base-image` 之后、`challenge.base_image` 之前。
-- 对 legacy 档位（如 `php:5.6-apache`、`node:14-bullseye`、`eclipse-temurin:8-jre-jammy`），`validate.sh` 输出 `WARN`（不阻断），用于题目兼容场景提醒。
+- `render.py` 支持 `--runtime-profile <id>`。
+- 镜像优先级：`--base-image > --runtime-profile > challenge.base_image > infer/default`
+
+## 参考文件
+
+- 栈默认与探测：`data/stacks.yaml`
+- 推断规则：`data/patterns.yaml`
+- profile 默认：`data/profiles.yaml`
+- 组件定义：`data/components.yaml`
+- 场景规则：`data/scenario_schema.md`
+- 场景校验规则：`data/validate_scenario_rules.yaml`
+- 可配置校验：`data/validate_rules.yaml`
