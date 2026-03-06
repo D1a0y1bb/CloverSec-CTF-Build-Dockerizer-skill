@@ -2,6 +2,19 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.0.1 - 2026-03-06
+
+### 变更
+
+- 补齐并固化 Vulhub-like 迁移示例：新增 `examples/scenario-vulhub-like-basic`，覆盖「challenge 来源 + component 来源」混合编排。
+- 修复 `stacks.yaml` 重复定义风险：清理重复 `secops/baseunit`，并在 `utils.load_stack_defs` 对重复 stack id 直接报错，避免静默覆盖。
+- 修复 AWDP 补丁包重复构建漂移：`patch_bundle.tar.gz` 改为确定性打包（固定 mtime/uid/gid 与排序）。
+- 三语 README 与 `scenario_schema.md` 同步补充 Vulhub-like 示例命令与边界说明，强调 compose 仅用于本地编排，平台最终交付仍为单服务目录。
+
+### 发布
+
+- 该版本为 `v2.0.0` 收口补丁发布，保持接口与契约不变，仅做一致性收口与可重复构建修复。
+
 ## v2.0.0 - 2026-03-06
 
 ### 新增

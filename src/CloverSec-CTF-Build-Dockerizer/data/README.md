@@ -1,4 +1,4 @@
-# data 目录（v2.0.0）
+# data 目录（v2.0.1）
 
 - `schema.md`：`challenge.yaml` v2 输入契约
 - `stacks.yaml`：11 栈默认值与探测规则

@@ -221,7 +221,11 @@ collect_publish_stage_paths() {
     return 0
   fi
 
-  mapfile -t PUBLISH_STAGE_PATHS <<< "${stage_output}"
+  PUBLISH_STAGE_PATHS=()
+  while IFS= read -r line; do
+    [[ -n "${line}" ]] || continue
+    PUBLISH_STAGE_PATHS+=("${line}")
+  done <<< "${stage_output}"
 }
 
 commit_and_push() {

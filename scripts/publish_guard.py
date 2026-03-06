@@ -16,6 +16,7 @@ ALLOWED_PATTERNS = [
     "CHANGELOG.md",
     "README.md",
     "README.zh-CN.md",
+    "README.ja.md",
     "README.en.md",
     "LICENSE",
     ".gitignore",

@@ -9,17 +9,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.1"><img src="https://img.shields.io/badge/release-zip%2Bsbom-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.0.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.0.1</code></p>
 
-四叶草安全题目容器交付引擎 `v2.0.0`，用于 Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario 本地编排的统一构建与校验。
+四叶草安全题目容器交付引擎 `v2.0.1`，用于 Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario 本地编排的统一构建与校验。
 
-## v2.0.0 重点更新
+## v2.0.1 重点更新
 
 - 平台交付硬契约升级：每次渲染默认产出 `Dockerfile + start.sh + changeflag.sh`。
 - 配置模型升级：`challenge.profile` + `challenge.defense` 成为主口径，`challenge.rdg` 保留兼容输入。
@@ -180,7 +180,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list
 bash scripts/release_build.sh
-bash scripts/publish_release.sh --version v2.0.0
+bash scripts/publish_release.sh --version v2.0.1
 ```
 
 ## 文档索引

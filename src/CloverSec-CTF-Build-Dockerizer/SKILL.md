@@ -127,7 +127,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG/Defense check 脚本契约（v2.0.0）
+### RDG/Defense check 脚本契约（v2.0.1）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -153,7 +153,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `HEALTHCHECK_BLOCK`
 - `STACK_FLAG_BLOCK`
 
-## validate 自动修复与发布门禁（v2.0.0）
+## validate 自动修复与发布门禁（v2.0.1）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。
