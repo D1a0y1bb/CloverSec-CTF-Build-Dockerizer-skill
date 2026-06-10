@@ -9,6 +9,8 @@
 - 修复 `SKILL.md` frontmatter `name` 不符合 SkillHub slug 规则的问题，发布包现在使用 `cloversec-ctf-build-dockerizer`。
 - 移除 `SKILL.md` 中会触发内部 Git 导出 `diff --check` 失败的行尾空格。
 - 发布构建增加 SkillHub slug 与行尾空格检查，提前拦截会导致同步失败的包内容。
+- 三语 README 增加 `v2.1.1` 发布修复说明，公开 docs 标题同步到当前版本。
+- 文档检查增加当前版本说明章节检查，避免只更新顶部版本号而遗漏正文说明。
 
 ## v2.1.0 - 2026-06-10
 

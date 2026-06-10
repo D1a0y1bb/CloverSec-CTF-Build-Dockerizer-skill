@@ -132,7 +132,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.vm.cpu` | 否 | `max` | `max` | `-cpu`，只允许安全 token |
 | `challenge.vm.drive_format` | 否 | `raw` | `qcow2` | `raw/qcow2` |
 | `challenge.vm.append` | 否 | 模板默认 | `console=ttyS0 ...` | `-append` |
-| `challenge.vm.guest_forwards` | 否 | 首个 `expose_ports` | `tcp 22->22` | QEMU `hostfwd`，v2.1.0 仅支持 `tcp` |
+| `challenge.vm.guest_forwards` | 否 | 首个 `expose_ports` | `tcp 22->22` | QEMU `hostfwd`，当前版本仅支持 `tcp`（自 `v2.1.0` 起） |
 | `challenge.vm.monitor` | 否 | `none` | `none` | QEMU monitor，默认关闭 |
 | `challenge.vm.extra_args` | 否 | 空 | `-no-reboot` | 追加 QEMU 参数，会做 shell 元字符校验 |
 | `challenge.vm.asset_mode` | 否 | `prebuilt` | `build-script` | VM 资产来源 |
@@ -168,7 +168,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG/Defense check 脚本契约（v2.1.0）
+### RDG/Defense check 脚本契约（v2.1.1）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -202,7 +202,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `VM_GUEST_FLAG_PATH`
 - `VM_FLAG_INJECTION`
 
-## validate 自动修复与发布门禁（v2.1.0）
+## validate 自动修复与发布门禁（v2.1.1）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。

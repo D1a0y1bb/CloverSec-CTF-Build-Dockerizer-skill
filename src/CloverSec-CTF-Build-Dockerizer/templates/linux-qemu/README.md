@@ -32,6 +32,6 @@ vm:
   guest_flag_path: /root/flag
 ```
 
-`guest_forwards[*].proto` 在 `v2.1.0` 仅支持 `tcp`；如果选择 `qemu-system-aarch64`，Dockerfile 需要包含 `qemu-system-arm` 包。
+`guest_forwards[*].proto` 当前版本仅支持 `tcp`（自 `v2.1.0` 起）；如果选择 `qemu-system-aarch64`，Dockerfile 需要包含 `qemu-system-arm` 包。
 
 `accelerator: auto` 会在 `/dev/kvm` 可读写时使用 KVM，否则使用 TCG。正式发布前必须验证平台是否允许 `/dev/kvm`；模板不会自动要求 `--privileged`。

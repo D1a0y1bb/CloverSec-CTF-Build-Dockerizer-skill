@@ -1,4 +1,4 @@
-# challenge.yaml Schema (v2.1.0)
+# challenge.yaml Schema (v2.1.1)
 
 本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入契约。
 
@@ -56,7 +56,7 @@ challenge:
     drive_format: "raw"
     append: "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1"
     guest_forwards:
-      - proto: "tcp"   # v2.1.0 only supports tcp
+      - proto: "tcp"   # current release supports tcp only, introduced in v2.1.0
         host_port: "22"
         guest_port: "22"
     monitor: "none"
@@ -124,7 +124,7 @@ challenge:
 - `challenge.vm`
   - 仅用于 `stack=linux-qemu`。
   - `expose_ports` 表示 Docker 容器对外端口；`vm.guest_forwards[*].host_port` 必须出现在 `expose_ports` 中。
-  - `vm.guest_forwards[*].proto` 在 `v2.1.0` 仅支持 `tcp`。
+  - `vm.guest_forwards[*].proto` 当前版本仅支持 `tcp`（自 `v2.1.0` 起）。
   - `vm.drive_format` 仅支持 `raw/qcow2`；`qemu_binary`、VM 相对路径、`guest_flag_path`、`extra_args` 会做字符级安全校验。
   - `accelerator=tcg` 是默认可移植模式；`accelerator=kvm` 或 `require_kvm=true` 需要运行平台显式提供 `/dev/kvm`。
   - `asset_mode=prebuilt` 表示题目目录已经包含 kernel/initrd/rootfs；`asset_mode=build-script` 表示构建镜像时执行 `build_script` 生成 VM 资产。

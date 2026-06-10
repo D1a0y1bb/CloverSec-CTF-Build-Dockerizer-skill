@@ -1,4 +1,4 @@
-# Scenario Schema (v2.1.0)
+# Scenario Schema (v2.1.1)
 
 `scenario.yaml` 用于描述**本地多服务编排与验证**，适合 AWD / AWDP / Vulhub-like 迁移场景。
 

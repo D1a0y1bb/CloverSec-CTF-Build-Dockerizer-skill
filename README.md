@@ -23,6 +23,20 @@
 
 如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
 
+## V2.1.1 发布修复
+
+v2.1.1 是面向 SkillHub 发布与内部 Git 同步的修复版本，不改变 `linux-qemu` 渲染行为和题目配置契约。
+
+本次修复覆盖以下内容：
+
+1、SkillHub slug：`SKILL.md` frontmatter `name` 统一为 `cloversec-ctf-build-dockerizer`，满足 SkillHub slug 校验规则。
+
+2、Git 同步质量检查：移除 `SKILL.md` 中会触发 `git diff --check` 失败的行尾空格，避免审核通过后在内部 Git 导出阶段失败。
+
+3、发布构建门禁：`scripts/release_build.sh` 增加 SkillHub slug 与行尾空格检查，发布包生成前即可发现同类问题。
+
+4、文档同步：三语 README、CHANGELOG、当前版本号和发布命令统一为 `v2.1.1`；`v2.1.0` 仍作为 `linux-qemu` 功能引入版本保留在历史说明中。
+
 ## V2.1.0 linux-qemu 功能更新
 
 v2.1.0 面向 Linux kernel CVE / LPE 题目增加 `linux-qemu` 交付模型说明：外层仍是平台可导入的单 Docker 镜像，容器内由 `/start.sh` 拉起 QEMU，QEMU 再引导指定的 vulnerable kernel、initrd/rootfs 与 guest 服务。这样可以处理 Docker 共享宿主机内核导致的 Linux kernel 漏洞题无法直接复现的问题。

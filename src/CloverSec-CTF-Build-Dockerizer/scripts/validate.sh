@@ -1112,7 +1112,7 @@ run_dynamic_checks() {
     fi
 
     if contains_re "$START_SH" 'hostfwd=udp::[0-9]+-:[0-9]+'; then
-      log_result ERROR "linux-qemu v2.1.0 仅支持 TCP hostfwd，不支持 UDP。"
+      log_result ERROR "linux-qemu 当前版本仅支持 TCP hostfwd（自 v2.1.0 起），不支持 UDP。"
     fi
 
     if contains_re "$START_SH" 'hostfwd=tcp::[0-9]+-:[0-9]+'; then

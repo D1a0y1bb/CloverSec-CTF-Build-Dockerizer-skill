@@ -26,6 +26,17 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
+## v2.1.1 修正版
+
+`v2.1.1` は SkillHub 公開と内部 Git export のための修正版です。`linux-qemu` のレンダリング動作や challenge 設定契約は変更しません。
+
+この版の内容：
+
+- SkillHub slug 対応：`SKILL.md` frontmatter の `name` を `cloversec-ctf-build-dockerizer` に統一。
+- Git export 品質検査対応：`git diff --check` で失敗する `SKILL.md` の行末空白を削除。
+- リリース検査強化：`scripts/release_build.sh` が packaging 前に SkillHub slug と行末空白を検査。
+- ドキュメント同期：README、CHANGELOG、現在バージョン表示、公開コマンドを `v2.1.1` に統一。`v2.1.0` は `linux-qemu` 導入版として履歴に残します。
+
 ## v2.1.0 更新ハイライト
 
 ### v2.1.0：Docker 内 QEMU による Linux kernel CVE 配布
@@ -366,7 +377,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 
 配布メモ：
 
-- `guest_forwards[*].proto` は `v2.1.0` では TCP のみ対応します。
+- `guest_forwards[*].proto` は現在のリリースでも TCP のみ対応します。この制約は `v2.1.0` で導入されました。
 - 既定の smoke は placeholder sample の render/validate までです。完全な QEMU boot と exploit 再現は実 VM アセットで検証します。
 - `flag_injection=debugfs` では、`changeflag.sh` が guest flag path を rootfs image に書き込む必要があります。
 

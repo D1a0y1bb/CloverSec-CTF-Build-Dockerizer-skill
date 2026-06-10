@@ -15,6 +15,7 @@ ALL_READMES = FULL_READMES
 
 README_REQUIRED_SECTIONS = {
     "README.md": (
+        r"^## V2\.1\.1 发布修复\s*$",
         r"^## V2\.1\.0 linux-qemu 功能更新\s*$",
         r"^## V2\.0\.3 有哪些重大更新？\s*$",
         r"^## 竞赛模式构建分类\s*$",
@@ -23,6 +24,7 @@ README_REQUIRED_SECTIONS = {
         r"^## 维护、贡献与发布\s*$",
     ),
     "README.en.md": (
+        r"^## v2\.1\.1 Release Fixes\s*$",
         r"^## v2\.1\.0 Highlights\s*$",
         r"^## AI Coding Playbook\s*$",
         r"^## Competition Mode Build Guide\s*$",
@@ -30,6 +32,7 @@ README_REQUIRED_SECTIONS = {
         r"^## FAQ and Troubleshooting\s*$",
     ),
     "README.ja.md": (
+        r"^## v2\.1\.1 修正版\s*$",
         r"^## v2\.1\.0 更新ハイライト\s*$",
         r"^## AI コーディング実践ガイド\s*$",
         r"^## 競技モード構築ガイド\s*$",
@@ -192,6 +195,11 @@ def has_readme_link(text: str, target: str) -> bool:
 
 def check_readme_set(counter: Counter, root: Path, repo_version: str) -> None:
     readme_texts: dict[str, str] = {}
+    current_version_heading = {
+        "README.md": rf"^## {re.escape(repo_version.upper())}\b",
+        "README.en.md": rf"^## {re.escape(repo_version)}\b",
+        "README.ja.md": rf"^## {re.escape(repo_version)}\b",
+    }
 
     for name in ALL_READMES:
         path = root / name
@@ -222,6 +230,10 @@ def check_readme_set(counter: Counter, root: Path, repo_version: str) -> None:
             counter.log_error(f"{name} VERSION({version}) 与 VERSION 文件({repo_version}) 不一致")
         else:
             counter.log_info(f"{name} VERSION 与 VERSION 文件一致")
+
+        heading_re = current_version_heading.get(name)
+        if heading_re and not re.search(heading_re, text, flags=re.MULTILINE):
+            counter.log_error(f"{name} 缺少当前版本说明章节：{repo_version}")
 
         for section_re in README_REQUIRED_SECTIONS.get(name, ()):
             if not re.search(section_re, text, flags=re.MULTILINE):

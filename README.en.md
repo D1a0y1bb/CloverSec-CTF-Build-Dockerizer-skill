@@ -26,6 +26,17 @@ CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D 
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
+## v2.1.1 Release Fixes
+
+`v2.1.1` is a SkillHub publishing and internal Git export fix release. It does not change `linux-qemu` rendering behavior or the challenge configuration contract.
+
+This release covers:
+
+- SkillHub slug compliance: `SKILL.md` frontmatter `name` is now `cloversec-ctf-build-dockerizer`.
+- Git export quality checks: trailing whitespace was removed from `SKILL.md` to satisfy `git diff --check`.
+- Release guardrails: `scripts/release_build.sh` now checks the SkillHub slug and trailing whitespace before packaging.
+- Documentation alignment: README files, CHANGELOG, current version markers, and publish commands now point to `v2.1.1`; `v2.1.0` remains documented as the version that introduced `linux-qemu`.
+
 ## v2.1.0 Highlights
 
 ### v2.1.0: Linux kernel CVE delivery through QEMU inside Docker
@@ -366,7 +377,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 
 Delivery notes:
 
-- `guest_forwards[*].proto` is TCP-only in `v2.1.0`.
+- `guest_forwards[*].proto` is TCP-only in the current release; this constraint was introduced in `v2.1.0`.
 - The default smoke path renders and validates the placeholder sample; full QEMU boot and exploit replay require real VM assets.
 - `flag_injection=debugfs` requires `changeflag.sh` to write the guest flag path into the rootfs image.
 
