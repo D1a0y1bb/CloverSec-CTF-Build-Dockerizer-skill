@@ -22,6 +22,7 @@
 - `doc_guard.py` 增加 `SKILL.md` 行数、关键入口和大段迁出内容检查，防止入口文件再次膨胀。
 - `stack_cookbook.md` 补充旧版 `SKILL.md` 的 12 栈最小模板库索引，`validation_guide.md` 补充模板变量速查。
 - 移除运行包中的迁移映射文档，避免 Agent 把审计记录当作执行手册；长参考文档补充目录以提升按需读取质量。
+- `validate.sh` 读取 `support_level`，发布 digest 门禁对 `partial` 原型样例记录 WARN 而不阻断；Redis 7.2 BaseUnit 组件改用 digest 固定镜像。
 - `validate.sh` 的 Linux-QEMU debugfs 检测支持 `sif` 别名，避免真实 `changeflag.sh` 被误判为没有写入 guest rootfs。
 - `validate_examples.sh` 识别 `bundle.yaml`，在临时目录渲染并校验 Bundle 示例，保持 examples 只读。
 - `validate_examples.sh` 识别 compose 示例，默认校验导入后的可渲染 Scenario 子集。

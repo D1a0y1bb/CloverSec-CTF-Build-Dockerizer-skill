@@ -101,6 +101,7 @@ ALLOW_LOOPBACK_BIND_CFG="false"
 PROFILE_CFG="jeopardy"
 FLAG_OPTIONAL_CFG="false"
 STACK_CFG=""
+SUPPORT_LEVEL_CFG="supported"
 VM_ACCELERATOR_CFG="tcg"
 VM_REQUIRE_KVM_CFG="false"
 VM_KERNEL_CFG="vm/vmlinuz"
@@ -181,12 +182,12 @@ write_json_summary() {
 
   python3 - "$JSON_SUMMARY_PATH" "$exit_code" "$code" "$summary" \
     "$CHECK_COUNT" "$ERROR_COUNT" "$WARN_COUNT" "$INFO_COUNT" \
-    "$DOCKERFILE" "$START_SH" "$CHALLENGE_YAML" <<'PY'
+    "$DOCKERFILE" "$START_SH" "$CHALLENGE_YAML" "$SUPPORT_LEVEL_CFG" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-out, exit_code, code, summary, checks, errors, warns, infos, dockerfile, start_sh, challenge = sys.argv[1:]
+out, exit_code, code, summary, checks, errors, warns, infos, dockerfile, start_sh, challenge, support_level = sys.argv[1:]
 payload = {
     "ok": int(exit_code) == 0,
     "stage": "validate",
@@ -196,7 +197,7 @@ payload = {
     "file": challenge or dockerfile,
     "hint": "",
     "autofixable": False,
-    "support_level": "unknown",
+    "support_level": support_level,
     "counts": {
         "checks": int(checks),
         "errors": int(errors),
@@ -957,7 +958,9 @@ run_dynamic_checks() {
     elif is_allowlisted_base_image "$base_image"; then
       log_result INFO "基础镜像命中官方白名单（tag-only 放行）: ${base_image}"
     else
-      if [[ "$VALIDATE_ENFORCE_DIGEST" == "1" ]]; then
+      if [[ "$VALIDATE_ENFORCE_DIGEST" == "1" && "$SUPPORT_LEVEL_CFG" == "partial" ]]; then
+        log_result WARN "support_level=partial：发布门禁记录基础镜像未固定 digest（当前: ${base_image}），但不阻断原型样例。"
+      elif [[ "$VALIDATE_ENFORCE_DIGEST" == "1" ]]; then
         log_result ERROR "发布门禁要求基础镜像使用 digest（当前: ${base_image}）。修复：将 base_image 改为 image:tag@sha256:<digest>。"
       else
         log_result WARN "基础镜像未使用 digest 固定（当前: ${base_image}）。发布前建议 pin digest。"

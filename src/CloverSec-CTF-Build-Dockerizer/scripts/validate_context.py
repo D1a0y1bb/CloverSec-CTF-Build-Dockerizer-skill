@@ -79,6 +79,7 @@ def main() -> int:
     items = {
         "STACK_CFG": stack,
         "PROFILE_CFG": profile,
+        "SUPPORT_LEVEL_CFG": str(challenge.get("support_level") or "supported").strip().lower(),
         "RDG_ENABLE_TTYD_CFG": pick_bool(source, "enable_ttyd", profile in {"rdg", "awd", "awdp", "secops"}),
         "RDG_ENABLE_SSHD_CFG": pick_bool(source, "enable_sshd", profile in {"rdg", "awd", "awdp", "secops"}),
         "RDG_SSHD_PASSWORD_AUTH_CFG": pick_bool(source, "sshd_password_auth", True),
