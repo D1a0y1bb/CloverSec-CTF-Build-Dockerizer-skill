@@ -1387,7 +1387,7 @@ run_dynamic_checks() {
         local check_line_count
         check_line_count="$(grep -cv '^[[:space:]]*$' "$check_candidate" || true)"
 
-        if contains_re "$check_candidate" '(CHECK_IMPLEMENT_ME|TODO[[:space:]]*implement|TODO:|placeholder)'; then
+        if contains_re "$check_candidate" '(CHECK_IMPLEMENT_ME|CHECK_REVIEW_REQUIRED|TODO[[:space:]]*implement|TODO:|placeholder)'; then
           log_result ERROR "check_service 脚本仍为占位实现：${check_rel}。修复：按真实业务补齐健康检查与漏洞负向检查逻辑。"
         elif [[ "${check_line_count}" -le 8 ]] && contains_re "$check_candidate" 'exit[[:space:]]+0([[:space:]]|$)'; then
           log_result ERROR "check_service 脚本疑似占位实现（脚本过短且直接 exit 0）：${check_rel}。"

@@ -305,6 +305,18 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/rdg-python/challenge.yaml
 ```
 
+可用 `generate_check_stub.py` 生成 HTTP/TCP/Redis/MySQL/SSH 的可编辑 check-service 骨架：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
+  --type http \
+  --output /tmp/rdg-python/check/check.sh \
+  --target-port 80 \
+  --path /
+```
+
+生成脚本默认带 `CHECK_REVIEW_REQUIRED`，`validate.sh` 会阻断发布，直到人工确认并移除标记。
+
 ### AWD
 
 适用：攻防混合赛，基于现有 Web/Pwn 栈叠加 `profile=awd` 与运维入口。
@@ -535,6 +547,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `render_component.py` | BaseUnit 组件渲染入口 |
 | `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe 渲染与校验 |
 | `import_compose.py` | compose/Vulhub-like 导入草案 |
+| `generate_check_stub.py` | RDG/SecOps check-service 骨架生成 |
 | `render_scenario.py` | 场景编排渲染入口 |
 | `validate.sh` | 单题契约校验入口 |
 | `validate_scenario.py` | 场景契约校验入口 |

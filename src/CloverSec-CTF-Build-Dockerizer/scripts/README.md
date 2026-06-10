@@ -11,6 +11,7 @@
 - `render_bundle.py`：根据固定 Bundle/Recipe 渲染单容器多服务交付目录
 - `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `import_compose.py`：将 compose/Vulhub-like 输入转换为 scenario draft、renderable subset 和 import report
+- `generate_check_stub.py`：生成 RDG/SecOps check-service 可编辑脚本骨架，默认带人工确认标记
 - `workflow.py`：推荐工作流入口，支持 intake/propose/accept/render/validate/status，并维护 `.ctfbuild/` 状态文件
 - `audit_input.py`：输入审计，输出 risk_level/recommended_path/support_level/verification_level/manual_required/findings
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
@@ -51,6 +52,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config path/to/ch
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py --bundle-dir /tmp/bundle
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py --compose docker-compose.yml --output /tmp/compose-import
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
