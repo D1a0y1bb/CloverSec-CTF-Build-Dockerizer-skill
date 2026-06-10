@@ -85,6 +85,7 @@ If you have ever patched `start.sh` minutes before kickoff, or found contract fa
 | Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
 | Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` |
 | Component render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Generate component+variant base units | build-ready service directory |
+| Linux-QEMU render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate Docker-hosted QEMU guest delivery | single-image delivery directory |
 | Scenario render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | Render local multi-service orchestration | service dirs + `docker-compose.yml` |
 | Scenario validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py` | Validate mode/profile/ports/AWDP patch contract | pass/fail |
 | Example regression | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh` | Batch regression for examples and scenarios | summary report |
@@ -123,7 +124,7 @@ If you want to adjust the Codex card title, subtitle, or trial prompt later, edi
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit 构建与 Scenario 编排"
+  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
   default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
 ```
 
@@ -347,6 +348,27 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/jeopardy-node/start.sh \
   /tmp/jeopardy-node/challenge.yaml
 ```
+
+### Linux-QEMU (Linux kernel CVE / LPE)
+
+Use when the challenge needs a specific guest kernel, initrd/rootfs, kernel module, or kernel configuration. The platform still receives one Docker image; `/start.sh` runs QEMU inside the container, and the vulnerable environment runs in the guest.
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
+  --config src/CloverSec-CTF-Build-Dockerizer/examples/linux-qemu-basic/challenge.yaml \
+  --output /tmp/linux-qemu-basic
+
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
+  /tmp/linux-qemu-basic/Dockerfile \
+  /tmp/linux-qemu-basic/start.sh \
+  /tmp/linux-qemu-basic/challenge.yaml
+```
+
+Delivery notes:
+
+- `guest_forwards[*].proto` is TCP-only in `v2.1.0`.
+- The default smoke path renders and validates the placeholder sample; full QEMU boot and exploit replay require real VM assets.
+- `flag_injection=debugfs` requires `changeflag.sh` to write the guest flag path into the rootfs image.
 
 ### RDG
 
@@ -604,6 +626,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `templates/rdg/` | RDG dedicated templates |
 | `templates/secops/` | SecOps dedicated templates |
 | `templates/baseunit/` | BaseUnit common templates |
+| `templates/linux-qemu/` | QEMU guest template for Linux kernel CVE/LPE challenges |
 | `templates/snippets/` | defense/check/changeflag snippets |
 | `templates/README.md` | template directory guide |
 
@@ -615,6 +638,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `examples/node-awdp-basic` | AWDP single challenge patch contract example |
 | `examples/secops-*-basic` | SecOps examples |
 | `examples/baseunit-*` | BaseUnit examples |
+| `examples/linux-qemu-basic` | Linux-QEMU sample with placeholder VM assets |
 | `examples/scenario-awd-basic` | AWD scenario example |
 | `examples/scenario-awdp-basic` | AWDP scenario example |
 | `examples/scenario-vulhub-like-basic` | Vulhub-like migration example |

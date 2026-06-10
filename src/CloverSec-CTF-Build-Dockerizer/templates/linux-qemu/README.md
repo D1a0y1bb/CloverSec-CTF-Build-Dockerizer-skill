@@ -5,7 +5,7 @@
 默认行为：
 
 - 基础镜像：`debian:bookworm-slim`
-- 运行依赖：`qemu-system-x86`、`qemu-utils`、`e2fsprogs`、`openssh-client`
+- 运行依赖：`qemu-system-x86`、`qemu-system-arm`、`qemu-utils`、`e2fsprogs`、`openssh-client`
 - 默认端口：`22`
 - 默认加速：`tcg`
 - 默认 flag 注入：`debugfs` 写入 guest rootfs 的 `/root/flag`
@@ -31,5 +31,7 @@ vm:
   flag_injection: debugfs
   guest_flag_path: /root/flag
 ```
+
+`guest_forwards[*].proto` 在 `v2.1.0` 仅支持 `tcp`；如果选择 `qemu-system-aarch64`，Dockerfile 需要包含 `qemu-system-arm` 包。
 
 `accelerator: auto` 会在 `/dev/kvm` 可读写时使用 KVM，否则使用 TCG。正式发布前必须验证平台是否允许 `/dev/kvm`；模板不会自动要求 `--privileged`。

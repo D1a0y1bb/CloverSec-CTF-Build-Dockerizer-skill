@@ -85,6 +85,7 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 | 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
 | 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` |
 | コンポーネント生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | component+variant 最小単位化 | build 可能なサービスディレクトリ |
+| Linux-QEMU レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Docker 内 QEMU guest 配布物を生成 | 単一イメージ配布ディレクトリ |
 | シナリオ生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | ローカル複数サービス編成を生成 | service dir + `docker-compose.yml` |
 | シナリオ検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py` | mode/profile/port/AWDP 契約検査 | pass/fail |
 | 例回帰 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh` | examples/scenario 一括回帰 | 集計レポート |
@@ -123,7 +124,7 @@ Codex UI における Skill カードの表示内容は `src/CloverSec-CTF-Build
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit 构建与 Scenario 编排"
+  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
   default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
 ```
 
@@ -347,6 +348,27 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/jeopardy-node/start.sh \
   /tmp/jeopardy-node/challenge.yaml
 ```
+
+### Linux-QEMU（Linux kernel CVE / LPE）
+
+特定 guest kernel、initrd/rootfs、kernel module、kernel config が必要な問題向けです。プラットフォームへの配布は単一 Docker イメージのまま維持し、`/start.sh` がコンテナ内で QEMU を起動し、脆弱環境は guest 内で動作します。
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
+  --config src/CloverSec-CTF-Build-Dockerizer/examples/linux-qemu-basic/challenge.yaml \
+  --output /tmp/linux-qemu-basic
+
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
+  /tmp/linux-qemu-basic/Dockerfile \
+  /tmp/linux-qemu-basic/start.sh \
+  /tmp/linux-qemu-basic/challenge.yaml
+```
+
+配布メモ：
+
+- `guest_forwards[*].proto` は `v2.1.0` では TCP のみ対応します。
+- 既定の smoke は placeholder sample の render/validate までです。完全な QEMU boot と exploit 再現は実 VM アセットで検証します。
+- `flag_injection=debugfs` では、`changeflag.sh` が guest flag path を rootfs image に書き込む必要があります。
 
 ### RDG
 
@@ -603,6 +625,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `templates/rdg/` | RDG 専用テンプレート |
 | `templates/secops/` | SecOps 専用テンプレート |
 | `templates/baseunit/` | BaseUnit 共通テンプレート |
+| `templates/linux-qemu/` | Linux kernel CVE/LPE 向け QEMU guest テンプレート |
 | `templates/snippets/` | defense/check/changeflag 断片 |
 | `templates/README.md` | templates 説明 |
 
@@ -614,6 +637,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `examples/node-awdp-basic` | AWDP 単体契約例 |
 | `examples/secops-*-basic` | SecOps 例 |
 | `examples/baseunit-*` | BaseUnit 例 |
+| `examples/linux-qemu-basic` | placeholder VM アセット付き Linux-QEMU 例 |
 | `examples/scenario-awd-basic` | AWD scenario 例 |
 | `examples/scenario-awdp-basic` | AWDP scenario 例 |
 | `examples/scenario-vulhub-like-basic` | Vulhub-like 移行例 |

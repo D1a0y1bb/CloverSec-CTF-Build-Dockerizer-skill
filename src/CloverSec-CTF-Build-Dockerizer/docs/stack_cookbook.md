@@ -89,7 +89,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
 
 - 面向 Linux kernel CVE/LPE 题目，外层 Docker 仍按平台契约启动 `/start.sh`，漏洞内核运行在 QEMU guest 中。
 - 默认使用 `accelerator=tcg`；只有平台明确允许 `/dev/kvm` 时才配置 `kvm` 或 `require_kvm=true`。
-- `expose_ports` 表示 Docker 容器端口，`vm.guest_forwards[*].host_port` 必须与它一致。
+- `expose_ports` 表示 Docker 容器端口，`vm.guest_forwards[*].host_port` 必须与它一致；`v2.1.0` 仅支持 TCP 转发。
 - 动态 flag 若需要 guest 内可读，使用 `flag_injection=debugfs` 并设置 `guest_flag_path`。
 
 ```yaml

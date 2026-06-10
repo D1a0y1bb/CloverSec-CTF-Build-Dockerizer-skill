@@ -160,6 +160,9 @@ validate_workspace() {
   git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "Not a git repository: ${ROOT_DIR}"
   CURRENT_BRANCH="$(git -C "${ROOT_DIR}" branch --show-current)"
   [[ -n "${CURRENT_BRANCH}" ]] || die "Cannot detect current branch"
+  if [[ "${CURRENT_BRANCH}" != "main" && "${PUBLISH_ALLOW_NON_MAIN:-0}" != "1" ]]; then
+    die "Release publishing must run from main. Set PUBLISH_ALLOW_NON_MAIN=1 only for an intentional hotfix branch release."
+  fi
   [[ -f "${RELEASE_BUILD_SCRIPT}" ]] || die "Missing script: ${RELEASE_BUILD_SCRIPT}"
   [[ -f "${PUBLISH_GUARD_SCRIPT}" ]] || die "Missing script: ${PUBLISH_GUARD_SCRIPT}"
 }
@@ -264,6 +267,7 @@ ensure_version_tag() {
   local head_commit
   local local_tag_commit
   local remote_tag_commit
+  local remote_branch_commit
 
   if [[ "${DRY_RUN}" == "true" ]]; then
     log "Dry-run: skip tag checks and pushes"
@@ -271,6 +275,9 @@ ensure_version_tag() {
   fi
 
   head_commit="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+  remote_branch_commit="$(git -C "${ROOT_DIR}" ls-remote --heads origin "${CURRENT_BRANCH}" | awk 'NR==1{print $1}')"
+  [[ -n "${remote_branch_commit}" ]] || die "Cannot resolve origin/${CURRENT_BRANCH}"
+  [[ "${remote_branch_commit}" == "${head_commit}" ]] || die "origin/${CURRENT_BRANCH} points to ${remote_branch_commit}, not HEAD ${head_commit}. Push branch before tagging."
 
   if git -C "${ROOT_DIR}" rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
     local_tag_commit="$(git -C "${ROOT_DIR}" rev-list -n1 "${VERSION}")"
@@ -664,6 +671,9 @@ main() {
   require_cmd python3
   require_cmd curl
   parse_args "$@"
+  if [[ "${SKIP_UPLOAD}" == "true" && "${SKIP_RELEASE}" != "true" && "${DRY_RUN}" != "true" ]]; then
+    die "--skip-upload cannot publish a public release. Use --skip-release or --dry-run with --skip-upload."
+  fi
 
   validate_workspace
   load_version

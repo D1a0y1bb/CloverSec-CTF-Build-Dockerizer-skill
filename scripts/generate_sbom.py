@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -19,20 +20,114 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def write_placeholder_json(out_file: Path, fmt: str, reason: str) -> None:
+def iter_source_files(source_dir: Path) -> list[Path]:
+    return sorted(path for path in source_dir.rglob("*") if path.is_file())
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def write_source_inventory_spdx(source_dir: Path, out_file: Path, reason: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    files = []
+    relationships = []
+    for idx, path in enumerate(iter_source_files(source_dir), start=1):
+        rel = path.relative_to(source_dir).as_posix()
+        spdx_id = f"SPDXRef-File-{idx}"
+        files.append(
+            {
+                "SPDXID": spdx_id,
+                "fileName": rel,
+                "checksums": [{"algorithm": "SHA256", "checksumValue": sha256_file(path)}],
+                "licenseConcluded": "NOASSERTION",
+                "copyrightText": "NOASSERTION",
+            }
+        )
+        relationships.append(
+            {
+                "spdxElementId": "SPDXRef-Package",
+                "relationshipType": "CONTAINS",
+                "relatedSpdxElement": spdx_id,
+            }
+        )
+
     payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "format": fmt,
-        "status": "placeholder",
-        "reason": reason,
+        "spdxVersion": "SPDX-2.3",
+        "dataLicense": "CC0-1.0",
+        "SPDXID": "SPDXRef-DOCUMENT",
+        "name": source_dir.name,
+        "documentNamespace": f"https://cloversec.local/sbom/{source_dir.name}/{int(datetime.now(timezone.utc).timestamp())}",
+        "creationInfo": {
+            "created": now,
+            "creators": ["Tool: CloverSec-CTF-Build-Dockerizer source-inventory"],
+            "comment": reason,
+        },
+        "packages": [
+            {
+                "name": source_dir.name,
+                "SPDXID": "SPDXRef-Package",
+                "downloadLocation": "NOASSERTION",
+                "filesAnalyzed": True,
+                "licenseConcluded": "NOASSERTION",
+                "licenseDeclared": "NOASSERTION",
+                "copyrightText": "NOASSERTION",
+            }
+        ],
+        "files": files,
+        "relationships": relationships,
     }
     out_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_source_inventory_cdx(source_dir: Path, out_file: Path, reason: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    components = []
+    for path in iter_source_files(source_dir):
+        rel = path.relative_to(source_dir).as_posix()
+        components.append(
+            {
+                "type": "file",
+                "name": rel,
+                "version": "0",
+                "hashes": [{"alg": "SHA-256", "content": sha256_file(path)}],
+            }
+        )
+
+    payload = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "version": 1,
+        "metadata": {
+            "timestamp": now,
+            "tools": [
+                {
+                    "vendor": "CloverSec",
+                    "name": "CloverSec-CTF-Build-Dockerizer source-inventory",
+                    "version": source_dir.name,
+                }
+            ],
+            "component": {"type": "application", "name": source_dir.name},
+            "properties": [{"name": "fallback.reason", "value": reason}],
+        },
+        "components": components,
+    }
+    out_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def write_source_inventory_sbom(source_dir: Path, spdx: Path, cdx: Path, reason: str) -> None:
+    write_source_inventory_spdx(source_dir, spdx, reason)
+    write_source_inventory_cdx(source_dir, cdx, reason)
 
 
 def generate_deps_report(source_dir: Path, out_file: Path) -> None:
     lines: list[str] = []
     lines.append("# CloverSec release dependency summary")
-    lines.append(f"source_dir: {source_dir}")
+    lines.append(f"source_dir: {source_dir.name}")
 
     stacks_yaml = source_dir / "data" / "stacks.yaml"
     if stacks_yaml.exists():
@@ -89,16 +184,13 @@ def run_cmd(cmd: list[str], stdout_file: Path | None = None) -> int:
         return 127
 
 
-def syft_generate(source_dir: Path, spdx: Path, cdx: Path) -> None:
+def syft_generate(source_dir: Path, spdx: Path, cdx: Path) -> bool:
     code_spdx = run_cmd(["syft", f"dir:{source_dir}", "-o", "spdx-json"], spdx)
-    if code_spdx != 0:
-        write_placeholder_json(spdx, "spdx-json", "syft failed to generate SPDX")
     code_cdx = run_cmd(["syft", f"dir:{source_dir}", "-o", "cyclonedx-json"], cdx)
-    if code_cdx != 0:
-        write_placeholder_json(cdx, "cyclonedx-json", "syft failed to generate CycloneDX")
+    return code_spdx == 0 and code_cdx == 0
 
 
-def docker_sbom_generate(source_dir: Path, spdx: Path, cdx: Path) -> None:
+def docker_sbom_generate(source_dir: Path, spdx: Path, cdx: Path) -> bool:
     with tempfile.TemporaryDirectory(prefix="cloversec-sbom-") as td:
         tmp = Path(td)
         dockerfile = tmp / "Dockerfile"
@@ -118,17 +210,12 @@ def docker_sbom_generate(source_dir: Path, spdx: Path, cdx: Path) -> None:
         tmp_tag = f"cloversec-sbom-tmp:{int(datetime.now().timestamp())}"
         built = subprocess.run(["docker", "build", "-q", "-t", tmp_tag, str(tmp)], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if built.returncode != 0:
-            write_placeholder_json(spdx, "spdx-json", "docker build failed for sbom fallback")
-            write_placeholder_json(cdx, "cyclonedx-json", "docker build failed for sbom fallback")
-            return
+            return False
 
         try:
             code_spdx = run_cmd(["docker", "sbom", "--format", "spdx-json", tmp_tag], spdx)
-            if code_spdx != 0:
-                write_placeholder_json(spdx, "spdx-json", "docker sbom failed for SPDX")
             code_cdx = run_cmd(["docker", "sbom", "--format", "cyclonedx-json", tmp_tag], cdx)
-            if code_cdx != 0:
-                write_placeholder_json(cdx, "cyclonedx-json", "docker sbom failed for CycloneDX")
+            return code_spdx == 0 and code_cdx == 0
         finally:
             subprocess.run(["docker", "rmi", tmp_tag], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -151,16 +238,25 @@ def main() -> int:
 
     generate_deps_report(source_dir, deps)
 
+    generated = False
+    fallback_reason = ""
+
     if shutil.which("syft"):
-        syft_generate(source_dir, spdx, cdx)
+        generated = syft_generate(source_dir, spdx, cdx)
+        if not generated:
+            fallback_reason = "syft failed; generated source inventory SBOM"
     else:
         has_docker = shutil.which("docker") is not None
         docker_sbom_help = subprocess.run(["docker", "sbom", "--help"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0 if has_docker else False
         if docker_sbom_help:
-            docker_sbom_generate(source_dir, spdx, cdx)
+            generated = docker_sbom_generate(source_dir, spdx, cdx)
+            if not generated:
+                fallback_reason = "docker sbom failed; generated source inventory SBOM"
         else:
-            write_placeholder_json(spdx, "spdx-json", "no syft/docker sbom available")
-            write_placeholder_json(cdx, "cyclonedx-json", "no syft/docker sbom available")
+            fallback_reason = "no syft/docker sbom available; generated source inventory SBOM"
+
+    if not generated:
+        write_source_inventory_sbom(source_dir, spdx, cdx, fallback_reason)
 
     for required in (spdx, cdx, deps):
         if not required.exists():

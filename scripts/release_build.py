@@ -56,6 +56,33 @@ def cleanup_python_cache(paths: list[Path]) -> None:
             shutil.rmtree(folder, ignore_errors=True)
 
 
+def git_status_snapshot(root: Path) -> bytes:
+    proc = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain", "-z"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.decode("utf-8", errors="ignore").strip())
+    return proc.stdout
+
+
+def assert_checks_did_not_modify_source(root: Path, before: bytes) -> None:
+    after = git_status_snapshot(root)
+    if after == before:
+        return
+    proc = subprocess.run(
+        ["git", "-C", str(root), "status", "--short"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    detail = proc.stdout.strip() or proc.stderr.strip() or "unknown git status change"
+    raise RuntimeError(f"发布前检查修改了源码树，请先手动审查这些变更：\n{detail}")
+
+
 def privacy_scan(paths: list[Path]) -> None:
     pattern = re.compile(r"/[Uu]sers/|yuque\.com/[A-Za-z0-9_-]+|By\[@")
     for path in paths:
@@ -71,10 +98,34 @@ def privacy_scan(paths: list[Path]) -> None:
                         raise RuntimeError(f"公开目录存在私有信息: {file}")
 
 
-def copy_skill_tree(src: Path, dst: Path) -> None:
+def is_git_ignored(repo_root: Path, path: Path) -> bool:
+    try:
+        rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return False
+    proc = subprocess.run(
+        ["git", "-C", str(repo_root), "check-ignore", "-q", "--", rel],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return proc.returncode == 0
+
+
+def copy_skill_tree(src: Path, dst: Path, repo_root: Path) -> None:
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(src, dst)
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in sorted(src.rglob("*")):
+        if is_git_ignored(repo_root, item):
+            continue
+        rel = item.relative_to(src)
+        target = dst / rel
+        if item.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif item.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item, target)
     for file in list(dst.rglob(".DS_Store")):
         file.unlink(missing_ok=True)
     for file in list(dst.rglob("*.pyc")) + list(dst.rglob("*.pyo")) + list(dst.rglob("*.pyd")):
@@ -129,6 +180,7 @@ def main() -> int:
 
         if not args.skip_checks:
             print("[INFO] 执行发布前检查...")
+            status_before_checks = git_status_snapshot(root)
             py_files = [str(p) for p in sorted((src_skill_dir / "scripts").glob("*.py"))]
             py_files.extend(str(p) for p in sorted((root / "scripts").glob("*.py")))
             run([sys.executable, "-m", "py_compile", *py_files])
@@ -144,11 +196,13 @@ def main() -> int:
             cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
             privacy_scan([root / "README.md", src_skill_dir])
             run(["bash", str(root / "scripts" / "doc_guard.sh")])
+            cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
+            assert_checks_did_not_modify_source(root, status_before_checks)
         else:
             print("[WARN] 已跳过发布前检查（--skip-checks）")
 
         print("[INFO] 组装发布目录...")
-        copy_skill_tree(src_skill_dir, release_root)
+        copy_skill_tree(src_skill_dir, release_root, root)
 
         required = ["SKILL.md", "data", "scripts", "templates", "examples", "docs"]
         for item in required:

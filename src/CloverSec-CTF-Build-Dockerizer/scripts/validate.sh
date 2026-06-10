@@ -564,10 +564,31 @@ extract_xinetd_port_from_context() {
 }
 
 parse_qemu_hostfwd_ports() {
-  grep -Eho 'hostfwd=(tcp|udp)::[0-9]+-:[0-9]+' "$START_SH" "$DOCKERFILE" 2>/dev/null \
-    | sed -E 's/^hostfwd=(tcp|udp)::([0-9]+)-:[0-9]+$/\2/' \
+  grep -Eho 'hostfwd=tcp::[0-9]+-:[0-9]+' "$START_SH" "$DOCKERFILE" 2>/dev/null \
+    | sed -E 's/^hostfwd=tcp::([0-9]+)-:[0-9]+$/\1/' \
     | awk 'NF' \
     | sort -u || true
+}
+
+extract_qemu_binary_from_start() {
+  grep -E '^[[:space:]]*QEMU_BINARY=' "$START_SH" 2>/dev/null \
+    | head -n1 \
+    | sed -E 's/^[[:space:]]*QEMU_BINARY=["'\'']?([^"'\'']+)["'\'']?.*$/\1/' || true
+}
+
+qemu_package_for_binary() {
+  local binary="$1"
+  case "$binary" in
+    qemu-system-x86_64|qemu-system-i386)
+      echo "qemu-system-x86"
+      ;;
+    qemu-system-aarch64|qemu-system-arm)
+      echo "qemu-system-arm"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
 }
 
 csv_to_lines() {
@@ -1064,10 +1085,24 @@ run_dynamic_checks() {
       log_result ERROR "linux-qemu 未检测到 exec qemu-system-* 前台启动。"
     fi
 
-    if contains_re "$DOCKERFILE" 'qemu-system-x86|qemu-system-[A-Za-z0-9_-]+'; then
+    if contains_re "$DOCKERFILE" 'qemu-system-x86|qemu-system-arm|qemu-system-[A-Za-z0-9_-]+'; then
       log_result INFO "Dockerfile 已安装或声明 QEMU system 依赖"
     else
       log_result ERROR "linux-qemu Dockerfile 未检测到 qemu-system-* 依赖。"
+    fi
+
+    local qemu_binary_cfg
+    local qemu_pkg_required
+    qemu_binary_cfg="$(extract_qemu_binary_from_start)"
+    qemu_pkg_required="$(qemu_package_for_binary "$qemu_binary_cfg")"
+    if [[ -z "$qemu_binary_cfg" ]]; then
+      log_result ERROR "linux-qemu 未检测到 QEMU_BINARY 配置。"
+    elif [[ -z "$qemu_pkg_required" ]]; then
+      log_result WARN "未内置 ${qemu_binary_cfg} 的 Debian 包名映射，请人工确认 Dockerfile 已安装该 binary。"
+    elif contains_re "$DOCKERFILE" "$qemu_pkg_required"; then
+      log_result INFO "QEMU binary ${qemu_binary_cfg} 对应依赖 ${qemu_pkg_required} 已声明"
+    else
+      log_result ERROR "QEMU binary ${qemu_binary_cfg} 需要 ${qemu_pkg_required}，但 Dockerfile 未声明。"
     fi
 
     if contains_re "$START_SH" '(^|[[:space:]])-nographic([[:space:]]|$)'; then
@@ -1076,7 +1111,11 @@ run_dynamic_checks() {
       log_result ERROR "linux-qemu start.sh 未检测到 -nographic。"
     fi
 
-    if contains_re "$START_SH" 'hostfwd=(tcp|udp)::[0-9]+-:[0-9]+'; then
+    if contains_re "$START_SH" 'hostfwd=udp::[0-9]+-:[0-9]+'; then
+      log_result ERROR "linux-qemu v2.1.0 仅支持 TCP hostfwd，不支持 UDP。"
+    fi
+
+    if contains_re "$START_SH" 'hostfwd=tcp::[0-9]+-:[0-9]+'; then
       log_result INFO "QEMU user networking 已声明 hostfwd"
     else
       log_result ERROR "linux-qemu 未检测到 QEMU hostfwd，平台端口无法到达 guest 服务。"
@@ -1127,10 +1166,15 @@ run_dynamic_checks() {
     fi
 
     if [[ "$VM_FLAG_INJECTION_CFG" == "debugfs" ]]; then
-      if contains_re "$DOCKERFILE" 'e2fsprogs' && contains_re "$START_SH" '/changeflag\.sh'; then
-        log_result INFO "linux-qemu flag 注入声明为 debugfs，镜像包含 e2fsprogs 且启动时会调用 changeflag"
+      local changeflag_host
+      changeflag_host="${qemu_base_dir}/changeflag.sh"
+      if contains_re "$DOCKERFILE" 'e2fsprogs' \
+        && contains_re "$START_SH" '/changeflag\.sh' \
+        && [[ -f "$changeflag_host" ]] \
+        && contains_re "$changeflag_host" 'debugfs[[:space:]]+-w[[:space:]]+-R[[:space:]]+"(write|rm|set_inode_field)[^"]*"'; then
+        log_result INFO "linux-qemu flag 注入声明为 debugfs，镜像包含 e2fsprogs，changeflag.sh 会写 guest rootfs"
       else
-        log_result ERROR "linux-qemu flag_injection=debugfs 但未检测到 e2fsprogs 或 /changeflag.sh 调用。"
+        log_result ERROR "linux-qemu flag_injection=debugfs 但未检测到 e2fsprogs、/changeflag.sh 调用或 debugfs 写 guest rootfs 逻辑。"
       fi
       if [[ "$VM_GUEST_FLAG_PATH_CFG" == /* ]]; then
         log_result INFO "guest flag 路径为绝对路径: ${VM_GUEST_FLAG_PATH_CFG}"

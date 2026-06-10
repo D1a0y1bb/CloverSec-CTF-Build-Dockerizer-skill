@@ -23,7 +23,13 @@ _ALLOWED_VM_ACCELERATORS = {"auto", "tcg", "kvm"}
 _ALLOWED_VM_ASSET_MODES = {"prebuilt", "build-script"}
 _ALLOWED_VM_FLAG_INJECTIONS = {"debugfs", "none"}
 _ALLOWED_VM_HEALTHCHECK_MODES = {"tcp", "ssh-banner", "ssh-auth-denied", "custom"}
-_ALLOWED_VM_FORWARD_PROTOCOLS = {"tcp", "udp"}
+_ALLOWED_VM_FORWARD_PROTOCOLS = {"tcp"}
+_ALLOWED_VM_DRIVE_FORMATS = {"raw", "qcow2"}
+_SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.+-]+$")
+_SAFE_QEMU_VALUE_RE = re.compile(r"^[A-Za-z0-9_.:/,=+-]+$")
+_SAFE_REL_PATH_RE = re.compile(r"^[A-Za-z0-9_./@+=-]+$")
+_SAFE_GUEST_ABS_PATH_RE = re.compile(r"^/[A-Za-z0-9_./@+=-]+$")
+_SHELL_META_RE = re.compile(r"[$`\"'\\\n\r;&|<>]")
 _DEFAULT_QEMU_BY_ARCH = {
     "x86_64": "qemu-system-x86_64",
     "amd64": "qemu-system-x86_64",
@@ -215,6 +221,46 @@ def _clean_relpath(value: Any, field_name: str, default: str) -> str:
     path = Path(raw)
     if path.is_absolute() or ".." in path.parts:
         raise ConfigError(f"{field_name} 必须是相对路径，且不能包含 ..")
+    if not _SAFE_REL_PATH_RE.match(raw) or _SHELL_META_RE.search(raw):
+        raise ConfigError(f"{field_name} 包含不安全字符，仅支持字母、数字、点、斜杠、下划线、短横线、@、+、=")
+    return raw
+
+
+def _clean_token(value: Any, field_name: str, default: str, *, lower: bool = False) -> str:
+    raw = str(first_non_empty(value, default) or default).strip()
+    if lower:
+        raw = raw.lower()
+    if not raw or not _SAFE_TOKEN_RE.match(raw) or _SHELL_META_RE.search(raw):
+        raise ConfigError(f"{field_name} 包含不安全字符")
+    return raw
+
+
+def _clean_qemu_value(value: Any, field_name: str, default: str) -> str:
+    raw = str(first_non_empty(value, default) or default).strip()
+    if not raw or not _SAFE_QEMU_VALUE_RE.match(raw) or _SHELL_META_RE.search(raw):
+        raise ConfigError(f"{field_name} 包含不安全字符")
+    return raw
+
+
+def _clean_extra_args(value: Any, field_name: str) -> str:
+    raw = str(first_non_empty(value, "") or "").strip()
+    if not raw:
+        return ""
+    if _SHELL_META_RE.search(raw):
+        raise ConfigError(f"{field_name} 包含 shell 元字符")
+    try:
+        shlex.split(raw)
+    except ValueError as exc:
+        raise ConfigError(f"{field_name} 参数格式非法: {exc}") from exc
+    return raw
+
+
+def _clean_guest_abs_path(value: Any, field_name: str, default: str) -> str:
+    raw = str(first_non_empty(value, default) or default).strip()
+    if not raw.startswith("/"):
+        raise ConfigError(f"{field_name} 必须是 guest 内绝对路径")
+    if not _SAFE_GUEST_ABS_PATH_RE.match(raw) or _SHELL_META_RE.search(raw) or ".." in Path(raw).parts:
+        raise ConfigError(f"{field_name} 包含不安全字符")
     return raw
 
 
@@ -230,7 +276,7 @@ def _normalize_vm_guest_forwards(value: Any, expose_ports: List[str]) -> List[Di
             raise ConfigError(f"challenge.vm.guest_forwards 第 {idx} 项必须是对象")
         proto = str(first_non_empty(item.get("proto"), "tcp") or "tcp").strip().lower()
         if proto not in _ALLOWED_VM_FORWARD_PROTOCOLS:
-            raise ConfigError(f"challenge.vm.guest_forwards 第 {idx} 项 proto 仅支持 tcp/udp")
+            raise ConfigError(f"challenge.vm.guest_forwards 第 {idx} 项 proto 仅支持 tcp")
         host_port = _parse_port(item.get("host_port"), f"challenge.vm.guest_forwards[{idx}].host_port", "22")
         guest_port = _parse_port(item.get("guest_port"), f"challenge.vm.guest_forwards[{idx}].guest_port", host_port)
         forwards.append({"proto": proto, "host_port": host_port, "guest_port": guest_port})
@@ -263,12 +309,31 @@ def _quote_shell(value: str) -> str:
     return shlex.quote(str(value))
 
 
+def _vm_default_healthcheck_cmd(mode: str, host_port: str) -> str:
+    if mode == "tcp":
+        return f"bash -lc 'echo > /dev/tcp/127.0.0.1/{host_port}'"
+    if mode == "ssh-banner":
+        return (
+            "bash -lc 'timeout 8 bash -c "
+            f"\"cat < /dev/tcp/127.0.0.1/{host_port}\" | head -c 4 | grep -q SSH-'"
+        )
+    if mode == "ssh-auth-denied":
+        return (
+            "bash -lc 'ssh -o BatchMode=yes -o StrictHostKeyChecking=no "
+            "-o UserKnownHostsFile=/dev/null -o ConnectTimeout=5 "
+            f"-p {host_port} 127.0.0.1 true 2>&1 | grep -Eqi \"Permission denied|denied\"'"
+        )
+    raise ConfigError("challenge.vm.healthcheck_mode=custom 时必须显式提供 challenge.healthcheck.cmd")
+
+
 def _normalize_vm_config(vm_cfg: Dict[str, Any], expose_ports: List[str]) -> Dict[str, Any]:
-    arch = str(first_non_empty(vm_cfg.get("arch"), "x86_64") or "x86_64").strip().lower()
-    qemu_binary = str(
+    arch = _clean_token(vm_cfg.get("arch"), "challenge.vm.arch", "x86_64", lower=True)
+    qemu_binary = _clean_token(
         first_non_empty(vm_cfg.get("qemu_binary"), _DEFAULT_QEMU_BY_ARCH.get(arch), "qemu-system-x86_64")
-        or "qemu-system-x86_64"
-    ).strip()
+        or "qemu-system-x86_64",
+        "challenge.vm.qemu_binary",
+        "qemu-system-x86_64",
+    )
     if not qemu_binary.startswith("qemu-system-"):
         raise ConfigError("challenge.vm.qemu_binary 必须是 qemu-system-*")
 
@@ -304,23 +369,25 @@ def _normalize_vm_config(vm_cfg: Dict[str, Any], expose_ports: List[str]) -> Dic
     hostfwd_ports = [item["host_port"] for item in forwards]
 
     rootfs = _clean_relpath(vm_cfg.get("rootfs"), "challenge.vm.rootfs", "vm/rootfs.ext4")
-    guest_flag_path = str(first_non_empty(vm_cfg.get("guest_flag_path"), "/root/flag") or "/root/flag").strip()
-    if not guest_flag_path.startswith("/"):
-        raise ConfigError("challenge.vm.guest_flag_path 必须是 guest 内绝对路径")
+    drive_format = _clean_token(vm_cfg.get("drive_format"), "challenge.vm.drive_format", "raw", lower=True)
+    if drive_format not in _ALLOWED_VM_DRIVE_FORMATS:
+        raise ConfigError("challenge.vm.drive_format 仅支持 raw/qcow2")
+
+    guest_flag_path = _clean_guest_abs_path(vm_cfg.get("guest_flag_path"), "challenge.vm.guest_flag_path", "/root/flag")
 
     normalized = {
         "arch": arch,
         "qemu_binary": qemu_binary,
-        "machine": str(first_non_empty(vm_cfg.get("machine"), "q35") or "q35").strip(),
+        "machine": _clean_qemu_value(vm_cfg.get("machine"), "challenge.vm.machine", "q35"),
         "accelerator": accelerator,
         "require_kvm": _to_bool(vm_cfg.get("require_kvm"), "challenge.vm.require_kvm", False),
-        "cpu": str(first_non_empty(vm_cfg.get("cpu"), "max") or "max").strip(),
+        "cpu": _clean_qemu_value(vm_cfg.get("cpu"), "challenge.vm.cpu", "max"),
         "memory": memory,
         "cpus": str(cpus),
         "kernel": _clean_relpath(vm_cfg.get("kernel"), "challenge.vm.kernel", "vm/vmlinuz"),
         "initrd": _clean_relpath(vm_cfg.get("initrd"), "challenge.vm.initrd", "vm/initrd.img"),
         "rootfs": rootfs,
-        "drive_format": str(first_non_empty(vm_cfg.get("drive_format"), "raw") or "raw").strip(),
+        "drive_format": drive_format,
         "append": str(
             first_non_empty(
                 vm_cfg.get("append"),
@@ -329,12 +396,12 @@ def _normalize_vm_config(vm_cfg: Dict[str, Any], expose_ports: List[str]) -> Dic
             or ""
         ).strip(),
         "netdev_id": netdev_id,
-        "net_device": str(first_non_empty(vm_cfg.get("net_device"), "e1000") or "e1000").strip(),
+        "net_device": _clean_qemu_value(vm_cfg.get("net_device"), "challenge.vm.net_device", "e1000"),
         "guest_forwards": forwards,
         "hostfwd_ports": hostfwd_ports,
         "netdev": _build_vm_netdev(forwards, netdev_id),
-        "monitor": str(first_non_empty(vm_cfg.get("monitor"), "none") or "none").strip(),
-        "extra_args": str(first_non_empty(vm_cfg.get("extra_args"), "") or "").strip(),
+        "monitor": _clean_qemu_value(vm_cfg.get("monitor"), "challenge.vm.monitor", "none"),
+        "extra_args": _clean_extra_args(vm_cfg.get("extra_args"), "challenge.vm.extra_args"),
         "asset_mode": asset_mode,
         "build_script": _clean_relpath(vm_cfg.get("build_script"), "challenge.vm.build_script", "scripts/build-vm.sh"),
         "guest_flag_path": guest_flag_path,
@@ -685,11 +752,7 @@ def build_render_context(
             )
         if healthcheck_enabled and not _has_value(healthcheck_cfg.get("cmd")):
             health_port = vm_config["hostfwd_ports"][0]
-            healthcheck_cmd = (
-                "bash -lc 'timeout 8 bash -c \"</dev/tcp/127.0.0.1/"
-                + health_port
-                + "\"'"
-            )
+            healthcheck_cmd = _vm_default_healthcheck_cmd(vm_config["healthcheck_mode"], health_port)
 
     # 启动命令优先级：CLI > challenge > patterns 推断 > stacks defaults
     cmd_from_cli = args.start_cmd.strip() if isinstance(args.start_cmd, str) and args.start_cmd.strip() else ""

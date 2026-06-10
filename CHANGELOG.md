@@ -16,6 +16,8 @@
 - `derive_config.py`、`parse_config_block.py`、`data/stacks.yaml`、`data/patterns.yaml` 同步支持 `linux-qemu`。
 - `validate.sh` 增加 QEMU 专项检查：QEMU 依赖、`-nographic`、`hostfwd`、monitor/gdbstub 风险、VM 资产、KVM 要求、guest flag 路径、EXPOSE 与 hostfwd 一致性。
 - `smoke_test.sh` 增加 `LINUX_QEMU_RUN_MODE=validate-only|build-only|full`，默认仅做 render/validate。
+- `linux-qemu` 渲染增加 VM 字段字符级校验、TCP-only guest forward、`healthcheck_mode` 默认命令映射与 aarch64 QEMU 包校验。
+- release 打包跳过 Git ignored 文件，SBOM 工具不可用时生成源码清单型 SBOM，并阻止打包校验阶段改写源目录。
 
 ### 发布
 

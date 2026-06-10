@@ -7,7 +7,7 @@ RUN set -eux; \
     if command -v apt-get >/dev/null 2>&1; then \
       apt-get update && apt-get install -y --no-install-recommends \
         bash ca-certificates e2fsprogs iproute2 openssh-client procps \
-        qemu-system-x86 qemu-utils xz-utils && \
+        qemu-system-arm qemu-system-x86 qemu-utils xz-utils && \
       rm -rf /var/lib/apt/lists/*; \
     else \
       echo "[ERROR] linux-qemu 模板当前仅支持 apt 系基础镜像" >&2; \
@@ -50,6 +50,6 @@ RUN chmod 555 /start.sh && chmod 555 /changeflag.sh && chmod 444 /flag
 # 对外暴露端口（至少一个）
 EXPOSE 22
 
-HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=90s CMD bash -lc 'timeout 8 bash -c "</dev/tcp/127.0.0.1/22"'
+HEALTHCHECK --interval=30s --timeout=10s --retries=5 --start-period=90s CMD bash -lc 'timeout 8 bash -c "cat < /dev/tcp/127.0.0.1/22" | head -c 4 | grep -q SSH-'
 # 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

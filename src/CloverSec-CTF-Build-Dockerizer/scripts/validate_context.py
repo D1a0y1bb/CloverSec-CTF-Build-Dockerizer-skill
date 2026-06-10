@@ -80,10 +80,10 @@ def main() -> int:
         "RDG_CHECK_ENABLED_CFG": pick_bool(source, "check_enabled", profile in {"rdg", "awdp", "secops"}),
         "RDG_CHECK_SCRIPT_PATH_CFG": str(source.get("check_script_path") or "check/check.sh").strip(),
         "RDG_WORKDIR_CFG": str(challenge.get("workdir") or "/app").strip(),
-        "ALLOW_LOOPBACK_BIND_CFG": (
-            "true"
-            if bool((challenge.get("platform") or {}).get("allow_loopback_bind", False))
-            else "false"
+        "ALLOW_LOOPBACK_BIND_CFG": pick_bool(
+            challenge.get("platform") if isinstance(challenge.get("platform"), dict) else {},
+            "allow_loopback_bind",
+            False,
         ),
         "FLAG_OPTIONAL_CFG": flag_optional,
         "START_CMD_CFG": str(((challenge.get("start") or {}).get("cmd")) or "").strip(),

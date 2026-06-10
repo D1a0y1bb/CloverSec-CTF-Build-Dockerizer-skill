@@ -56,7 +56,7 @@ challenge:
     drive_format: "raw"
     append: "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1"
     guest_forwards:
-      - proto: "tcp"
+      - proto: "tcp"   # v2.1.0 only supports tcp
         host_port: "22"
         guest_port: "22"
     monitor: "none"
@@ -124,6 +124,8 @@ challenge:
 - `challenge.vm`
   - 仅用于 `stack=linux-qemu`。
   - `expose_ports` 表示 Docker 容器对外端口；`vm.guest_forwards[*].host_port` 必须出现在 `expose_ports` 中。
+  - `vm.guest_forwards[*].proto` 在 `v2.1.0` 仅支持 `tcp`。
+  - `vm.drive_format` 仅支持 `raw/qcow2`；`qemu_binary`、VM 相对路径、`guest_flag_path`、`extra_args` 会做字符级安全校验。
   - `accelerator=tcg` 是默认可移植模式；`accelerator=kvm` 或 `require_kvm=true` 需要运行平台显式提供 `/dev/kvm`。
   - `asset_mode=prebuilt` 表示题目目录已经包含 kernel/initrd/rootfs；`asset_mode=build-script` 表示构建镜像时执行 `build_script` 生成 VM 资产。
   - `flag_injection=debugfs` 会让生成的 `changeflag.sh` 同时写外层 `/flag` 和 guest rootfs 内的 `guest_flag_path`。

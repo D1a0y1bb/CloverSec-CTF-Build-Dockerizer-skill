@@ -805,6 +805,13 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             return default
 
         host_port = guessed_ports[0] if guessed_ports else "22"
+        proposal["config_proposal"]["healthcheck"] = {
+            "enabled": True,
+            "interval": "30s",
+            "timeout": "10s",
+            "retries": 5,
+            "start_period": "90s",
+        }
         proposal["config_proposal"]["vm"] = {
             "arch": "x86_64",
             "qemu_binary": "qemu-system-x86_64",

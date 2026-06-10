@@ -110,6 +110,7 @@ flowchart LR
 | 场景能力 | 入口 | 作用 | 产出 |
 |---|---|---|---|
 | BaseUnit 组件渲染 | `render_component.py` | 生成“组件 + 指定版本”最小单元 | 可直接 `docker build` 的目录 |
+| Linux-QEMU 内核题渲染 | `render.py` | 生成 Docker 内 QEMU guest 启动环境 | 单镜像交付目录 |
 | Scenario 场景渲染 | `render_scenario.py` | 渲染多服务本地编排 | 服务目录 + `docker-compose.yml` |
 | Scenario 场景校验 | `validate_scenario.py` | 校验 mode/profile/端口/AWDP 补丁契约 | pass/fail |
 | Release 打包与发布 | `scripts/release_build.sh` / `scripts/publish_release.sh` | 生成资产并发布 tag/release | zip/sbom/deps |
@@ -147,7 +148,7 @@ npx skills add https://github.com/d1a0y1bb/cloversec-ctf-build-dockerizer-skill 
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit 构建与 Scenario 编排"
+  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
   default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
 ```
 
@@ -223,7 +224,6 @@ challenge:
     mode: cmd
     cmd: "qemu-system-x86_64"
   vm:
-    engine: qemu
     arch: x86_64
     accelerator: tcg
     memory: 768M
@@ -491,6 +491,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `templates/rdg/` | RDG 专用模板 |
 | `templates/secops/` | SecOps 专用模板 |
 | `templates/baseunit/` | BaseUnit 通用模板 |
+| `templates/linux-qemu/` | Linux kernel CVE/LPE 的 QEMU guest 模板 |
 | `templates/snippets/` | defense/check/changeflag 等片段 |
 | `templates/README.md` | 模板目录说明 |
 
@@ -502,6 +503,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `examples/node-awdp-basic` | AWDP 单题补丁契约示例 |
 | `examples/secops-*-basic` | SecOps 示例 |
 | `examples/baseunit-*` | BaseUnit 示例 |
+| `examples/linux-qemu-basic` | Linux-QEMU 占位 VM 资产示例 |
 | `examples/scenario-awd-basic` | AWD 场景示例 |
 | `examples/scenario-awdp-basic` | AWDP 场景示例 |
 | `examples/scenario-vulhub-like-basic` | Vulhub-like 迁移示例 |

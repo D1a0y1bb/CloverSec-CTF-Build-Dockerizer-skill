@@ -5,7 +5,7 @@ RUN set -eux; \
     if command -v apt-get >/dev/null 2>&1; then \
       apt-get update && apt-get install -y --no-install-recommends \
         bash ca-certificates e2fsprogs iproute2 openssh-client procps \
-        qemu-system-x86 qemu-utils xz-utils && \
+        qemu-system-arm qemu-system-x86 qemu-utils xz-utils && \
       rm -rf /var/lib/apt/lists/*; \
     else \
       echo "[ERROR] linux-qemu 模板当前仅支持 apt 系基础镜像" >&2; \

@@ -128,11 +128,18 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.vm.kernel` | 否 | `vm/vmlinuz` | `vm/vmlinuz` | `-kernel` |
 | `challenge.vm.initrd` | 否 | `vm/initrd.img` | `vm/initrd.img` | `-initrd` |
 | `challenge.vm.rootfs` | 否 | `vm/rootfs.ext4` | `vm/rootfs.ext4` | `-drive file=...` |
+| `challenge.vm.machine` | 否 | 空 | `q35` | `-machine`，只允许安全 token |
+| `challenge.vm.cpu` | 否 | `max` | `max` | `-cpu`，只允许安全 token |
+| `challenge.vm.drive_format` | 否 | `raw` | `qcow2` | `raw/qcow2` |
 | `challenge.vm.append` | 否 | 模板默认 | `console=ttyS0 ...` | `-append` |
-| `challenge.vm.guest_forwards` | 否 | 首个 `expose_ports` | `tcp 22->22` | QEMU `hostfwd` |
+| `challenge.vm.guest_forwards` | 否 | 首个 `expose_ports` | `tcp 22->22` | QEMU `hostfwd`，v2.1.0 仅支持 `tcp` |
+| `challenge.vm.monitor` | 否 | `none` | `none` | QEMU monitor，默认关闭 |
+| `challenge.vm.extra_args` | 否 | 空 | `-no-reboot` | 追加 QEMU 参数，会做 shell 元字符校验 |
 | `challenge.vm.asset_mode` | 否 | `prebuilt` | `build-script` | VM 资产来源 |
+| `challenge.vm.build_script` | 否 | 空 | `build-vm.sh` | `asset_mode=build-script` 时使用题目目录内相对脚本 |
 | `challenge.vm.guest_flag_path` | 否 | `/root/flag` | `/root/flag` | guest 内 flag 路径 |
 | `challenge.vm.flag_injection` | 否 | `debugfs` | `debugfs` | guest flag 写入方式 |
+| `challenge.vm.healthcheck_mode` | 否 | `tcp` | `ssh-banner` | linux-qemu 默认 healthcheck 生成策略 |
 | `challenge.extra.env` | 否 | `{}` | `{NODE_ENV: production}` | `{{ENV_BLOCK}}` |
 | `challenge.extra.copy` | 否 | `[]` | `[{from:a,to:b}]` | `{{COPY_APP}}` |
 | `challenge.extra.user` | 否 | 空 | `www-data` | 当前不直接渲染 |

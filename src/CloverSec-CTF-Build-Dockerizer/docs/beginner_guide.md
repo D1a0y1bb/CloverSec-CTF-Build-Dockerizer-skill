@@ -14,6 +14,7 @@
 - Jeopardy / Web / Pwn / AI
 - RDG / AWD / AWDP / SecOps
 - BaseUnit 纯基座组件渲染
+- Linux-QEMU 内核题环境渲染
 - Scenario 本地多服务编排
 
 主链路是：
