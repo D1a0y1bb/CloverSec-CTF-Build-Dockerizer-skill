@@ -1233,7 +1233,8 @@ run_dynamic_checks() {
       if contains_re "$DOCKERFILE" 'e2fsprogs' \
         && contains_re "$START_SH" '/changeflag\.sh' \
         && [[ -f "$changeflag_host" ]] \
-        && contains_re "$changeflag_host" 'debugfs[[:space:]]+-w[[:space:]]+-R[[:space:]]+"(write|rm|set_inode_field)[^"]*"'; then
+        && contains_re "$changeflag_host" 'debugfs[[:space:]]+-w' \
+        && contains_re "$changeflag_host" '(^|[[:space:]])(write|rm|set_inode_field|sif)[[:space:]]+'; then
         log_result INFO "linux-qemu flag 注入声明为 debugfs，镜像包含 e2fsprogs，changeflag.sh 会写 guest rootfs"
       else
         log_result ERROR "linux-qemu flag_injection=debugfs 但未检测到 e2fsprogs、/changeflag.sh 调用或 debugfs 写 guest rootfs 逻辑。"

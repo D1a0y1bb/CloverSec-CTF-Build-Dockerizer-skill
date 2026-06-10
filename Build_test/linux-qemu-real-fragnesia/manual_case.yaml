@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: linux-qemu-real-fragnesia
+title: "Fragnesia Linux-QEMU real asset case"
+external_case_dir: "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-46300 Fragnesia Linux Kernel LPE/code"
+asset_policy:
+  store_in_repo: false
+  reason: "VM rootfs is about 1.2 GB and belongs to release/manual validation, not default CI."
+expected:
+  accelerator: tcg
+  require_kvm: false
+  host_port: "22"
+  guest_port: "22"
+  guest_flag_path: "/root/flag"
+manual_commands:
+  preflight: >-
+    bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir
+    "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-46300 Fragnesia Linux Kernel LPE/code"
+    --json-summary /tmp/linux-qemu-fragnesia-preflight.json
+  boot: >-
+    bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir
+    "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-46300 Fragnesia Linux Kernel LPE/code"
+    --host-port 2222 --timeout-seconds 300
+    --json-summary /tmp/linux-qemu-fragnesia-boot.json
+  flag: >-
+    bash scripts/linux_qemu_manual_check.sh --mode flag --case-dir
+    "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-46300 Fragnesia Linux Kernel LPE/code"
+    --host-port 2222 --timeout-seconds 300 --flag "flag{manual-fragnesia-check}"
+    --json-summary /tmp/linux-qemu-fragnesia-flag.json
+current_limits:
+  - "Heavy VM assets are referenced by path and are not committed."
+  - "PoC reproduction is provided through --poc-cmd when the operator supplies a command."
+  - "Legacy hand-written QEMU cases may still need separate static contract cleanup."

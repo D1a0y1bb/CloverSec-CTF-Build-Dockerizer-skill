@@ -9,6 +9,7 @@ The pool intentionally contains both passing and failing cases. A failing Docker
 - `cases.yaml` is the machine-readable case list.
 - Each case directory has `case_note.md` with source, expected route, verification level, and current limits.
 - Large VM assets, archives, `.git`, `node_modules`, caches, and files over 20 MB must not be copied into this directory.
+- Linux-QEMU real asset cases may use a `manual_case.yaml` record that points to an external local path. Do not copy large rootfs/kernel archives into Git.
 
 ## Regression Commands
 
@@ -28,6 +29,7 @@ The script runs input audit for every case. When a case has `Dockerfile`, `start
 | `python-sandbox-existing` | Existing Python sample with historical delivery gaps | expected fail |
 | `cpanel-whm-authbypass-rce` | cPanel/WHM routing to bundle_recipe while Docker contract passes | expected pass |
 | `linux-qemu-copy-fail-missing-assets` | Linux-QEMU missing VM assets and manual review route | expected fail |
+| `linux-qemu-real-fragnesia` | External real VM asset record for manual validation | external manual |
 | `web-push-boxs` | Clean Web input with historical Docker contract gaps | expected fail |
 | `web-push-letters` | Clean Web input with historical Docker contract gaps | expected fail |
 | `pwn-house-deploy` | Dirty Pwn input with compose/xinetd shape | skipped contract |

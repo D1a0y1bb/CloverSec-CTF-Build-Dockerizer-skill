@@ -280,6 +280,15 @@ challenge:
 - PoC/EXP 不建议进入镜像，作为附件与题解资料管理。
 - 大型 kernel/rootfs 示例不建议进入默认 CI，完整启动验证应在 release/manual 阶段执行。
 
+Release/manual 验证入口：
+
+```bash
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir /path/to/linux-qemu/code --host-port 2222
+```
+
+详细分层、TCG/KVM 边界、动态 flag 写入和 PoC 证据记录见 `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md`。
+
 ### RDG
 
 适用：防守运维 + check_service 计分场景，通常使用 `stack=rdg`。
