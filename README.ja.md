@@ -28,33 +28,38 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 ## v2.2.0 主な更新
 
-`v2.2.0` は V2 系列の配布機能を 1 つの検証可能なワークフローへ統合します。明確な低リスク `challenge.yaml` は従来通り直接 render できます。mixed、dirty、high_risk、compose/Vulhub-like、Linux-QEMU のアセット不足、cPanel/WHM 系入力は proposal confirmation を要求します。
+`v2.2.0` は、数か月にわたる実運用上の問題と Agent ワークフローの改善をまとめた集中アップグレードです。実際の競技問題配布でよく出る、問題ディレクトリが整理されていない、入力ソースが混在している、古いプロジェクトが compose / Vulhub-like 構造を持っている、Linux kernel CVE / LPE 問題を通常の Docker だけでは正しく再現できない、といった課題を重点的に扱います。Skill 入口と context 管理も大きく見直し、同じタスクで読む文脈を減らし、読み込みを速くし、token 消費を抑えます。
 
 この版の内容：
 
-- Jeopardy/Web/Pwn/AI、RDG/AWD/AWDP/SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU を対象化。プラットフォーム配布物は引き続き単一サービスの `Dockerfile + start.sh + changeflag.sh` で、Scenario/compose はローカル編成用途です。
-- Linux-QEMU は Docker を外側の成果物、QEMU を guest runtime として扱います。TCG が可搬既定、KVM は明示指定、guest flag 注入は `debugfs` で検証できます。
-- `workflow.py`、`audit_input.py`、`derive_config.py` の `input_audit`、accepted proposal、`--reason` 必須の manual override により、高リスク入力の判断を記録します。
-- `validate_examples.sh` は既定で read-only、Scenario は既定で各サービスの `validate.sh` を実行。`Build_test/` は実例ベースのサンプルプールになり、Linux-QEMU release/manual 検証は preflight/static/build/boot/flag/full を提供します。
-- Bundle Recipe prototype、compose/Vulhub-like import draft、HTTP/TCP/Redis/MySQL/SSH check-service stub generator を追加。`CHECK_REVIEW_REQUIRED` が残る check は公開前検証で失敗します。
-- render/validate 系スクリプトの JSON/summary 出力、release-status、SBOM/deps assets、smoke 既定の publish を追加。
-- `SKILL.md` は短い入口と progressive disclosure index に変更。旧長文入口の内容は `orchestrated_workflow.md`、`stack_cookbook.md`、`validation_guide.md`、`schema.md`、`troubleshooting.md` などの運用文書へ移動し、移行監査ファイルは公開パッケージに含めません。
-- Golden snapshot：P1.8 前 `29d470e`、P1.8 後 `108977d`。`SKILL.md` は 1089 行から 206 行、39254 bytes から 10204 bytes へ削減。OK confirmation、5 required confirmation items、low-risk Node proposal/render/validate、Linux-QEMU missing-asset audit は変化なし。Bundle partial と Scenario Vulhub-like の strict digest は失敗から成功へ改善。レポートは `开发文档（不同步）/golden_snapshot_p18/` に保管し、公開 release package には含めません。
+1. 実競技シーンの対応範囲を拡大：Jeopardy、Web、Pwn、AI、RDG、AWD、AWDP、SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU を対象化。競技プラットフォーム向けの最終成果物は単一サービスの `Dockerfile + start.sh + changeflag.sh` 形式を維持し、複数サービス編成は主にローカル検証、移行、複雑な問題整理に使います。
+2. Linux kernel CVE / LPE 専用の配布方式：プラットフォームから見ると 1 つの Docker 成果物ですが、コンテナ内部で QEMU による独立 Linux guest 環境を起動し、指定 kernel、rootfs、問題サービスを載せます。これにより Docker の配布形式を維持しながら、kernel 問題を実際の脆弱環境に近い形で動かせます。
+3. 複雑な入力は先に proposal confirmation：mixed input、dirty directory、high-risk input、compose/Vulhub-like project、Linux-QEMU missing assets、cPanel/WHM 系入力は proposal confirmation に入ります。人工確認で進める場合は理由を記録し、text / JSON output に残します。
+4. 実プロジェクトに近いサンプル検証：`validate_examples.sh` は既定で read-only、`Build_test/` は expected pass / expected fail を扱える実例プール、Scenario は service ごとの検証、Linux-QEMU は preflight から full validation まで段階的に使えます。
+5. Bundle、Compose、service check の拡張：v2.2.0 では Bundle Recipe prototype、compose/Vulhub-like import draft、HTTP/TCP/Redis/MySQL/SSH check-service skeleton を追加しました。
+6. リリース前状態を把握しやすく：render、scenario validation、release checks が structured output に対応しました。
+7. Progressive disclosure による軽い Skill 入口：`SKILL.md` は 1089 行から 206 行へ減り、約 81.1% 削減。bytes は 39254 から 10204 へ減り、約 74.0% 削減。同じタスクで読む入口文脈を減らし、読み込みを速くしました。
 
 ## コア機能マトリクス
 
 | 機能 | エントリスクリプト | 目的 | 出力 |
 |---|---|---|---|
-| 自動提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py` | スタック/ポート/起動/runtime/profile を推定 | `config_proposal` |
+| 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | intake/propose/accept/render/validate/status を編成 | `.ctfbuild/session.json` |
+| 入力監査と提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | スタック/ポート/起動/runtime/profile とリスクを推定 | `input_audit` / `config_proposal` |
 | 提案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | `CONFIG PROPOSAL` を `challenge.yaml` 化 | 正規化設定 |
 | 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
-| 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` |
+| 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` / JSON summary |
 | コンポーネント生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | component+variant 最小単位化 | build 可能なサービスディレクトリ |
+| Bundle/Recipe レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | 固定単一コンテナ複数サービス recipe を生成・検証 | プラットフォーム配布ディレクトリ |
+| Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | draft、renderable subset、import report を生成 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
+| check-service skeleton | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | HTTP/TCP/Redis/MySQL/SSH check 骨格を生成 | review-required `check/check.sh` |
 | Linux-QEMU レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Docker 内 QEMU guest 配布物を生成 | 単一イメージ配布ディレクトリ |
+| Linux-QEMU manual validation | `scripts/linux_qemu_manual_check.sh` | preflight/static/build/boot/flag/full 検証 | JSON summary / evidence notes |
 | シナリオ生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | ローカル複数サービス編成を生成 | service dir + `docker-compose.yml` |
 | シナリオ検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py` | mode/profile/port/AWDP 契約検査 | pass/fail |
 | 例回帰 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh` | examples/scenario 一括回帰 | 集計レポート |
 | スモークテスト | `src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh` | build レベルの高速回帰 | pass/fail |
+| 実例プール回帰 | `scripts/validate_build_test.py` | Build_test cases を expected pass/fail で検証 | structured summary |
 | リリース梱包 | `scripts/release_build.sh` / `scripts/publish_release.sh` | アセット生成と公開 | zip/sbom/deps |
 
 ## ワンコマンド導入と Skill 検出
@@ -101,8 +106,8 @@ interface:
 
 ```text
 CloverSec-CTF-Build-Dockerizer を使って現在の問題ディレクトリを処理してください。
-derive_config による CONFIG PROPOSAL（根拠付き）を先に出し、
-私が OK したら Dockerfile/start.sh/changeflag.sh 生成と validate を実行してください。
+まず intake/propose を実行し、evidence と input_audit 付きの CONFIG PROPOSAL を出力してください。
+私が OK したら accept、render、validate を実行してください。
 ```
 
 ショートプロンプト：
@@ -114,9 +119,11 @@ derive_config による CONFIG PROPOSAL（根拠付き）を先に出し、
 ### 手動コマンドチェーン
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
 ```
 
 ### ランタイムプロファイル選択（PHP/Node/Java）
@@ -335,6 +342,15 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 - 既定の smoke は placeholder sample の render/validate までです。完全な QEMU boot と exploit 再現は実 VM アセットで検証します。
 - `flag_injection=debugfs` では、`changeflag.sh` が guest flag path を rootfs image に書き込む必要があります。
 
+manual validation entrypoint：
+
+```bash
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir /path/to/linux-qemu/code --host-port 2222
+```
+
+検証レベル、TCG/KVM 境界、動的 flag 書き込み、PoC 証拠記録は `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` を参照してください。
+
 ### RDG
 
 防御運用 + check_service 方式向け。通常 `stack=rdg` を使用。
@@ -349,6 +365,18 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/rdg-python/start.sh \
   /tmp/rdg-python/challenge.yaml
 ```
+
+`generate_check_stub.py` で HTTP/TCP/Redis/MySQL/SSH の編集可能な check-service skeleton を生成できます。
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
+  --type http \
+  --output /tmp/rdg-python/check/check.sh \
+  --target-port 8080 \
+  --path /
+```
+
+生成物には `CHECK_REVIEW_REQUIRED` が入ります。実際の check logic を確認してから削除してください。
 
 ### AWD
 
@@ -428,6 +456,26 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/baseunit-redis/challenge.yaml
 ```
 
+### Bundle / Recipe
+
+固定された少数の単一コンテナ複数サービス旧環境向けです。BaseUnit は単一 component、Scenario はローカル複数サービス編成、Bundle は 1 つの Docker image 内に限定 Recipe をまとめる方式です。
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py \
+  --recipe legacy-centos7-python39-mysql57-redis5 \
+  --output /tmp/bundle
+
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py \
+  --bundle-dir /tmp/bundle
+
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
+  /tmp/bundle/Dockerfile \
+  /tmp/bundle/start.sh \
+  /tmp/bundle/challenge.yaml
+```
+
+非対応の組み合わせは `BUNDLE_UNSUPPORTED_COMBINATION` を返します。別 stack に自動変換しません。
+
 ### Vulhub-like 移行
 
 Vulhub 風の複数サービス環境を「ローカル compose 編成 + 単一サービス納品」へ移行する手順。
@@ -444,6 +492,15 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 ```
 
 上記は scenario/compose 構造だけを検証します。各 service ディレクトリにも `validate.sh` を実行する場合は `--validate-rendered` を追加します。一括回帰では既定で逐 service の交付検証を行い、`SCENARIO_VALIDATE_RENDERED=0` で構造検証のみに戻せます。
+
+既存 compose input から始める場合は、先に draft、renderable subset、import report を生成します。
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
+  --compose docker-compose.yml \
+  --scenario-name imported-lab \
+  --output /tmp/imported-lab
+```
 
 ## プラットフォーム硬契約と境界
 
@@ -542,6 +599,8 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `scripts/release_build.sh` | 梱包エントリ |
 | `scripts/publish_guard.py` | 公開前 version/白名单ガード |
 | `scripts/publish_release.sh` | commit + push + tag + release 編成 |
+| `scripts/validate_build_test.py` | Build_test 実例プール回帰 |
+| `scripts/linux_qemu_manual_check.sh` | Linux-QEMU release/manual validation |
 | `scripts/generate_sbom.py` | SBOM 生成本体 |
 | `scripts/generate_sbom.sh` | SBOM エントリ |
 | `scripts/sync.py` | ソース同期ロジック |
@@ -553,6 +612,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `schema.md` | `challenge.yaml` 契約 |
 | `scenario_schema.md` | `scenario.yaml` 契約 |
+| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe 契約と固定 recipe 定義 |
 | `stacks.yaml` | スタック既定値 |
 | `profiles.yaml` | profile 既定挙動 |
 | `components.yaml` | BaseUnit component + variant 定義 |
@@ -568,9 +628,14 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | ファイル | 役割 |
 |---|---|
 | `derive_config.py` | 提案生成 |
+| `audit_input.py` | 入力リスク監査 |
+| `workflow.py` | stateful intake/propose/accept/render/validate/status 編成 |
 | `parse_config_block.py` | 提案解析 |
 | `render.py` | 単体レンダリング |
 | `render_component.py` | BaseUnit レンダリング |
+| `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe レンダリングと検証 |
+| `import_compose.py` | compose/Vulhub-like import draft |
+| `generate_check_stub.py` | RDG/SecOps check-service skeleton 生成 |
 | `render_scenario.py` | シナリオレンダリング |
 | `validate.sh` | 単体契約検証 |
 | `validate_scenario.py` | シナリオ契約検証 |
@@ -604,10 +669,12 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `examples/node-awdp-basic` | AWDP 単体契約例 |
 | `examples/secops-*-basic` | SecOps 例 |
 | `examples/baseunit-*` | BaseUnit 例 |
+| `examples/bundle-*` | Bundle/Recipe 例 |
 | `examples/linux-qemu-basic` | placeholder VM アセット付き Linux-QEMU 例 |
 | `examples/scenario-awd-basic` | AWD scenario 例 |
 | `examples/scenario-awdp-basic` | AWDP scenario 例 |
 | `examples/scenario-vulhub-like-basic` | Vulhub-like 移行例 |
+| `examples/scenario-compose-import-basic` | compose import draft 例 |
 | `examples/README.md` | examples 説明 |
 
 ### `src/CloverSec-CTF-Build-Dockerizer/docs`
@@ -616,8 +683,12 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `architecture_overview.md` | アーキテクチャ概要 |
 | `platform_contract.md` | プラットフォーム契約 |
+| `orchestrated_workflow.md` | CONFIG PROPOSAL、OK gate、5 項確認 |
 | `stack_cookbook.md` | スタック構築手引き |
+| `validation_guide.md` | 検証ルール、check-service gate、release checks |
 | `directory_guide.md` | ディレクトリ設計説明 |
+| `linux_qemu_manual_validation.md` | Linux-QEMU manual/release validation guide |
+| `bundle_design.md` | Bundle/Recipe 設計境界 |
 | `troubleshooting.md` | 障害対応手引き |
 | `beginner_guide.md` | 初学者向けガイド |
 

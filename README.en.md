@@ -28,33 +28,38 @@ If you have ever patched `start.sh` minutes before kickoff, or found contract fa
 
 ## v2.2.0 Major Updates
 
-`v2.2.0` consolidates the V2 delivery line into one verifiable workflow. It keeps direct rendering for clear low-risk `challenge.yaml` files, while mixed, dirty, high-risk, compose/Vulhub-like, Linux-QEMU missing-asset, and cPanel/WHM-style inputs go through proposal confirmation.
+`v2.2.0` is a focused upgrade based on months of real usage and Agent workflow issues. It targets common delivery problems in real competition work: dirty challenge directories, mixed input sources, legacy projects with compose or Vulhub-like structures, and Linux kernel CVE / LPE challenges that cannot be faithfully reproduced in ordinary Docker because containers share the host kernel. This release also reduces the Skill entry size and improves context management, so the same task loads less context, starts faster, and consumes fewer tokens.
 
 This release covers:
 
-- Delivery coverage for Jeopardy/Web/Pwn/AI, RDG/AWD/AWDP/SecOps, BaseUnit, Scenario/Vulhub-like, Bundle/Recipe, and Linux-QEMU. Platform delivery remains a single-service `Dockerfile + start.sh + changeflag.sh` directory; Scenario/compose stays local orchestration.
-- Linux-QEMU delivery with Docker as the outer artifact and QEMU as the guest runtime. TCG is the portable default, KVM is explicit opt-in, and guest flag injection can be validated through `debugfs`.
-- Workflow gates through `workflow.py`, `audit_input.py`, `derive_config.py` `input_audit`, accepted proposals, and manual overrides that require `--reason`.
-- Read-only example regression, default per-service Scenario validation, a real `Build_test/` sample pool, and Linux-QEMU release/manual checks with preflight/static/build/boot/flag/full modes.
-- Bundle Recipe prototypes, compose/Vulhub-like import drafts, and HTTP/TCP/Redis/MySQL/SSH check-service stub generation. `CHECK_REVIEW_REQUIRED` blocks release until the check logic is reviewed.
-- Structured JSON/summary output from render and validation scripts, release status files, SBOM/dependency assets, and smoke-by-default publishing.
-- Short `SKILL.md` entrypoint plus progressive disclosure docs. The previous long entry content now lives in operational docs such as `orchestrated_workflow.md`, `stack_cookbook.md`, `validation_guide.md`, `schema.md`, and `troubleshooting.md`; migration audit files are excluded from release packages.
-- Golden snapshot evidence: baseline `29d470e` before P1.8 and `108977d` after P1.8. `SKILL.md` dropped from 1089 to 206 lines and from 39254 to 10204 bytes, while OK confirmation, the five required confirmation items, low-risk Node proposal/render/validate, and Linux-QEMU missing-asset audit stayed unchanged. Strict digest checks improved for Bundle partial and Scenario Vulhub-like cases. Reports are kept under `开发文档（不同步）/golden_snapshot_p18/` and are not shipped in the public release package.
+1. Broader real competition coverage: Jeopardy, Web, Pwn, AI, RDG, AWD, AWDP, SecOps, BaseUnit, Scenario/Vulhub-like, Bundle/Recipe, and Linux-QEMU. Platform delivery still uses the single-service `Dockerfile + start.sh + changeflag.sh` format, while multi-service orchestration is mainly for local validation, migration, and organizing complex challenges.
+2. Dedicated Linux kernel CVE / LPE delivery: the platform still sees one Docker artifact, but the container starts an independent Linux guest environment through QEMU to carry the target kernel, rootfs, and challenge service. This keeps the platform delivery shape while giving kernel challenges a runtime closer to the real vulnerable environment.
+3. Proposal confirmation for complex input: mixed input, dirty directories, high-risk input, compose/Vulhub-like projects, missing Linux-QEMU assets, and cPanel/WHM-like inputs enter proposal confirmation. Manual continuation records the reason in text or JSON output.
+4. Example validation closer to real projects: `validate_examples.sh` is read-only by default, `Build_test/` supports expected pass and expected fail cases, Scenario validates each rendered service, and Linux-QEMU provides validation levels from preflight to full checks.
+5. Bundle, Compose, and check-service expansion: v2.2.0 adds Bundle Recipe prototypes, compose/Vulhub-like import drafts, and HTTP/TCP/Redis/MySQL/SSH check-service stubs.
+6. Clearer pre-release status: rendering, scenario validation, and release checks support structured output.
+7. Lighter Skill entry through progressive disclosure: `SKILL.md` dropped from 1089 to 206 lines, a reduction of about 81.1%; bytes dropped from 39254 to 10204, a reduction of about 74.0%. The same task now requires less entry context and loads faster.
 
 ## Core Capability Matrix
 
 | Capability | Entry Script | Purpose | Output |
 |---|---|---|---|
-| Auto proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py` | Infer stack/ports/start/runtime/profile signals | `config_proposal` |
+| Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate intake/propose/accept/render/validate/status | `.ctfbuild/session.json` |
+| Input audit and proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | Infer stack/ports/start/runtime/profile and risk level | `input_audit` / `config_proposal` |
 | Proposal parsing | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert `CONFIG PROPOSAL` into `challenge.yaml` | normalized config |
 | Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
-| Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` |
+| Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` / JSON summary |
 | Component render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Generate component+variant base units | build-ready service directory |
+| Bundle/Recipe render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | Generate and validate fixed single-container multi-service recipes | platform delivery directory |
+| Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | Produce draft, renderable subset, and import report | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
+| Check-service stub | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | Generate HTTP/TCP/Redis/MySQL/SSH check skeletons | review-required `check/check.sh` |
 | Linux-QEMU render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate Docker-hosted QEMU guest delivery | single-image delivery directory |
+| Linux-QEMU manual validation | `scripts/linux_qemu_manual_check.sh` | Run preflight/static/build/boot/flag/full checks | JSON summary / evidence notes |
 | Scenario render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | Render local multi-service orchestration | service dirs + `docker-compose.yml` |
 | Scenario validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py` | Validate mode/profile/ports/AWDP patch contract | pass/fail |
 | Example regression | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh` | Batch regression for examples and scenarios | summary report |
 | Smoke testing | `src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh` | Build-level fast regression | pass/fail |
+| Real sample pool regression | `scripts/validate_build_test.py` | Validate Build_test cases against expected pass/fail outcomes | structured summary |
 | Release packaging | `scripts/release_build.sh` / `scripts/publish_release.sh` | Build assets and publish release | zip/sbom/deps |
 
 ## One-Command Install and Discovery
@@ -101,8 +106,8 @@ Standard prompt template:
 
 ```text
 Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory.
-Run auto-detection first and output CONFIG PROPOSAL with evidence.
-After I reply OK, generate Dockerfile/start.sh/changeflag.sh and run validate.
+Run intake/propose first and output CONFIG PROPOSAL with evidence and input_audit.
+After I reply OK, run accept, render, and validate.
 ```
 
 Shortcut prompt:
@@ -114,9 +119,11 @@ The src folder is my CTF challenge source. Build a platform-compliant container 
 ### Manual command chain
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
 ```
 
 ### Runtime profile selection (PHP/Node/Java)
@@ -335,6 +342,15 @@ Delivery notes:
 - The default smoke path renders and validates the placeholder sample; full QEMU boot and exploit replay require real VM assets.
 - `flag_injection=debugfs` requires `changeflag.sh` to write the guest flag path into the rootfs image.
 
+Manual validation entrypoints:
+
+```bash
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir /path/to/linux-qemu/code --host-port 2222
+```
+
+See `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` for validation levels, TCG/KVM boundaries, dynamic flag injection, and PoC evidence notes.
+
 ### RDG
 
 Use for defense + check_service-oriented operations, typically with `stack=rdg`.
@@ -349,6 +365,18 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/rdg-python/start.sh \
   /tmp/rdg-python/challenge.yaml
 ```
+
+Use `generate_check_stub.py` to generate editable HTTP/TCP/Redis/MySQL/SSH check-service skeletons:
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
+  --type http \
+  --output /tmp/rdg-python/check/check.sh \
+  --target-port 8080 \
+  --path /
+```
+
+Generated scripts contain `CHECK_REVIEW_REQUIRED`; remove it only after reviewing the actual check logic.
 
 ### AWD
 
@@ -428,6 +456,26 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/baseunit-redis/challenge.yaml
 ```
 
+### Bundle / Recipe
+
+Use for a small fixed matrix of legacy single-container multi-service environments. BaseUnit is a single component, Scenario is local multi-service orchestration, and Bundle is a limited Recipe inside one Docker image.
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py \
+  --recipe legacy-centos7-python39-mysql57-redis5 \
+  --output /tmp/bundle
+
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py \
+  --bundle-dir /tmp/bundle
+
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
+  /tmp/bundle/Dockerfile \
+  /tmp/bundle/start.sh \
+  /tmp/bundle/challenge.yaml
+```
+
+Unsupported combinations return `BUNDLE_UNSUPPORTED_COMBINATION`; they are not silently rewritten as another stack.
+
 ### Vulhub-like migration
 
 Use this when translating a Vulhub-style multi-service lab into this project's boundary:
@@ -446,6 +494,15 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 ```
 
 The command above validates scenario/compose structure only. Add `--validate-rendered` when each rendered service directory should also pass `validate.sh`. Batch regression enables rendered-service validation by default; set `SCENARIO_VALIDATE_RENDERED=0` to keep structure-only validation.
+
+For existing compose input, generate a draft, a renderable subset, and an import report first:
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
+  --compose docker-compose.yml \
+  --scenario-name imported-lab \
+  --output /tmp/imported-lab
+```
 
 ## Platform Hard Contract and Boundaries
 
@@ -543,6 +600,8 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `scripts/release_build.sh` | Shell entry for release packaging |
 | `scripts/publish_guard.py` | Version + whitelist guard before publish |
 | `scripts/publish_release.sh` | commit + push + tag + release orchestration |
+| `scripts/validate_build_test.py` | Build_test real sample pool regression |
+| `scripts/linux_qemu_manual_check.sh` | Linux-QEMU release/manual validation |
 | `scripts/generate_sbom.py` | SBOM generation core |
 | `scripts/generate_sbom.sh` | SBOM entry |
 | `scripts/sync.py` | source-to-publish repo sync logic |
@@ -554,6 +613,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `schema.md` | `challenge.yaml` contract |
 | `scenario_schema.md` | `scenario.yaml` contract |
+| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe contract and fixed recipe definitions |
 | `stacks.yaml` | stack defaults and template mapping |
 | `profiles.yaml` | profile default behaviors |
 | `components.yaml` | BaseUnit component + variant catalog |
@@ -569,9 +629,14 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | File | Purpose |
 |---|---|
 | `derive_config.py` | infer challenge config proposal |
+| `audit_input.py` | input risk audit |
+| `workflow.py` | stateful intake/propose/accept/render/validate/status orchestration |
 | `parse_config_block.py` | parse `CONFIG PROPOSAL` block |
 | `render.py` | single challenge rendering |
 | `render_component.py` | BaseUnit rendering |
+| `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe rendering and validation |
+| `import_compose.py` | compose/Vulhub-like import draft |
+| `generate_check_stub.py` | RDG/SecOps check-service skeleton generation |
 | `render_scenario.py` | scenario rendering |
 | `validate.sh` | single challenge validation |
 | `validate_scenario.py` | scenario validation |
@@ -605,10 +670,12 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `examples/node-awdp-basic` | AWDP single challenge patch contract example |
 | `examples/secops-*-basic` | SecOps examples |
 | `examples/baseunit-*` | BaseUnit examples |
+| `examples/bundle-*` | Bundle/Recipe examples |
 | `examples/linux-qemu-basic` | Linux-QEMU sample with placeholder VM assets |
 | `examples/scenario-awd-basic` | AWD scenario example |
 | `examples/scenario-awdp-basic` | AWDP scenario example |
 | `examples/scenario-vulhub-like-basic` | Vulhub-like migration example |
+| `examples/scenario-compose-import-basic` | compose import draft example |
 | `examples/README.md` | examples guide |
 
 ### `src/CloverSec-CTF-Build-Dockerizer/docs`
@@ -617,8 +684,12 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `architecture_overview.md` | architecture overview |
 | `platform_contract.md` | platform contract |
+| `orchestrated_workflow.md` | CONFIG PROPOSAL, OK gate, and five confirmation items |
 | `stack_cookbook.md` | stack-specific cookbook |
+| `validation_guide.md` | validation rules, check-service gate, and release checks |
 | `directory_guide.md` | repository structure design |
+| `linux_qemu_manual_validation.md` | Linux-QEMU manual/release validation guide |
+| `bundle_design.md` | Bundle/Recipe design boundary |
 | `troubleshooting.md` | troubleshooting playbook |
 | `beginner_guide.md` | beginner onboarding guide |
 

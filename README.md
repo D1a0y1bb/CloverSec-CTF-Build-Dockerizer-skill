@@ -19,33 +19,43 @@
 
 <p align="center"><code><strong>VERSION</strong>: v2.2.0</code></p>
 
-四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
+四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario/Vulhub-like / Bundle/Recipe / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
 如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
 
 ## V2.2.0 重大更新
 
-v2.2.0 是 v2 系列能力整合版本，面向真实题目交付把 v2.0.3、v2.1.0、v2.1.1、v2.1.2 与 P1 迭代的主要成果合并到一个可验证入口。明确、低风险的 `challenge.yaml` 仍可直接渲染；混合输入、脏目录、高风险输入、compose/Vulhub-like、Linux-QEMU 缺资产和 cPanel/WHM 类输入会进入 proposal 确认流程。
+v2.2.0 是 历时几个月来我们对广泛的使用问题和 Agent 工作流下的部分优化的一次集中升级。重点处理了 Agent 工作中真实比赛题目交付一些更常见的问题：题目目录不干净、输入来源混杂、历史项目带有 compose 或 Vulhub-like 结构，Linux kernel CVE / LPE 题目也不能直接依赖普通 Docker 环境还原。同时我们还大幅度的优化了该 Skill 的工程结构以及一些使用 skill 后的context 工程的管理问题，使得在相同的任务下占用的上下文内容更少、加载更快、token 消耗更少、更省心、Enjoy！
 
-本次重大更新覆盖：
+本次更新主要包括：
 
-1、交付场景：覆盖 Jeopardy/Web/Pwn/AI、RDG/AWD/AWDP/SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU。平台最终交付仍是单服务 `Dockerfile + start.sh + changeflag.sh`，Scenario/compose 只用于本地编排。
+1、真实比赛场景构建覆盖更全
 
-2、Linux-QEMU：Docker 外层保持 `/start.sh` 平台入口，容器内启动 QEMU guest，引导 vulnerable kernel、initrd/rootfs 和 guest 服务。默认使用 TCG，KVM 只作为显式可选加速；动态 flag 可通过 `debugfs` 写入 guest rootfs。完整 boot、flag 注入、PoC 复现归入 release/manual 验证。
+v2.2.0 覆盖 Jeopardy、Web、Pwn、AI、RDG、AWD、AWDP、SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU 等场景。面向比赛平台的最终交付件仍保持单服务 Dockerfile + start.sh + changeflag.sh 格式，多服务编排主要用于本地验证、迁移和整理复杂题目
 
-3、工作流门槛：新增 `workflow.py` 和 `audit_input.py`，`derive_config.py` 输出 `input_audit`，mixed/dirty/high_risk 或 `gates=true` 默认要求 accepted proposal。确有人工确认时可用 `--manual --reason "..."`，原因会写入文本或 JSON 输出。
+2、Linux kernel CVE / LPE 题目有了专门交付方式
 
-4、真实样例与回归：`validate_examples.sh` 默认只读，不再写回 `examples/`；Scenario 默认执行逐服务 `validate.sh`；`Build_test/` 升级为真实样例池，支持预期通过/预期失败匹配；Linux-QEMU release/manual 套件提供 preflight/static/build/boot/flag/full 分级检查。
+这类题目过去很难放进普通 Docker：容器默认共享宿主机内核，很多内核漏洞和本地提权题放进去后，环境会失真，甚至根本无法复现。v2.2.0 我们创新性的引入 Linux-QEMU 流程（套娃）。比赛平台看到的仍然是一个 Docker 交付件，容器内部再启动独立的 Linux 题目环境，用来承载指定内核、rootfs 和题目服务。这样既保留平台需要的交付形式，也能让 Linux kernel CVE / LPE 题目获得更接近真实漏洞现场的运行环境。我们可以逐步的摆脱 KVM 和 QEMU 传统的 iso、qcow2 大体积镜像维护和制作的难度
 
-5、Bundle、Compose 与 check-service：新增固定 Bundle Recipe 原型、compose/Vulhub-like 导入草案、HTTP/TCP/Redis/MySQL/SSH check-service 骨架生成。带 `CHECK_REVIEW_REQUIRED` 的检查脚本会被 `validate.sh` 阻断，直到人工确认检查逻辑。
+3、复杂输入会先确认方案
 
-6、结构化错误与发布检查：`render.py`、`validate_scenario.py`、`validate.sh` 支持 JSON/summary 输出；`release_build.py` 生成 release-status、SBOM 和依赖清单；`publish_release.sh` 正式发布默认执行 Docker smoke，跳过必须写原因。
+混合输入、脏目录、高风险输入、compose/Vulhub-like 项目、Linux-QEMU 缺少资产、cPanel/WHM 类输入，都会进入 proposal 确认流程。确有人工确认时，可以写明原因，记录会进入文本或 JSON 输出，后面回看发布过程时能知道当时为什么继续。
 
-7、Skill 使用体验：`SKILL.md` 改为短入口和按需读取索引，长说明迁入 `orchestrated_workflow.md`、`stack_cookbook.md`、`validation_guide.md`、`schema.md`、`troubleshooting.md` 等操作文档；迁移审计资料不进入发布包。
+4、样例验证更贴近真实项目
 
-8、Golden snapshot 衡量：P1.8 前基线 `29d470e`，P1.8 后基线 `108977d`。`SKILL.md` 从 1089 行降到 206 行，入口减少约 81.1%；字节数从 39254 降到 10204，减少约 74.0%。OK 门槛、5 项确认、低风险 Node proposal/render/validate、Linux-QEMU 缺资产审计均无退化；Bundle partial 严格 digest 和 Scenario Vulhub-like 严格 digest 从失败变为通过。报告与原始输出保存在 `开发文档（不同步）/golden_snapshot_p18/REPORT.md` 和 `开发文档（不同步）/golden_snapshot_p18/summary.json`，该目录不进入发布包。
+validate_examples.sh 默认只读，不再改写 examples/。Build_test/ 升级为真实样例池，可以区分预期通过和预期失败。Scenario 会按服务逐项验证，Linux-QEMU 也提供从预检查到完整验证的分级检查，方便按题目阶段选择验证强度。
 
-9、发布同步修复：SkillHub slug、行尾空格、README/CHANGELOG/版本号、Git 导出质量检查纳入发布前门禁，减少审核通过后同步失败的情况。
+5、Bundle、Compose 和服务检查能力扩展
+
+v2.2.0 新增 Bundle Recipe 原型、compose/Vulhub-like 导入草案，以及 HTTP、TCP、Redis、MySQL、SSH 的 check-service 骨架。
+
+6、发布前状态更清楚
+
+渲染、场景验证和发布检查支持结构化输出
+
+7、渐进式披露原则适配-Skill 入口更轻
+
+SKILL.md 从 1089 行降到 206 行，入口减少约 81.1%；字节数从 39254 降到 10204，减少约 74.0%。我们大幅度的优化了context 工程的管理，使得在相同的任务下占用的上下文内容更少、加载更快。
 
 ## 核心能力矩阵
 
@@ -53,20 +63,24 @@ v2.2.0 是 v2 系列能力整合版本，面向真实题目交付把 v2.0.3、v2
 flowchart LR
     subgraph Main["主链路（默认交付流程）"]
         direction LR
-        A["derive_config.py\n自动提案"] --> B["parse_config_block.py\n提案解析"]
-        B --> C["render.py\n单题渲染"]
-        C --> D["validate.sh\n合规校验"]
-        D --> E["validate_examples.sh / smoke_test.sh\n回归验收"]
+        A["workflow.py\n状态化工作流"] --> B["audit_input.py / derive_config.py\n输入审计与提案"]
+        B --> C["parse_config_block.py\n提案解析"]
+        C --> D["render.py\n单题渲染"]
+        D --> E["validate.sh\n合规校验"]
+        E --> K["validate_examples.sh / smoke_test.sh\n回归验收"]
     end
 
     subgraph Ext["扩展链路（按需启用）"]
         direction LR
-        F["render_component.py\nBaseUnit 组件渲染"] -->|可选| C
-        G["render_scenario.py\nScenario 场景渲染"] --> H["validate_scenario.py\n场景合规校验"]
-        H -->|可选| E
+        F["render_component.py\nBaseUnit 组件渲染"] -->|可选| D
+        G["render_bundle.py\nBundle Recipe 渲染"] --> L["validate_bundle.py\nBundle 校验"]
+        M["import_compose.py\ncompose 导入草案"] --> N["render_scenario.py\nScenario 场景渲染"]
+        N --> H["validate_scenario.py\n场景合规校验"]
+        O["generate_check_stub.py\ncheck-service 骨架"] --> E
+        P["linux_qemu_manual_check.sh\nLinux-QEMU 手动验收"] --> E
     end
 
-    E --> I["scripts/release_build.sh\n构建发布资产"]
+    K --> I["scripts/release_build.sh\n构建发布资产"]
     I --> J["scripts/publish_release.sh\n提交 / 打标 / 发布 Release"]
 
     %% ──────────────────────────────────────────────
@@ -77,8 +91,8 @@ flowchart LR
     classDef rel  fill:#fffbeb,stroke:#d97706,stroke-width:2px,color:#713f12,font-weight:bold
     classDef title fill:none,stroke:none,color:#111827,font-size:15px,font-weight:600
 
-    class A,B,C,D,E main
-    class F,G,H ext
+    class A,B,C,D,E,K main
+    class F,G,H,L,M,N,O,P ext
     class I,J rel
 
     class Main,Ext title
@@ -91,35 +105,39 @@ flowchart LR
 
 | 阶段 | 入口 | 作用 | 产出 |
 |---|---|---|---|
-| 1. 自动提案 | `derive_config.py` | 推断栈、端口、启动命令、runtime/profile 信号 | `config_proposal` |
-| 2. 提案解析 | `parse_config_block.py` | 把 `CONFIG PROPOSAL` 转成规范 `challenge.yaml` | 标准化配置 |
-| 3. 单题渲染 | `render.py` | 生成平台交付物 | `Dockerfile` `start.sh` `changeflag.sh` `flag(可选)` |
-| 4. 合规校验 | `validate.sh` | 执行平台契约与风险规则检查 | `ERROR/WARN/INFO` |
-| 5. 回归验收 | `validate_examples.sh` / `smoke_test.sh` | 批量回归与构建级冒烟 | 回归汇总 / pass-fail |
+| 1. 状态化工作流 | `workflow.py` | 编排 intake/propose/accept/render/validate/status | `.ctfbuild/session.json` |
+| 2. 输入审计与提案 | `audit_input.py` / `derive_config.py` | 推断栈、端口、启动命令、runtime/profile 和风险等级 | `input_audit` / `config_proposal` |
+| 3. 提案解析 | `parse_config_block.py` | 把 `CONFIG PROPOSAL` 转成规范 `challenge.yaml` | 标准化配置 |
+| 4. 单题渲染 | `render.py` | 生成平台交付物 | `Dockerfile` `start.sh` `changeflag.sh` `flag(可选)` |
+| 5. 合规校验 | `validate.sh` | 执行平台契约与风险规则检查 | `ERROR/WARN/INFO` / JSON summary |
+| 6. 回归验收 | `validate_examples.sh` / `smoke_test.sh` | 批量回归与构建级冒烟 | 回归汇总 / pass-fail |
 
 ### 扩展链路（按场景启用）
 
 | 场景能力 | 入口 | 作用 | 产出 |
 |---|---|---|---|
 | BaseUnit 组件渲染 | `render_component.py` | 生成“组件 + 指定版本”最小单元 | 可直接 `docker build` 的目录 |
-| Bundle/Recipe 渲染 | `render_bundle.py` | 生成固定组合的单容器多服务 Recipe | 标准交付目录 |
+| Bundle/Recipe 渲染 | `render_bundle.py` / `validate_bundle.py` | 生成并校验固定组合的单容器多服务 Recipe | 标准交付目录 |
+| compose/Vulhub-like 导入 | `import_compose.py` | 生成完整 draft、可渲染子集和导入报告 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
+| check-service 骨架 | `generate_check_stub.py` | 生成 HTTP/TCP/Redis/MySQL/SSH 检查脚本骨架 | 待人工确认的 `check/check.sh` |
 | Linux-QEMU 内核题渲染 | `render.py` | 生成 Docker 内 QEMU guest 启动环境 | 单镜像交付目录 |
+| Linux-QEMU 手动验收 | `scripts/linux_qemu_manual_check.sh` | 执行 preflight/static/build/boot/flag/full 分级检查 | JSON summary / 证据记录 |
 | Scenario 场景渲染 | `render_scenario.py` | 渲染多服务本地编排 | 服务目录 + `docker-compose.yml` |
 | Scenario 场景校验 | `validate_scenario.py` | 校验 mode/profile/端口/AWDP 补丁契约 | pass/fail |
+| 真实样例池回归 | `scripts/validate_build_test.py` | 按预期通过/预期失败验证 Build_test 样例 | structured summary |
 | Release 打包与发布 | `scripts/release_build.sh` / `scripts/publish_release.sh` | 生成资产并发布 tag/release | zip/sbom/deps |
 
-## Skills.sh 一键安装
+## 一键安装与 Skill 发现
 
 先验证技能可发现，再执行安装：
 
-```
-npx -y skills add . --list
-```
-
-使用npx默认一键安装到通用agent目录下（.agents/)当前请根据你实际的需求选择安装到不同的项目或全局目录下）
-
 ```bash
-npx skills add https://github.com/d1a0y1bb/cloversec-ctf-build-dockerizer-skill --skill CloverSec-CTF-Build-Dockerizer
+npx -y skills add . --list
+
+npx -y skills add \
+  https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill \
+  --skill cloversec-ctf-build-dockerizer \
+  --agent codex -y
 ```
 
 安装后，建议先用示例目录做一次完整闭环，确认 Docker 与脚本依赖可用。
@@ -153,8 +171,8 @@ interface:
 
 ```text
 请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。
-先运行自动探测并输出 CONFIG PROPOSAL（含证据），
-我确认后再生成 Dockerfile/start.sh/changeflag.sh 并执行 validate。
+先执行 intake/propose 并输出 CONFIG PROPOSAL（含证据和 input_audit）。
+我确认 OK 后再 accept、render、validate。
 ```
 
 快捷业务提示词（懒人版）：
@@ -166,9 +184,11 @@ interface:
 ### 手动命令链
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
 ```
 
 ### 运行时基座选择（PHP/Node/Java）
@@ -477,6 +497,8 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `scripts/release_build.sh` | release 打包入口 |
 | `scripts/publish_guard.py` | 发布前版本/白名单守卫 |
 | `scripts/publish_release.sh` | commit + push + tag + release 编排 |
+| `scripts/validate_build_test.py` | Build_test 真实样例池回归 |
+| `scripts/linux_qemu_manual_check.sh` | Linux-QEMU release/manual 分级验收 |
 | `scripts/generate_sbom.py` | SBOM 生成主实现 |
 | `scripts/generate_sbom.sh` | SBOM 入口 |
 | `scripts/sync.py` | 私有仓到发布仓同步逻辑 |
@@ -504,6 +526,8 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | 文件 | 作用 |
 |---|---|
 | `derive_config.py` | 自动推断 challenge 配置 |
+| `audit_input.py` | 输入风险审计 |
+| `workflow.py` | 状态化 intake/propose/accept/render/validate/status 编排 |
 | `parse_config_block.py` | 解析 CONFIG PROPOSAL |
 | `render.py` | 单题渲染入口 |
 | `render_component.py` | BaseUnit 组件渲染入口 |
