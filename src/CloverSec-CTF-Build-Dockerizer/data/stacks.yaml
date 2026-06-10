@@ -217,6 +217,32 @@ stacks:
       安全运维模式，适用于服务配置加固与检查驱动型题目。默认走 check-service 语义，
       与 secops profile 搭配使用，并保持与 RDG 语义隔离。
 
+  - id: linux-qemu
+    display_name: Linux Kernel QEMU VM
+    detect:
+      any_of_files:
+        - vm/vmlinuz
+        - vm/bzImage
+        - vm/Image
+        - vm/initrd.img
+        - vm/initramfs.cpio.gz
+        - vm/rootfs.ext4
+        - run.sh
+        - qemu.sh
+      any_of_dirs:
+        - vm
+    defaults:
+      base_image: "debian:bookworm-slim"
+      workdir: "/opt/linux-qemu"
+      expose_ports:
+        - "22"
+      start_cmd: "qemu-system-x86_64"
+      healthcheck_cmd: "bash -lc 'timeout 8 bash -c \"</dev/tcp/127.0.0.1/22\"'"
+    notes: >
+      面向 Linux kernel CVE/LPE 题目：外层 Docker 镜像承载 QEMU，
+      内层 VM 承载指定 vulnerable kernel/rootfs。默认走 TCG 以适配普通平台；
+      KVM 仅作为显式声明的可选加速路径。
+
   - id: baseunit
     display_name: Base Service Unit
     detect:

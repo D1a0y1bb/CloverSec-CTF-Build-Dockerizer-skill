@@ -1,0 +1,54 @@
+challenge:
+  name: linux-qemu-basic
+  stack: linux-qemu
+  profile: jeopardy
+  base_image: debian:bookworm-slim
+  workdir: /opt/linux-qemu
+  app_src: .
+  app_dst: /opt/linux-qemu
+  expose_ports:
+    - "22"
+  start:
+    mode: cmd
+    cmd: qemu-system-x86_64
+  runtime_deps: []
+  build_deps: []
+  flag:
+    path: /flag
+    permission: "444"
+  platform:
+    entrypoint: /start.sh
+    require_bash: true
+    allow_loopback_bind: false
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'timeout 8 bash -c \"</dev/tcp/127.0.0.1/22\"'"
+    interval: 30s
+    timeout: 10s
+    retries: 5
+    start_period: 90s
+  vm:
+    arch: x86_64
+    qemu_binary: qemu-system-x86_64
+    machine: q35
+    accelerator: tcg
+    require_kvm: false
+    cpu: max
+    memory: 768M
+    cpus: 2
+    kernel: vm/vmlinuz
+    initrd: vm/initrd.img
+    rootfs: vm/rootfs.ext4
+    drive_format: raw
+    append: console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1
+    guest_forwards:
+      - proto: tcp
+        host_port: "22"
+        guest_port: "22"
+    monitor: none
+    extra_args: ""
+    asset_mode: prebuilt
+    build_script: scripts/build-vm.sh
+    guest_flag_path: /root/flag
+    flag_injection: debugfs
+    healthcheck_mode: ssh-banner

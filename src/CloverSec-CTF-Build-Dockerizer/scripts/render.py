@@ -7,6 +7,7 @@ import argparse
 import gzip
 import os
 import re
+import shlex
 import tarfile
 import sys
 from pathlib import Path
@@ -17,6 +18,18 @@ SKILL_ROOT = SCRIPT_DIR.parent
 DATA_DIR = SKILL_ROOT / "data"
 TEMPLATES_DIR = SKILL_ROOT / "templates"
 _DURATION_RE = re.compile(r"^[0-9]+(ns|us|ms|s|m|h)$")
+_VM_MEMORY_RE = re.compile(r"^[0-9]+([KMGTP]i?B?|[kmg])?$")
+_ALLOWED_VM_ACCELERATORS = {"auto", "tcg", "kvm"}
+_ALLOWED_VM_ASSET_MODES = {"prebuilt", "build-script"}
+_ALLOWED_VM_FLAG_INJECTIONS = {"debugfs", "none"}
+_ALLOWED_VM_HEALTHCHECK_MODES = {"tcp", "ssh-banner", "ssh-auth-denied", "custom"}
+_ALLOWED_VM_FORWARD_PROTOCOLS = {"tcp", "udp"}
+_DEFAULT_QEMU_BY_ARCH = {
+    "x86_64": "qemu-system-x86_64",
+    "amd64": "qemu-system-x86_64",
+    "aarch64": "qemu-system-aarch64",
+    "arm64": "qemu-system-aarch64",
+}
 
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -52,7 +65,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="渲染 CTF Web Dockerfile/start.sh")
     parser.add_argument("--config", help="challenge.yaml 路径")
 
-    parser.add_argument("--stack", help="技术栈: node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit")
+    parser.add_argument(
+        "--stack",
+        help="技术栈: node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/linux-qemu",
+    )
     parser.add_argument("--profile", choices=["jeopardy", "rdg", "awd", "awdp", "secops"], help="V2 profile")
     parser.add_argument("--port", action="append", help="暴露端口，可重复传入")
     parser.add_argument("--workdir", help="WORKDIR，默认取栈默认值")
@@ -183,6 +199,149 @@ def _parse_positive_int(value: Any, field_name: str, default: int) -> int:
     if number < 1:
         raise ConfigError(f"{field_name} 必须是正整数")
     return number
+
+
+def _parse_port(value: Any, field_name: str, default: str) -> str:
+    raw = str(first_non_empty(value, default) or default).strip()
+    if not raw.isdigit() or not (1 <= int(raw) <= 65535):
+        raise ConfigError(f"{field_name} 必须是 1-65535 的端口数字")
+    return raw
+
+
+def _clean_relpath(value: Any, field_name: str, default: str) -> str:
+    raw = str(first_non_empty(value, default) or default).strip()
+    if not raw:
+        raise ConfigError(f"{field_name} 不能为空")
+    path = Path(raw)
+    if path.is_absolute() or ".." in path.parts:
+        raise ConfigError(f"{field_name} 必须是相对路径，且不能包含 ..")
+    return raw
+
+
+def _normalize_vm_guest_forwards(value: Any, expose_ports: List[str]) -> List[Dict[str, str]]:
+    if value is None:
+        default_port = expose_ports[0] if expose_ports else "22"
+        return [{"proto": "tcp", "host_port": default_port, "guest_port": default_port}]
+
+    items = ensure_list(value, "challenge.vm.guest_forwards")
+    forwards: List[Dict[str, str]] = []
+    for idx, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            raise ConfigError(f"challenge.vm.guest_forwards 第 {idx} 项必须是对象")
+        proto = str(first_non_empty(item.get("proto"), "tcp") or "tcp").strip().lower()
+        if proto not in _ALLOWED_VM_FORWARD_PROTOCOLS:
+            raise ConfigError(f"challenge.vm.guest_forwards 第 {idx} 项 proto 仅支持 tcp/udp")
+        host_port = _parse_port(item.get("host_port"), f"challenge.vm.guest_forwards[{idx}].host_port", "22")
+        guest_port = _parse_port(item.get("guest_port"), f"challenge.vm.guest_forwards[{idx}].guest_port", host_port)
+        forwards.append({"proto": proto, "host_port": host_port, "guest_port": guest_port})
+
+    if not forwards:
+        raise ConfigError("challenge.vm.guest_forwards 不能为空")
+    return forwards
+
+
+def _build_vm_netdev(forwards: List[Dict[str, str]], netdev_id: str) -> str:
+    parts = ["user", f"id={netdev_id}"]
+    for item in forwards:
+        parts.append(
+            "hostfwd={proto}::{host_port}-:{guest_port}".format(
+                proto=item["proto"],
+                host_port=item["host_port"],
+                guest_port=item["guest_port"],
+            )
+        )
+    return ",".join(parts)
+
+
+def _format_vm_forwards(forwards: List[Dict[str, str]]) -> str:
+    return " ".join(
+        f'{item["proto"]}:{item["host_port"]}->{item["guest_port"]}' for item in forwards
+    )
+
+
+def _quote_shell(value: str) -> str:
+    return shlex.quote(str(value))
+
+
+def _normalize_vm_config(vm_cfg: Dict[str, Any], expose_ports: List[str]) -> Dict[str, Any]:
+    arch = str(first_non_empty(vm_cfg.get("arch"), "x86_64") or "x86_64").strip().lower()
+    qemu_binary = str(
+        first_non_empty(vm_cfg.get("qemu_binary"), _DEFAULT_QEMU_BY_ARCH.get(arch), "qemu-system-x86_64")
+        or "qemu-system-x86_64"
+    ).strip()
+    if not qemu_binary.startswith("qemu-system-"):
+        raise ConfigError("challenge.vm.qemu_binary 必须是 qemu-system-*")
+
+    accelerator = str(first_non_empty(vm_cfg.get("accelerator"), "tcg") or "tcg").strip().lower()
+    if accelerator not in _ALLOWED_VM_ACCELERATORS:
+        raise ConfigError("challenge.vm.accelerator 仅支持 auto/tcg/kvm")
+
+    memory = str(first_non_empty(vm_cfg.get("memory"), "768M") or "768M").strip()
+    if not _VM_MEMORY_RE.match(memory):
+        raise ConfigError("challenge.vm.memory 格式非法，示例：768M/1G/1024")
+
+    cpus = _parse_positive_int(vm_cfg.get("cpus"), "challenge.vm.cpus", 2)
+    if cpus > 16:
+        raise ConfigError("challenge.vm.cpus 不建议超过 16")
+
+    asset_mode = str(first_non_empty(vm_cfg.get("asset_mode"), "prebuilt") or "prebuilt").strip().lower()
+    if asset_mode not in _ALLOWED_VM_ASSET_MODES:
+        raise ConfigError("challenge.vm.asset_mode 仅支持 prebuilt/build-script")
+
+    flag_injection = str(first_non_empty(vm_cfg.get("flag_injection"), "debugfs") or "debugfs").strip().lower()
+    if flag_injection not in _ALLOWED_VM_FLAG_INJECTIONS:
+        raise ConfigError("challenge.vm.flag_injection 仅支持 debugfs/none")
+
+    healthcheck_mode = str(first_non_empty(vm_cfg.get("healthcheck_mode"), "ssh-banner") or "ssh-banner").strip().lower()
+    if healthcheck_mode not in _ALLOWED_VM_HEALTHCHECK_MODES:
+        raise ConfigError("challenge.vm.healthcheck_mode 仅支持 tcp/ssh-banner/ssh-auth-denied/custom")
+
+    netdev_id = str(first_non_empty(vm_cfg.get("netdev_id"), "net0") or "net0").strip()
+    if not re.match(r"^[A-Za-z0-9_.-]+$", netdev_id):
+        raise ConfigError("challenge.vm.netdev_id 只能包含字母、数字、点、下划线和短横线")
+
+    forwards = _normalize_vm_guest_forwards(vm_cfg.get("guest_forwards"), expose_ports)
+    hostfwd_ports = [item["host_port"] for item in forwards]
+
+    rootfs = _clean_relpath(vm_cfg.get("rootfs"), "challenge.vm.rootfs", "vm/rootfs.ext4")
+    guest_flag_path = str(first_non_empty(vm_cfg.get("guest_flag_path"), "/root/flag") or "/root/flag").strip()
+    if not guest_flag_path.startswith("/"):
+        raise ConfigError("challenge.vm.guest_flag_path 必须是 guest 内绝对路径")
+
+    normalized = {
+        "arch": arch,
+        "qemu_binary": qemu_binary,
+        "machine": str(first_non_empty(vm_cfg.get("machine"), "q35") or "q35").strip(),
+        "accelerator": accelerator,
+        "require_kvm": _to_bool(vm_cfg.get("require_kvm"), "challenge.vm.require_kvm", False),
+        "cpu": str(first_non_empty(vm_cfg.get("cpu"), "max") or "max").strip(),
+        "memory": memory,
+        "cpus": str(cpus),
+        "kernel": _clean_relpath(vm_cfg.get("kernel"), "challenge.vm.kernel", "vm/vmlinuz"),
+        "initrd": _clean_relpath(vm_cfg.get("initrd"), "challenge.vm.initrd", "vm/initrd.img"),
+        "rootfs": rootfs,
+        "drive_format": str(first_non_empty(vm_cfg.get("drive_format"), "raw") or "raw").strip(),
+        "append": str(
+            first_non_empty(
+                vm_cfg.get("append"),
+                "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1",
+            )
+            or ""
+        ).strip(),
+        "netdev_id": netdev_id,
+        "net_device": str(first_non_empty(vm_cfg.get("net_device"), "e1000") or "e1000").strip(),
+        "guest_forwards": forwards,
+        "hostfwd_ports": hostfwd_ports,
+        "netdev": _build_vm_netdev(forwards, netdev_id),
+        "monitor": str(first_non_empty(vm_cfg.get("monitor"), "none") or "none").strip(),
+        "extra_args": str(first_non_empty(vm_cfg.get("extra_args"), "") or "").strip(),
+        "asset_mode": asset_mode,
+        "build_script": _clean_relpath(vm_cfg.get("build_script"), "challenge.vm.build_script", "scripts/build-vm.sh"),
+        "guest_flag_path": guest_flag_path,
+        "flag_injection": flag_injection,
+        "healthcheck_mode": healthcheck_mode,
+    }
+    return normalized
 
 
 def _resolve_rdg_check_host_path(output_dir: Path, workdir: str, check_script_path: str) -> Path:
@@ -512,6 +671,26 @@ def build_render_context(
     if not expose_ports:
         raise ConfigError("expose_ports 不能为空，至少需要一个端口")
 
+    vm_config: Dict[str, Any] = {}
+    if stack_id == "linux-qemu":
+        vm_cfg = ensure_dict(challenge.get("vm"), "challenge.vm")
+        vm_config = _normalize_vm_config(vm_cfg, expose_ports)
+        missing_forward_ports = [
+            port for port in vm_config["hostfwd_ports"] if port not in expose_ports
+        ]
+        if missing_forward_ports:
+            raise ConfigError(
+                "challenge.vm.guest_forwards.host_port 必须出现在 challenge.expose_ports: "
+                + ", ".join(missing_forward_ports)
+            )
+        if healthcheck_enabled and not _has_value(healthcheck_cfg.get("cmd")):
+            health_port = vm_config["hostfwd_ports"][0]
+            healthcheck_cmd = (
+                "bash -lc 'timeout 8 bash -c \"</dev/tcp/127.0.0.1/"
+                + health_port
+                + "\"'"
+            )
+
     # 启动命令优先级：CLI > challenge > patterns 推断 > stacks defaults
     cmd_from_cli = args.start_cmd.strip() if isinstance(args.start_cmd, str) and args.start_cmd.strip() else ""
     raw_cfg_cmd = start_cfg.get("cmd")
@@ -656,6 +835,7 @@ def build_render_context(
         "healthcheck_timeout": healthcheck_timeout,
         "healthcheck_retries": healthcheck_retries,
         "healthcheck_start_period": healthcheck_start_period,
+        "vm": vm_config,
         "output_dir": Path(args.output).resolve(),
         "inference_notes": inference_notes,
         "entry_file": infer_info.get("entry_file"),
@@ -761,6 +941,7 @@ def render_files(context: Dict[str, Any]) -> None:
             "HEALTHCHECK_BLOCK": healthcheck_block,
         }).rstrip()
         defense_start_block = render_template(defense_start_tpl, common_vars).rstrip()
+    vm = context.get("vm", {}) if isinstance(context.get("vm"), dict) else {}
     common_vars = {
         "BASE_IMAGE": context["base_image"],
         "WORKDIR": context["workdir"],
@@ -803,6 +984,33 @@ def render_files(context: Dict[str, Any]) -> None:
         "HEALTHCHECK_BLOCK": healthcheck_block,
         "DEFENSE_DOCKER_BLOCK": defense_docker_block,
         "DEFENSE_START_BLOCK": defense_start_block,
+        "VM_ARCH": str(vm.get("arch", "")),
+        "VM_QEMU_BINARY": str(vm.get("qemu_binary", "")),
+        "VM_MACHINE": str(vm.get("machine", "")),
+        "VM_ACCELERATOR": str(vm.get("accelerator", "")),
+        "VM_REQUIRE_KVM": "true" if vm.get("require_kvm") else "false",
+        "VM_CPU": str(vm.get("cpu", "")),
+        "VM_MEMORY": str(vm.get("memory", "")),
+        "VM_CPUS": str(vm.get("cpus", "")),
+        "VM_KERNEL": str(vm.get("kernel", "")),
+        "VM_INITRD": str(vm.get("initrd", "")),
+        "VM_ROOTFS": str(vm.get("rootfs", "")),
+        "VM_DRIVE_FORMAT": str(vm.get("drive_format", "")),
+        "VM_APPEND": str(vm.get("append", "")),
+        "VM_APPEND_QUOTED": _quote_shell(str(vm.get("append", ""))),
+        "VM_NETDEV_ID": str(vm.get("netdev_id", "")),
+        "VM_NET_DEVICE": str(vm.get("net_device", "")),
+        "VM_NETDEV": str(vm.get("netdev", "")),
+        "VM_MONITOR": str(vm.get("monitor", "")),
+        "VM_EXTRA_ARGS": str(vm.get("extra_args", "")),
+        "VM_ASSET_MODE": str(vm.get("asset_mode", "")),
+        "VM_BUILD_SCRIPT": str(vm.get("build_script", "")),
+        "VM_GUEST_FLAG_PATH": str(vm.get("guest_flag_path", "")),
+        "VM_FLAG_INJECTION": str(vm.get("flag_injection", "")),
+        "VM_HEALTHCHECK_MODE": str(vm.get("healthcheck_mode", "")),
+        "VM_GUEST_FORWARDS": _format_vm_forwards(vm.get("guest_forwards", []))
+        if isinstance(vm.get("guest_forwards"), list)
+        else "",
     }
 
     docker_vars = {
@@ -840,23 +1048,72 @@ def render_files(context: Dict[str, Any]) -> None:
 
     docker_out.write_text(rendered_docker.rstrip() + "\n", encoding="utf-8")
     start_out.write_text(rendered_start.rstrip() + "\n", encoding="utf-8")
-    changeflag_out.write_text(
-        "#!/bin/bash\n"
-        "set -euo pipefail\n\n"
-        "# 平台动态 flag 写入入口。优先使用 FLAG/CTF_FLAG 环境变量，"
-        "未提供时允许将第一个参数作为兜底值。\n"
-        "TARGET_PATH=\"${FLAG_PATH:-/flag}\"\n"
-        "TARGET_FLAG=\"${FLAG:-${CTF_FLAG:-${1:-flag{dynamic_flag_placeholder}}}}\"\n\n"
-        "if [[ -z \"${TARGET_PATH}\" ]]; then\n"
-        "  echo \"[ERROR] FLAG_PATH 不能为空\" >&2\n"
-        "  exit 2\n"
-        "fi\n\n"
-        "mkdir -p \"$(dirname \"${TARGET_PATH}\")\"\n"
-        "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
-        "chmod 444 \"${TARGET_PATH}\" || true\n"
-        "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n",
-        encoding="utf-8",
-    )
+    if context.get("stack_id") == "linux-qemu":
+        vm = context.get("vm", {}) if isinstance(context.get("vm"), dict) else {}
+        rootfs_path = str(vm.get("rootfs", "vm/rootfs.ext4"))
+        guest_flag_path = str(vm.get("guest_flag_path", "/root/flag"))
+        flag_injection = str(vm.get("flag_injection", "debugfs"))
+        changeflag_out.write_text(
+            "#!/bin/bash\n"
+            "set -euo pipefail\n\n"
+            "# linux-qemu 动态 flag 写入入口：保留外层 /flag，并按配置写入 guest rootfs。\n"
+            "TARGET_PATH=\"${FLAG_PATH:-/flag}\"\n"
+            "TARGET_FLAG=\"${FLAG:-${CTF_FLAG:-${1:-flag{dynamic_flag_placeholder}}}}\"\n"
+            f"VM_ROOTFS=\"${{VM_ROOTFS:-{rootfs_path}}}\"\n"
+            f"GUEST_FLAG_PATH=\"${{GUEST_FLAG_PATH:-{guest_flag_path}}}\"\n"
+            f"FLAG_INJECTION=\"${{FLAG_INJECTION:-{flag_injection}}}\"\n\n"
+            "if [[ -z \"${TARGET_PATH}\" ]]; then\n"
+            "  echo \"[ERROR] FLAG_PATH 不能为空\" >&2\n"
+            "  exit 2\n"
+            "fi\n\n"
+            "mkdir -p \"$(dirname \"${TARGET_PATH}\")\"\n"
+            "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
+            "chmod 444 \"${TARGET_PATH}\" || true\n\n"
+            "if [[ \"${FLAG_INJECTION}\" == \"none\" ]]; then\n"
+            "  echo \"[INFO] flag updated at ${TARGET_PATH}; guest flag injection disabled\"\n"
+            "  exit 0\n"
+            "fi\n\n"
+            "if [[ \"${FLAG_INJECTION}\" != \"debugfs\" ]]; then\n"
+            "  echo \"[ERROR] unsupported FLAG_INJECTION=${FLAG_INJECTION}\" >&2\n"
+            "  exit 2\n"
+            "fi\n\n"
+            "if ! command -v debugfs >/dev/null 2>&1; then\n"
+            "  echo \"[ERROR] debugfs 不存在，无法写入 guest rootfs\" >&2\n"
+            "  exit 2\n"
+            "fi\n"
+            "if [[ ! -f \"${VM_ROOTFS}\" ]]; then\n"
+            "  echo \"[ERROR] VM rootfs 不存在: ${VM_ROOTFS}\" >&2\n"
+            "  exit 2\n"
+            "fi\n\n"
+            "tmp_flag=\"$(mktemp)\"\n"
+            "printf '%s\\n' \"${TARGET_FLAG}\" > \"${tmp_flag}\"\n"
+            "debugfs -w -R \"rm ${GUEST_FLAG_PATH}\" \"${VM_ROOTFS}\" >/dev/null 2>&1 || true\n"
+            "debugfs -w -R \"write ${tmp_flag} ${GUEST_FLAG_PATH}\" \"${VM_ROOTFS}\" >/dev/null\n"
+            "debugfs -w -R \"set_inode_field ${GUEST_FLAG_PATH} mode 0100400\" \"${VM_ROOTFS}\" >/dev/null || true\n"
+            "debugfs -w -R \"set_inode_field ${GUEST_FLAG_PATH} uid 0\" \"${VM_ROOTFS}\" >/dev/null || true\n"
+            "debugfs -w -R \"set_inode_field ${GUEST_FLAG_PATH} gid 0\" \"${VM_ROOTFS}\" >/dev/null || true\n"
+            "rm -f \"${tmp_flag}\"\n"
+            "echo \"[INFO] flag updated at ${TARGET_PATH} and guest:${GUEST_FLAG_PATH}\"\n",
+            encoding="utf-8",
+        )
+    else:
+        changeflag_out.write_text(
+            "#!/bin/bash\n"
+            "set -euo pipefail\n\n"
+            "# 平台动态 flag 写入入口。优先使用 FLAG/CTF_FLAG 环境变量，"
+            "未提供时允许将第一个参数作为兜底值。\n"
+            "TARGET_PATH=\"${FLAG_PATH:-/flag}\"\n"
+            "TARGET_FLAG=\"${FLAG:-${CTF_FLAG:-${1:-flag{dynamic_flag_placeholder}}}}\"\n\n"
+            "if [[ -z \"${TARGET_PATH}\" ]]; then\n"
+            "  echo \"[ERROR] FLAG_PATH 不能为空\" >&2\n"
+            "  exit 2\n"
+            "fi\n\n"
+            "mkdir -p \"$(dirname \"${TARGET_PATH}\")\"\n"
+            "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
+            "chmod 444 \"${TARGET_PATH}\" || true\n"
+            "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n",
+            encoding="utf-8",
+        )
 
     os.chmod(start_out, 0o755)
     os.chmod(changeflag_out, 0o555)

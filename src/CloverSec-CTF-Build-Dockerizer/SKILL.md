@@ -1,9 +1,9 @@
 ---
 name: CloverSec-CTF-Build-Dockerizer
-description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。
+description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Linux-QEMU/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。
 metadata:
-  short-description: 四叶草安全题目容器交付、BaseUnit 构建与 Scenario 编排
-argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit --profile jeopardy|rdg|awd|awdp|secops --port 80 --start '...'"
+  short-description: 四叶草安全题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排
+argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|linux-qemu --profile jeopardy|rdg|awd|awdp|secops --port 80 --start '...'"
 disable-model-invocation: true
 allowed-tools:
   - Bash
@@ -17,13 +17,13 @@ allowed-tools:
 
 ## 一句话定位
 
-四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向题目源码、历史环境、服务基座与多服务本地场景的标准化交付：自动识别技术栈与运行时，生成符合平台契约的 `Dockerfile` / `start.sh` / `changeflag.sh` / `flag`（可选）/ `check` 产物，并补齐 BaseUnit 组件渲染与 Scenario 本地编排所需的校验链路。
+四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向题目源码、历史环境、服务基座、Linux kernel QEMU 环境与多服务本地场景的标准化交付：自动识别技术栈与运行时，生成符合平台契约的 `Dockerfile` / `start.sh` / `changeflag.sh` / `flag`（可选）/ `check` 产物，并补齐 BaseUnit 组件渲染、Linux-QEMU VM 启动与 Scenario 本地编排所需的校验链路。
 
 当你要把 Jeopardy、RDG、AWD、AWDP、SecOps 题目，或指定版本服务组件、Vulhub-like 本地场景整理为四叶草安全-创研中心统一规范的容器交付件时，使用本技能。
 
 ## 能力边界
 
-- 本技能负责：题目容器交付标准化、技术栈侦测、`profile/defense` 归一化、`Dockerfile/start.sh/changeflag.sh/check` 生成、BaseUnit 组件渲染、Scenario 本地编排输出、静态校验与冒烟回归。
+- 本技能负责：题目容器交付标准化、技术栈侦测、`profile/defense` 归一化、`Dockerfile/start.sh/changeflag.sh/check` 生成、BaseUnit 组件渲染、Linux-QEMU VM 模板、Scenario 本地编排输出、静态校验与冒烟回归。
 - 本技能不负责：替代人工设计题目业务逻辑、替代真实业务源码修复、替代外部平台注册发布、把 `docker-compose` 直接当成平台最终交付物。
 - 推荐与 `CloverSec-CTF-Writeup-Scaffold` 协同，但不依赖文档 skill 才能完成环境交付。
 
@@ -32,6 +32,7 @@ allowed-tools:
 - 用户提供题目源码，希望自动生成符合内部规范与平台契约的单容器交付件。
 - 用户提供历史 `Dockerfile`、零散脚本、半成品 `challenge.yaml`，希望整理为统一的 V2 配置与可回归渲染目录。
 - 用户需要基于指定版本服务组件快速生成纯基座镜像最小单元，例如 `mysql`、`redis`、`sshd`、`ttyd`、`apache`、`nginx`、`tomcat`、`php-fpm`、`vsftpd`、`weblogic`。
+- 用户需要把 Linux kernel CVE/LPE 题目整理为 Docker 镜像，并在容器内通过 QEMU 引导特定 vulnerable kernel/rootfs。
 - 用户需要用 `scenario.yaml` 描述 AWD、AWDP、Vulhub-like 多服务本地场景，并输出本地编排结果与每个服务的最终交付目录。
 
 ## 注意事项
@@ -41,7 +42,7 @@ allowed-tools:
 - 镜像根目录默认必须包含 `/flag` 且可读（在支持的 defense profile 中显式设置 include_flag_artifact=false 时可放行）
 - 镜像中必须存在 `/bin/bash`
 
-- 能力边界：当前支持 Jeopardy/RDG/AWD/AWDP/SecOps，支持 BaseUnit 组件渲染与 Scenario 本地编排；平台最终交付仍为单 Dockerfile+start.sh+changeflag.sh。
+- 能力边界：当前支持 Jeopardy/RDG/AWD/AWDP/SecOps，支持 BaseUnit 组件渲染、Linux-QEMU VM 环境与 Scenario 本地编排；平台最终交付仍为单 Dockerfile+start.sh+changeflag.sh。
 
 
 ## 快速开始
@@ -86,7 +87,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
   - 本文 `输入契约` <-> 白皮书 `5. 输入契约`
   - 本文 `AI Orchestrated Mode` <-> 白皮书 `6. AI Orchestrated Wizard`
   - 本文 `手动模式` <-> 白皮书 `7. 手动模式`
-  - 本文 `11 栈模板索引` <-> 白皮书 `8. 十一栈能力对照`
+  - 本文 `12 栈模板索引` <-> 白皮书 `8. 十二栈能力对照`
   - 本文 `validate 规则速查` <-> 白皮书 `10. 校验系统`
   - 本文 `命令速查/附录` <-> 白皮书 `12-15`
 
@@ -118,6 +119,20 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.healthcheck.timeout` | 否 | `5s` | `5s` | `HEALTHCHECK --timeout` |
 | `challenge.healthcheck.retries` | 否 | `3` | `5` | `HEALTHCHECK --retries` |
 | `challenge.healthcheck.start_period` | 否 | `10s` | `20s` | `HEALTHCHECK --start-period` |
+| `challenge.vm.arch` | 否 | `x86_64` | `x86_64` | linux-qemu guest 架构 |
+| `challenge.vm.qemu_binary` | 否 | 架构映射 | `qemu-system-x86_64` | `{{VM_QEMU_BINARY}}` |
+| `challenge.vm.accelerator` | 否 | `tcg` | `tcg` | QEMU 加速器：`tcg/kvm/auto` |
+| `challenge.vm.require_kvm` | 否 | `false` | `false` | true 时校验 `/dev/kvm` |
+| `challenge.vm.memory` | 否 | `768M` | `1024M` | `-m` |
+| `challenge.vm.cpus` | 否 | `2` | `2` | `-smp` |
+| `challenge.vm.kernel` | 否 | `vm/vmlinuz` | `vm/vmlinuz` | `-kernel` |
+| `challenge.vm.initrd` | 否 | `vm/initrd.img` | `vm/initrd.img` | `-initrd` |
+| `challenge.vm.rootfs` | 否 | `vm/rootfs.ext4` | `vm/rootfs.ext4` | `-drive file=...` |
+| `challenge.vm.append` | 否 | 模板默认 | `console=ttyS0 ...` | `-append` |
+| `challenge.vm.guest_forwards` | 否 | 首个 `expose_ports` | `tcp 22->22` | QEMU `hostfwd` |
+| `challenge.vm.asset_mode` | 否 | `prebuilt` | `build-script` | VM 资产来源 |
+| `challenge.vm.guest_flag_path` | 否 | `/root/flag` | `/root/flag` | guest 内 flag 路径 |
+| `challenge.vm.flag_injection` | 否 | `debugfs` | `debugfs` | guest flag 写入方式 |
 | `challenge.extra.env` | 否 | `{}` | `{NODE_ENV: production}` | `{{ENV_BLOCK}}` |
 | `challenge.extra.copy` | 否 | `[]` | `[{from:a,to:b}]` | `{{COPY_APP}}` |
 | `challenge.extra.user` | 否 | 空 | `www-data` | 当前不直接渲染 |
@@ -146,7 +161,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG/Defense check 脚本契约（v2.0.3）
+### RDG/Defense check 脚本契约（v2.1.0）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -171,8 +186,16 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `PIP_REQUIREMENTS_BLOCK`
 - `HEALTHCHECK_BLOCK`
 - `STACK_FLAG_BLOCK`
+- `VM_QEMU_BINARY`
+- `VM_ACCELERATOR`
+- `VM_KERNEL`
+- `VM_INITRD`
+- `VM_ROOTFS`
+- `VM_NETDEV`
+- `VM_GUEST_FLAG_PATH`
+- `VM_FLAG_INJECTION`
 
-## validate 自动修复与发布门禁（v2.0.3）
+## validate 自动修复与发布门禁（v2.1.0）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。
@@ -239,7 +262,7 @@ AI 必须按固定顺序提问，且每题都带默认值：
 
 Q1 技术栈 + 运行时档位（仅 php/node/java 显示档位候选）
 默认：`<stack_guess.id> + <recommended_profile>`
-可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit` + runtime profile 候选（若有）
+可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/linux-qemu` + runtime profile 候选（若有）
 
 Q2 容器端口 
 默认：`<port_guess.ports>` 
@@ -284,7 +307,7 @@ Step 1 末尾硬规则（必须执行）：
 
 ```yaml
 CONFIG PROPOSAL:
-  stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit>
+  stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|linux-qemu>
   profile: <jeopardy|rdg|awd|awdp|secops>
   base_image: <string|optional> # 由运行时档位映射或手动指定
   workdir: <string>
@@ -415,7 +438,7 @@ docker build -t <image>:latest .
 docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 ```
 
-## 11 栈最小模板库索引
+## 12 栈最小模板库索引
 
 ### Node
 
@@ -604,6 +627,37 @@ docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 - `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/Dockerfile.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/start.sh.tpl`
 - `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/README.md`
+
+### Linux-QEMU
+
+适用：
+
+- Linux kernel CVE/LPE 题目
+- 需要指定 vulnerable kernel、initrd/rootfs 或内核模块的环境
+
+默认：
+
+- 端口 `22`
+- QEMU binary `qemu-system-x86_64`
+- 加速器 `tcg`
+- guest flag 路径 `/root/flag`
+
+最小启动命令范式：
+
+- `/start.sh` 前台 `exec "${QEMU_BINARY}" "${QEMU_ARGS[@]}"`
+- QEMU 参数由 `challenge.vm` 结构化生成
+
+可选变体：
+
+- `accelerator=auto`：有 `/dev/kvm` 时用 KVM，否则 TCG
+- `asset_mode=build-script`：构建期执行 `challenge.vm.build_script` 指向的题目内脚本生成 VM 资产
+- `flag_injection=none`：只保留外层 `/flag`，不写入 guest rootfs
+
+模板路径：
+
+- `src/CloverSec-CTF-Build-Dockerizer/templates/linux-qemu/Dockerfile.tpl`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/linux-qemu/start.sh.tpl`
+- `src/CloverSec-CTF-Build-Dockerizer/templates/linux-qemu/README.md`
 
 ### AI (CPU)
 

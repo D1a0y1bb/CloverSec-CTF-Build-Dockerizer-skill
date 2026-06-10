@@ -463,6 +463,27 @@ def _build_start_candidates(
         notes.append("SecOps 默认采用 check-service 判定，并保留 ttyd+sshd 登录链路。")
         notes.append("SecOps 适用于配置加固/安全运维类题目；若无需登录链路可显式关闭 enable_ttyd/enable_sshd。")
 
+    elif stack_id == "linux-qemu":
+        candidates.append(
+            {
+                "cmd": "qemu-system-x86_64",
+                "rationale": "Linux-QEMU 栈由模板结构化生成 QEMU 参数",
+                "evidence": ["来源: stacks.yaml defaults.start_cmd"],
+            }
+        )
+        for script_name in ["run.sh", "qemu.sh", "launch.sh"]:
+            if (scan_dir / script_name).is_file():
+                candidates.append(
+                    {
+                        "cmd": "qemu-system-x86_64",
+                        "rationale": f"命中 {script_name}，保留为 QEMU VM 题目",
+                        "evidence": [f"命中文件: {script_name}"],
+                    }
+                )
+                break
+        notes.append("Linux-QEMU 栈建议把 QEMU 参数写入 challenge.vm，不直接复用零散 run.sh。")
+        notes.append("默认使用 TCG；如需 KVM，必须确认平台允许 /dev/kvm。")
+
     elif stack_id == "baseunit":
         candidates.append(
             {
@@ -532,6 +553,10 @@ def _guess_app_paths(scan_dir: Path, stack_id: str, workdir: str) -> Tuple[str, 
         app_src = "."
         app_dst = "/app"
         evidence.append("RDG 模式默认复制整个题目目录到 /app，兼容多种源码布局")
+    elif stack_id == "linux-qemu":
+        app_src = "."
+        app_dst = "/opt/linux-qemu"
+        evidence.append("Linux-QEMU 默认复制整个题目目录到 /opt/linux-qemu，保留 vm/ 与 scripts/")
     else:
         evidence.append("按通用约定 app_src='.' -> app_dst=WORKDIR")
 
@@ -771,6 +796,40 @@ def derive(project_dir: Path) -> Dict[str, Any]:
 
     if profile_guess != "jeopardy":
         proposal["config_proposal"]["defense"] = defense_proposal
+
+    if stack_id == "linux-qemu":
+        def _first_vm_asset(candidates: List[str], default: str) -> str:
+            for item in candidates:
+                if (project_dir / item).is_file():
+                    return item
+            return default
+
+        host_port = guessed_ports[0] if guessed_ports else "22"
+        proposal["config_proposal"]["vm"] = {
+            "arch": "x86_64",
+            "qemu_binary": "qemu-system-x86_64",
+            "machine": "q35",
+            "accelerator": "tcg",
+            "require_kvm": False,
+            "cpu": "max",
+            "memory": "768M",
+            "cpus": 2,
+            "kernel": _first_vm_asset(["vm/vmlinuz", "vm/bzImage", "vm/Image"], "vm/vmlinuz"),
+            "initrd": _first_vm_asset(["vm/initrd.img", "vm/initramfs.cpio.gz"], "vm/initrd.img"),
+            "rootfs": _first_vm_asset(["vm/rootfs.ext4", "vm/rootfs.img"], "vm/rootfs.ext4"),
+            "drive_format": "raw",
+            "append": "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1",
+            "guest_forwards": [
+                {"proto": "tcp", "host_port": host_port, "guest_port": "22"},
+            ],
+            "monitor": "none",
+            "extra_args": "",
+            "asset_mode": "prebuilt" if (project_dir / "vm").is_dir() else "build-script",
+            "build_script": "scripts/build-vm.sh",
+            "guest_flag_path": "/root/flag",
+            "flag_injection": "debugfs",
+            "healthcheck_mode": "ssh-banner",
+        }
 
     if stack_id == "rdg":
         rdg_ports = list(guessed_ports)

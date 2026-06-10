@@ -2,6 +2,25 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.1.0 - 2026-06-10
+
+### 新增
+
+- 新增 `linux-qemu` 技术栈，面向 Linux kernel CVE/LPE 题目：外层 Docker 镜像启动 QEMU，内层 guest 承载指定 vulnerable kernel、initrd/rootfs。
+- 新增 `challenge.vm` 配置，覆盖 QEMU binary、arch、TCG/KVM、kernel/initrd/rootfs、hostfwd、guest flag 路径和 flag 注入方式。
+- 新增 `templates/linux-qemu/` 与 `examples/linux-qemu-basic/`，轻量示例用于 render/validate，不携带可启动大型 VM 资产。
+
+### 变更
+
+- `render.py` 支持把 `challenge.vm` 渲染为结构化 QEMU 启动脚本，并为 `linux-qemu` 生成可写 guest rootfs 的 `changeflag.sh`。
+- `derive_config.py`、`parse_config_block.py`、`data/stacks.yaml`、`data/patterns.yaml` 同步支持 `linux-qemu`。
+- `validate.sh` 增加 QEMU 专项检查：QEMU 依赖、`-nographic`、`hostfwd`、monitor/gdbstub 风险、VM 资产、KVM 要求、guest flag 路径、EXPOSE 与 hostfwd 一致性。
+- `smoke_test.sh` 增加 `LINUX_QEMU_RUN_MODE=validate-only|build-only|full`，默认仅做 render/validate。
+
+### 发布
+
+- 完整 QEMU boot、PoC 复现、真实动态 flag 注入仍属于 release/manual 级验证；默认回归不启动占位 VM 示例。
+
 ## v2.0.3-r1 - 2026-03-06
 
 ### 变更

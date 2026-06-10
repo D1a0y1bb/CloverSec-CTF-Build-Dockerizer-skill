@@ -14,19 +14,30 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.3--r1-2563eb?style=for-the-badge" alt="Version" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.0.3-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.0.3-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.1.0</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.0.3 Highlights
+## v2.1.0 Highlights
+
+### v2.1.0: Linux kernel CVE delivery through QEMU inside Docker
+
+`v2.1.0` adds the `linux-qemu` stack for challenges that need a specific vulnerable Linux kernel:
+
+- Docker remains the platform artifact; `/start.sh` launches QEMU inside the container.
+- QEMU boots the provided kernel, initrd, and rootfs, so Linux kernel LPE challenges no longer depend on the host kernel.
+- `challenge.vm` now describes VM assets, accelerator mode, guest flag path, and guest port forwarding.
+- Rendering emits a QEMU-oriented `Dockerfile`, `start.sh`, and `changeflag.sh`.
+- Validation checks QEMU startup behavior, VM assets, hostfwd/EXPOSE alignment, KVM requirements, and guest flag injection prerequisites.
+- `smoke_test.sh` keeps `linux-qemu` in `validate-only` mode by default, because the sample VM files are placeholders. Full boot and exploit verification stay as release/manual checks for real challenge assets.
 
 ### v1.5.0: Governance baseline and runtime compatibility
 
@@ -662,7 +673,7 @@ bash scripts/release_build.sh
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.0.3-r1
+bash scripts/publish_release.sh --version v2.1.0
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

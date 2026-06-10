@@ -90,6 +90,16 @@ RDG_WORKDIR_CFG="/app"
 ALLOW_LOOPBACK_BIND_CFG="false"
 PROFILE_CFG="jeopardy"
 FLAG_OPTIONAL_CFG="false"
+STACK_CFG=""
+VM_ACCELERATOR_CFG="tcg"
+VM_REQUIRE_KVM_CFG="false"
+VM_KERNEL_CFG="vm/vmlinuz"
+VM_INITRD_CFG="vm/initrd.img"
+VM_ROOTFS_CFG="vm/rootfs.ext4"
+VM_ASSET_MODE_CFG="prebuilt"
+VM_FLAG_INJECTION_CFG="debugfs"
+VM_GUEST_FLAG_PATH_CFG="/root/flag"
+VM_HOSTFWD_PORTS_CFG=""
 
 if [[ ! -f "$DOCKERFILE" ]]; then
   echo "[ERROR] Dockerfile 不存在: $DOCKERFILE" >&2
@@ -288,6 +298,21 @@ has_service_start_cmd() {
 
 has_tail_dev_null() {
   contains_re "$START_SH" 'tail[[:space:]]+-[fF][[:space:]]+/dev/null'
+}
+
+find_unrendered_template_vars() {
+  local changeflag_host
+  changeflag_host="$(cd "$(dirname "$START_SH")" && pwd)/changeflag.sh"
+
+  local files=("$DOCKERFILE" "$START_SH")
+  if [[ -f "$changeflag_host" ]]; then
+    files+=("$changeflag_host")
+  fi
+
+  grep -Eho '\{\{[A-Z0-9_]+\}\}' "${files[@]}" 2>/dev/null \
+    | sort -u \
+    | tr '\n' ' ' \
+    | sed -E 's/[[:space:]]+$//' || true
 }
 
 has_background_ampersand() {
@@ -493,6 +518,11 @@ infer_stack_hint() {
     return
   fi
 
+  if contains_re "$START_SH" 'qemu-system-' || contains_re "$DOCKERFILE" 'qemu-system-|qemu-utils'; then
+    echo "linux-qemu"
+    return
+  fi
+
   if contains_re "$DOCKERFILE" 'server\.xml|redis\.conf|my\.cnf|sshd_config' || contains_re "$START_SH" 'secops|redis-server|/usr/sbin/sshd -D -e'; then
     echo "secops"
     return
@@ -531,6 +561,18 @@ extract_xinetd_port_from_context() {
     fi
   done
   echo ""
+}
+
+parse_qemu_hostfwd_ports() {
+  grep -Eho 'hostfwd=(tcp|udp)::[0-9]+-:[0-9]+' "$START_SH" "$DOCKERFILE" 2>/dev/null \
+    | sed -E 's/^hostfwd=(tcp|udp)::([0-9]+)-:[0-9]+$/\2/' \
+    | awk 'NF' \
+    | sort -u || true
+}
+
+csv_to_lines() {
+  local csv="$1"
+  printf '%s' "$csv" | tr ',' '\n' | awk 'NF' | sort -u
 }
 
 rule_scope_file() {
@@ -610,6 +652,14 @@ run_hard_rules() {
     log_result INFO "start.sh 首行是 #!/bin/bash"
   else
     log_result ERROR "start.sh 首行必须是 #!/bin/bash。修复：将 shebang 改为 #!/bin/bash。"
+  fi
+
+  local unrendered_vars
+  unrendered_vars="$(find_unrendered_template_vars)"
+  if [[ -n "$unrendered_vars" ]]; then
+    log_result ERROR "渲染产物仍包含未替换模板变量: ${unrendered_vars}"
+  else
+    log_result INFO "渲染产物未发现残留模板变量"
   fi
 
   echo
@@ -1004,6 +1054,118 @@ run_dynamic_checks() {
         fi
       fi
     fi
+  fi
+
+  if [[ "$stack_hint" == "linux-qemu" ]]; then
+    if contains_re "$START_SH" 'exec[[:space:]]+.*qemu-system-' \
+      || contains_re "$START_SH" 'exec[[:space:]]+"\$\{QEMU_BINARY\}"'; then
+      log_result INFO "linux-qemu 已使用 exec 启动 qemu-system-*"
+    else
+      log_result ERROR "linux-qemu 未检测到 exec qemu-system-* 前台启动。"
+    fi
+
+    if contains_re "$DOCKERFILE" 'qemu-system-x86|qemu-system-[A-Za-z0-9_-]+'; then
+      log_result INFO "Dockerfile 已安装或声明 QEMU system 依赖"
+    else
+      log_result ERROR "linux-qemu Dockerfile 未检测到 qemu-system-* 依赖。"
+    fi
+
+    if contains_re "$START_SH" '(^|[[:space:]])-nographic([[:space:]]|$)'; then
+      log_result INFO "QEMU 使用 -nographic，适合平台日志输出"
+    else
+      log_result ERROR "linux-qemu start.sh 未检测到 -nographic。"
+    fi
+
+    if contains_re "$START_SH" 'hostfwd=(tcp|udp)::[0-9]+-:[0-9]+'; then
+      log_result INFO "QEMU user networking 已声明 hostfwd"
+    else
+      log_result ERROR "linux-qemu 未检测到 QEMU hostfwd，平台端口无法到达 guest 服务。"
+    fi
+
+    if contains_re "$START_SH" '(-monitor[[:space:]]+tcp:|-serial[[:space:]]+tcp:|-gdb[[:space:]]+tcp:|(^|[[:space:]])-s([[:space:]]|$)|(^|[[:space:]])-S([[:space:]]|$))'; then
+      log_result ERROR "linux-qemu 检测到默认开放 monitor/gdbstub/暂停调试参数，正式交付不得默认启用。"
+    elif contains_re "$START_SH" '-monitor[[:space:]]+"?none"?'; then
+      log_result INFO "QEMU monitor 默认关闭"
+    else
+      log_result WARN "未明确检测到 -monitor none，建议关闭 QEMU monitor。"
+    fi
+
+    local qemu_base_dir
+    qemu_base_dir="$(cd "$(dirname "$DOCKERFILE")" && pwd)"
+    if [[ "$VM_ASSET_MODE_CFG" == "build-script" ]]; then
+      if [[ -f "${qemu_base_dir}/scripts/build-vm.sh" ]]; then
+        log_result INFO "linux-qemu build-script 模式检测到 scripts/build-vm.sh"
+      else
+        log_result ERROR "linux-qemu asset_mode=build-script 但缺少 scripts/build-vm.sh。"
+      fi
+    else
+      local asset_missing=0
+      local asset
+      for asset in "$VM_KERNEL_CFG" "$VM_INITRD_CFG" "$VM_ROOTFS_CFG"; do
+        if [[ -f "${qemu_base_dir}/${asset}" ]]; then
+          log_result INFO "VM 资产存在: ${asset}"
+        else
+          log_result ERROR "VM 资产不存在: ${asset}"
+          asset_missing=1
+        fi
+      done
+      if [[ $asset_missing -eq 0 ]]; then
+        log_result INFO "linux-qemu 预置 VM 资产检查通过"
+      fi
+    fi
+
+    if [[ "$VM_REQUIRE_KVM_CFG" == "true" || "$VM_ACCELERATOR_CFG" == "kvm" ]]; then
+      if [[ -e /dev/kvm && -r /dev/kvm && -w /dev/kvm ]]; then
+        log_result INFO "KVM 配置需要 /dev/kvm，当前环境可访问"
+      else
+        log_result ERROR "linux-qemu 配置需要 KVM，但当前环境 /dev/kvm 不可读写。"
+      fi
+    elif [[ "$VM_ACCELERATOR_CFG" == "auto" ]]; then
+      log_result WARN "linux-qemu accelerator=auto：发布前需记录实际使用 kvm 还是 tcg。"
+    else
+      log_result INFO "linux-qemu 默认使用 TCG，不要求 /dev/kvm"
+    fi
+
+    if [[ "$VM_FLAG_INJECTION_CFG" == "debugfs" ]]; then
+      if contains_re "$DOCKERFILE" 'e2fsprogs' && contains_re "$START_SH" '/changeflag\.sh'; then
+        log_result INFO "linux-qemu flag 注入声明为 debugfs，镜像包含 e2fsprogs 且启动时会调用 changeflag"
+      else
+        log_result ERROR "linux-qemu flag_injection=debugfs 但未检测到 e2fsprogs 或 /changeflag.sh 调用。"
+      fi
+      if [[ "$VM_GUEST_FLAG_PATH_CFG" == /* ]]; then
+        log_result INFO "guest flag 路径为绝对路径: ${VM_GUEST_FLAG_PATH_CFG}"
+      else
+        log_result ERROR "challenge.vm.guest_flag_path 必须是 guest 内绝对路径。"
+      fi
+    fi
+
+    local hostfwd_ports=()
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && hostfwd_ports+=("$line")
+    done < <(
+      if [[ -n "$VM_HOSTFWD_PORTS_CFG" ]]; then
+        csv_to_lines "$VM_HOSTFWD_PORTS_CFG"
+      else
+        parse_qemu_hostfwd_ports
+      fi
+    )
+
+    local fp
+    for fp in "${hostfwd_ports[@]}"; do
+      local found_fwd=0
+      local dp
+      for dp in "${docker_ports[@]}"; do
+        if [[ "$fp" == "$dp" ]]; then
+          found_fwd=1
+          break
+        fi
+      done
+      if [[ $found_fwd -eq 1 ]]; then
+        log_result INFO "QEMU hostfwd 端口 ${fp} 已在 EXPOSE 中声明"
+      else
+        log_result ERROR "QEMU hostfwd 端口 ${fp} 未在 Dockerfile EXPOSE 中声明。"
+      fi
+    done
   fi
 
   if [[ "$stack_hint" == "ai" ]]; then

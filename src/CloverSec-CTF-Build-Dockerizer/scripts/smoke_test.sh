@@ -15,6 +15,7 @@ WAIT_SECONDS="${SMOKE_WAIT_SECONDS:-5}"
 KEEP_ARTIFACTS="${KEEP_SMOKE_ARTIFACTS:-0}"
 LAMP_RUN_MODE="${LAMP_RUN_MODE:-build-only}" # build-only/full
 AI_TRANSFORMERS_RUN_MODE="${AI_TRANSFORMERS_RUN_MODE:-build-only}" # build-only/full
+LINUX_QEMU_RUN_MODE="${LINUX_QEMU_RUN_MODE:-validate-only}" # validate-only/build-only/full
 
 PASS_LIST=()
 FAIL_LIST=()
@@ -177,6 +178,9 @@ should_run_container() {
   local example_name="$1"
 
   if [[ "$FULL_RUN" == "1" ]]; then
+    if [[ "$example_name" == "linux-qemu-basic" && "$LINUX_QEMU_RUN_MODE" != "full" ]]; then
+      return 1
+    fi
     if [[ "$example_name" == *"lamp"* && "$LAMP_RUN_MODE" != "full" ]]; then
       return 1
     fi
@@ -194,6 +198,10 @@ should_run_container() {
     return 1
   fi
 
+  if [[ "$example_name" == "linux-qemu-basic" && "$LINUX_QEMU_RUN_MODE" != "full" ]]; then
+    return 1
+  fi
+
   if contains_csv_item "$example_name" "$FORCE_RUN_LIST"; then
     return 0
   fi
@@ -206,6 +214,7 @@ echo "- FULL_RUN: ${FULL_RUN}"
 echo "- FORCE_RUN: ${FORCE_RUN_LIST}"
 echo "- LAMP_RUN_MODE: ${LAMP_RUN_MODE}"
 echo "- AI_TRANSFORMERS_RUN_MODE: ${AI_TRANSFORMERS_RUN_MODE}"
+echo "- LINUX_QEMU_RUN_MODE: ${LINUX_QEMU_RUN_MODE}"
 echo "- WAIT_SECONDS: ${WAIT_SECONDS}"
 
 while IFS= read -r dir; do
@@ -267,6 +276,13 @@ while IFS= read -r dir; do
   if ! bash "$VALIDATE_SH" "$dockerfile" "$start_sh" "$challenge_yaml"; then
     echo "[ERROR] validate 失败: ${name}"
     FAIL_LIST+=("${name}:validate")
+    continue
+  fi
+
+  stack_id="$(get_stack_id "$challenge_yaml")"
+  if [[ "$stack_id" == "linux-qemu" && "$LINUX_QEMU_RUN_MODE" == "validate-only" ]]; then
+    echo "[INFO] linux-qemu 当前策略仅执行 render + validate，不执行 docker build/run"
+    PASS_LIST+=("${name}:validate-only")
     continue
   fi
 

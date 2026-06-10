@@ -1,4 +1,4 @@
-# challenge.yaml Schema (v2.0.3-r1)
+# challenge.yaml Schema (v2.1.0)
 
 本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入契约。
 
@@ -7,7 +7,7 @@
 ```yaml
 challenge:
   name: "example"
-  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit"
+  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|linux-qemu"
   profile: "jeopardy|rdg|awd|awdp|secops"
 
   base_image: ""
@@ -41,6 +41,32 @@ challenge:
     path: "/flag"
     permission: "444"
 
+  vm:   # stack=linux-qemu
+    arch: "x86_64"
+    qemu_binary: "qemu-system-x86_64"
+    machine: "q35"
+    accelerator: "tcg|kvm|auto"
+    require_kvm: false
+    cpu: "max"
+    memory: "768M"
+    cpus: 2
+    kernel: "vm/vmlinuz"
+    initrd: "vm/initrd.img"
+    rootfs: "vm/rootfs.ext4"
+    drive_format: "raw"
+    append: "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1"
+    guest_forwards:
+      - proto: "tcp"
+        host_port: "22"
+        guest_port: "22"
+    monitor: "none"
+    extra_args: ""
+    asset_mode: "prebuilt|build-script"
+    build_script: "scripts/build-vm.sh"
+    guest_flag_path: "/root/flag"
+    flag_injection: "debugfs|none"
+    healthcheck_mode: "tcp|ssh-banner|ssh-auth-denied|custom"
+
   defense:
     enable_ttyd: true
     ttyd_port: "8022"
@@ -72,7 +98,7 @@ challenge:
 ## 关键字段说明
 
 - `challenge.stack`
-  - 支持：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit`
+  - 支持：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/linux-qemu`
   - 未显式提供时可由探测规则推断。
 
 - `challenge.profile`
@@ -94,6 +120,13 @@ challenge:
 - `defense.include_flag_artifact`
   - 默认 `true`。
   - 设为 `false` 时仅放行 `/flag` 产物，不放行 `/changeflag.sh`。
+
+- `challenge.vm`
+  - 仅用于 `stack=linux-qemu`。
+  - `expose_ports` 表示 Docker 容器对外端口；`vm.guest_forwards[*].host_port` 必须出现在 `expose_ports` 中。
+  - `accelerator=tcg` 是默认可移植模式；`accelerator=kvm` 或 `require_kvm=true` 需要运行平台显式提供 `/dev/kvm`。
+  - `asset_mode=prebuilt` 表示题目目录已经包含 kernel/initrd/rootfs；`asset_mode=build-script` 表示构建镜像时执行 `build_script` 生成 VM 资产。
+  - `flag_injection=debugfs` 会让生成的 `changeflag.sh` 同时写外层 `/flag` 和 guest rootfs 内的 `guest_flag_path`。
 
 ## 平台硬约束（V2）
 

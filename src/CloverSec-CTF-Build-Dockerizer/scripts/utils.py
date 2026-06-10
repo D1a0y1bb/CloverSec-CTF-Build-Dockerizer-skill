@@ -801,6 +801,31 @@ def detect_stack(
                         max_score += 8
                         break
 
+        if stack_id == "linux-qemu":
+            vm_dir = scan_dir / "vm"
+            vm_assets = [
+                vm_dir / "vmlinuz",
+                vm_dir / "bzImage",
+                vm_dir / "Image",
+                vm_dir / "initrd.img",
+                vm_dir / "initramfs.cpio.gz",
+                vm_dir / "rootfs.ext4",
+            ]
+            if vm_dir.is_dir() and any(path.is_file() for path in vm_assets):
+                score += 80
+                max_score += 80
+            for script_name in ("run.sh", "qemu.sh", "launch.sh", "start.sh"):
+                script = scan_dir / script_name
+                if script.is_file():
+                    try:
+                        script_content = script.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        script_content = ""
+                    if "qemu-system-" in script_content or "hostfwd=" in script_content:
+                        score += 20
+                        max_score += 20
+                        break
+
         confidence = score / max_score
 
         details.append(

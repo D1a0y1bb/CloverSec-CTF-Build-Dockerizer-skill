@@ -1,4 +1,4 @@
-# 平台契约（Platform Contract, v2.0.3）
+# 平台契约（Platform Contract, v2.1.0）
 
 本文档定义交付到目标平台时必须满足的运行契约。文档描述以当前仓库实现为准，不额外扩展未落地能力。
 
@@ -68,7 +68,29 @@ docker run -d -p <host>:<container> <image>:latest /start.sh
 - 兼容输入：`challenge.rdg`
 - profile 覆盖：`jeopardy / rdg / awd / awdp / secops`
 
-## 7. Scenario 边界
+## 7. Linux-QEMU 边界
+
+`stack=linux-qemu` 仍交付单 Docker 镜像，平台入口不变：
+
+- 平台只看到外层容器 `/start.sh`
+- `/start.sh` 在容器内启动 QEMU
+- vulnerable kernel、initrd/rootfs 位于 QEMU guest 内
+- Docker 宿主机内核不会被替换
+
+运行约束：
+
+- 默认使用 TCG，不要求平台提供 `/dev/kvm`
+- 使用 KVM 时必须由题目配置显式声明，并由运行平台显式提供 `/dev/kvm`
+- 不默认要求 `--privileged`
+- QEMU monitor、gdbstub、TCP console 不得默认对外开放
+- Docker `EXPOSE` 与 QEMU `hostfwd` 必须一致
+
+flag 约束：
+
+- 外层 `/flag` 仍是平台契约入口
+- guest 内读取 flag 时，`/changeflag.sh` 必须同步写入 guest rootfs，或在配置中显式关闭 guest flag 注入
+
+## 8. Scenario 边界
 
 Scenario 模式可生成 `docker-compose.yml` 用于本地多服务验证，但平台最终交付仍是单服务目录，核心交付件是：
 
@@ -76,7 +98,7 @@ Scenario 模式可生成 `docker-compose.yml` 用于本地多服务验证，但�
 - `start.sh`
 - `changeflag.sh`
 
-## 8. AWDP 补丁契约
+## 9. AWDP 补丁契约
 
 最终 profile 为 `awdp` 的服务，必须存在：
 
@@ -84,7 +106,7 @@ Scenario 模式可生成 `docker-compose.yml` 用于本地多服务验证，但�
 - 可执行 `patch/patch.sh`
 - `patch_bundle.tar.gz`（且包含上面两项）
 
-## 9. 最小交付清单
+## 10. 最小交付清单
 
 每次渲染完成后，至少应看到：
 
@@ -95,7 +117,7 @@ Scenario 模式可生成 `docker-compose.yml` 用于本地多服务验证，但�
 
 `challenge.yaml` 是输入配置文件，常驻于工作目录或示例目录中，但不是 `render.py` 对所有路径都统一保证重新输出的硬产物。
 
-## 10. 关联文档
+## 11. 关联文档
 
 - 输入 Schema：`src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
 - 栈手册：`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`

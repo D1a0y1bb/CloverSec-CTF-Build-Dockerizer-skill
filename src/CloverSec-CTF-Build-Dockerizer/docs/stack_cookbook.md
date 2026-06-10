@@ -1,4 +1,4 @@
-# 技术栈手册（v2.0.3）
+# 技术栈手册（v2.1.0）
 
 本手册给出各栈最小配置与 V2 使用建议。
 
@@ -21,6 +21,7 @@
 - `ai`
 - `rdg`
 - `secops`
+- `linux-qemu`
 - `baseunit`
 
 ## 通用最小片段
@@ -82,6 +83,40 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
   --component mysql \
   --variant 8.0-debian \
   --output /tmp/baseunit-mysql
+```
+
+## stack=linux-qemu 建议
+
+- 面向 Linux kernel CVE/LPE 题目，外层 Docker 仍按平台契约启动 `/start.sh`，漏洞内核运行在 QEMU guest 中。
+- 默认使用 `accelerator=tcg`；只有平台明确允许 `/dev/kvm` 时才配置 `kvm` 或 `require_kvm=true`。
+- `expose_ports` 表示 Docker 容器端口，`vm.guest_forwards[*].host_port` 必须与它一致。
+- 动态 flag 若需要 guest 内可读，使用 `flag_injection=debugfs` 并设置 `guest_flag_path`。
+
+```yaml
+challenge:
+  name: linux-qemu-basic
+  stack: linux-qemu
+  profile: jeopardy
+  base_image: debian:bookworm-slim
+  workdir: /opt/linux-qemu
+  expose_ports: ["22"]
+  start:
+    mode: cmd
+    cmd: qemu-system-x86_64
+  vm:
+    arch: x86_64
+    accelerator: tcg
+    memory: 768M
+    cpus: 2
+    kernel: vm/vmlinuz
+    initrd: vm/initrd.img
+    rootfs: vm/rootfs.ext4
+    guest_forwards:
+      - proto: tcp
+        host_port: "22"
+        guest_port: "22"
+    guest_flag_path: /root/flag
+    flag_injection: debugfs
 ```
 
 ## scenario（本地编排）

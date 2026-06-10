@@ -139,6 +139,34 @@ python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirement
 
 - 在 start.sh 中显式：`cd "<WORKDIR>"`
 
+### 4.5 linux-qemu 启动失败
+
+现象：
+
+- `validate.sh` 报 QEMU 资产缺失
+- 容器日志显示 `QEMU binary 不存在`
+- 使用 KVM 时提示 `/dev/kvm` 不可用
+
+处理：
+
+- `asset_mode=prebuilt` 时确认 `vm/vmlinuz`、`vm/initrd.img`、`vm/rootfs.ext4` 位于构建上下文内。
+- `asset_mode=build-script` 时确认 `challenge.vm.build_script` 指向的题目内脚本存在，且能在镜像构建期生成 VM 资产。
+- 默认使用 `accelerator=tcg`；只有平台明确提供 `/dev/kvm` 时才使用 `accelerator=kvm` 或 `require_kvm=true`。
+- 确认 `challenge.expose_ports` 与 `challenge.vm.guest_forwards[*].host_port` 一致。
+- 正式交付不要默认开启 TCP monitor、gdbstub 或 `-S` 暂停启动。
+
+### 4.6 linux-qemu 动态 flag 只在容器内变化
+
+现象：
+
+- `/flag` 已更新，但 guest 内 `/root/flag` 仍是旧值。
+
+处理：
+
+- 使用 `flag_injection=debugfs` 并确认镜像安装 `e2fsprogs`。
+- 确认 `challenge.vm.rootfs` 指向可写 ext4 rootfs。
+- 确认 `challenge.vm.guest_flag_path` 是 guest 内绝对路径，例如 `/root/flag`。
+
 ---
 
 ## 5. 冒烟测试阶段
@@ -164,6 +192,25 @@ python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirement
 
 ```bash
 LAMP_RUN_MODE=full bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+```
+
+### 5.3 linux-qemu 示例默认不 build/run
+
+说明：
+
+- `examples/linux-qemu-basic` 使用占位 VM 资产，只用于 render/validate。
+- 默认 `LINUX_QEMU_RUN_MODE=validate-only`，不会构建镜像或启动 QEMU。
+
+需要构建真实资产后的镜像：
+
+```bash
+LINUX_QEMU_RUN_MODE=build-only bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+```
+
+需要完整启动：
+
+```bash
+LINUX_QEMU_RUN_MODE=full SMOKE_FORCE_RUN=linux-qemu-basic bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 ```
 
 ---

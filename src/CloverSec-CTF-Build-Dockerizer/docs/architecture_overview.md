@@ -1,9 +1,9 @@
-# 架构总览（v2.0.3）
+# 架构总览（v2.1.0）
 
 ## 1) 输入层
 
 - `data/schema.md`：`challenge.yaml` v2 输入契约
-- `data/stacks.yaml`：11 栈默认值与探测特征
+- `data/stacks.yaml`：12 栈默认值与探测特征，含 `linux-qemu`
 - `data/profiles.yaml`：profile 默认防御配置
 - `data/runtime_profiles.yaml`：php/node/java 运行时档位映射
 - `data/components.yaml`：baseunit 组件与变体定义
@@ -22,6 +22,7 @@
 - `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py`：场景渲染入口（本地 compose）
 - `templates/<stack>/`：栈模板
 - `templates/snippets/`：横切片段（changeflag/defense/healthcheck 等）
+- `templates/linux-qemu/`：Docker 内启动 QEMU guest 的专用模板
 
 ## 4) 校验层
 
@@ -29,6 +30,7 @@
 - `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py`：scenario 规则校验
 - `src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh`：example/scenario 批量回归
 - `src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh`：容器构建与运行冒烟
+- `linux-qemu` 默认只进入 render/validate；完整 QEMU boot 需显式设置 smoke 模式
 
 ## 5) 发布治理层
 
@@ -45,3 +47,4 @@
 - 最终交付必须包含：`Dockerfile/start.sh/changeflag.sh`
 - `/flag` 仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行
 - `docker-compose.yml` 仅用于本地场景编排，不作为平台最终交付
+- `linux-qemu` 不改变平台单容器契约；特定漏洞内核只在 QEMU guest 中运行

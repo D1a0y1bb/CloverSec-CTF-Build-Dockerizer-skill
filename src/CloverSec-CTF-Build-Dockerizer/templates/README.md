@@ -1,4 +1,4 @@
-# templates 模板库（v2.0.3-r1）
+# templates 模板库（v2.1.0）
 
 ## 栈模板目录
 
@@ -12,6 +12,7 @@
 - `ai/`
 - `rdg/`
 - `secops/`
+- `linux-qemu/`
 - `baseunit/`
 
 每个栈目录包含：
@@ -38,3 +39,4 @@
 - `/changeflag.sh` 必须参与交付
 - `include_flag_artifact=false` 仅放行 `flag`，不放行 `changeflag`
 - `rdg/secops` 使用专用模板语义；其他栈在 profile 需要时注入 defense block
+- `linux-qemu` 使用专用 VM/QEMU 变量；默认不要求 `/dev/kvm` 或 `--privileged`

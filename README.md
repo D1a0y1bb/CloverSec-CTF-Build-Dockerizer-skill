@@ -11,17 +11,35 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.0.3--r1-2563eb?style=for-the-badge" alt="Version" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-11-f59e0b?style=for-the-badge" alt="Stacks" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.0.3-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.1.0</code></p>
 
-四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
+四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
 如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
+
+## V2.1.0 linux-qemu 功能更新
+
+v2.1.0 面向 Linux kernel CVE / LPE 题目增加 `linux-qemu` 交付模型说明：外层仍是平台可导入的单 Docker 镜像，容器内由 `/start.sh` 拉起 QEMU，QEMU 再引导指定的 vulnerable kernel、initrd/rootfs 与 guest 服务。这样可以处理 Docker 共享宿主机内核导致的 Linux kernel 漏洞题无法直接复现的问题。
+
+本次版本说明覆盖以下内容：
+
+1、用途：`linux-qemu` 适用于 Copy Fail、Fragnesia 这类依赖特定 Linux kernel、内核模块、initramfs/rootfs 的 CVE 内核提权题。普通 Web 仿真、cPanel/WHM 仿真、业务服务漏洞仍使用 `python/node/php/java` 等常规栈。
+
+2、运行边界：平台启动入口不变，仍是 `docker run ... /start.sh`。漏洞内核只在 QEMU guest 内运行，Docker 容器本身不会替换宿主机内核。
+
+3、KVM/TCG：默认文档建议使用 TCG 作为可移植模式；如平台允许 `/dev/kvm`，可把 KVM 作为可选加速。不能默认依赖 `--privileged` 或自动暴露宿主设备。
+
+4、flag 注入：外层 `/flag` 仍按平台契约保留；内层 VM 如需读取 flag，`changeflag.sh` 必须把动态 flag 写入 guest rootfs，例如使用 `debugfs` 更新 `/root/flag`。只写容器 `/flag` 不等于 guest 内可读。
+
+5、实现范围：新增 `linux-qemu` 栈、`challenge.vm` schema、模板、轻量示例、渲染支持、CONFIG 解析、derive 提案、QEMU 专项校验与 smoke 可选策略。
+
+6、验证策略：默认验证只检查渲染目录、Docker 契约、QEMU 启动脚本、端口映射和 VM 资产存在；完整 QEMU boot、动态 flag 注入、PoC 复现应作为 release/manual 级验证，不放入轻量 CI 的默认路径。
 
 ## V2.0.3 有哪些重大更新？
 
@@ -35,7 +53,7 @@
 
 5、维护说明：V2 之后会继续以兼容优先的方式迭代；如发现问题或契约错位，请及时提交 [Issues](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/issues)，也欢迎按现有模型继续做二次开发与适配。
 
-6、展示层收口补充：`v2.0.3-r1` 不调整渲染、校验、BaseUnit、Scenario 等运行时行为，重点完成技能展示层收口。当前 `SKILL.md` 顶部说明已经前移为“`一句话定位 / 能力边界 / 适用场景 / 注意事项`”结构，同时新增 `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml`，用于 Codex UI 中的 Skill 卡片展示、短描述与默认提示词配置。
+6、展示层更新：`v2.0.3-r1` 不调整渲染、校验、BaseUnit、Scenario 等运行时行为，主要完善 Skill 在 Codex UI 中的展示信息。当前 `SKILL.md` 顶部说明已经改为“`一句话定位 / 能力边界 / 适用场景 / 注意事项`”结构，同时新增 `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml`，用于 Skill 卡片展示、短描述与默认提示词配置。
 
 ## 核心能力矩阵
 
@@ -186,6 +204,51 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/jeopardy-node/start.sh \
   /tmp/jeopardy-node/challenge.yaml
 ```
+
+### Linux-QEMU（Linux kernel CVE / LPE）
+
+适用：需要指定 guest kernel、initrd/rootfs、内核模块或内核配置的 Linux kernel 漏洞题。典型形态是外层 Docker 负责平台交付，内层 QEMU guest 负责漏洞环境。
+
+建议配置形态：
+
+```yaml
+challenge:
+  name: kernel-cve-demo
+  stack: linux-qemu
+  profile: jeopardy
+  base_image: debian:bookworm-slim
+  workdir: /opt/kernel-qemu
+  expose_ports: ["22"]
+  start:
+    mode: cmd
+    cmd: "qemu-system-x86_64"
+  vm:
+    engine: qemu
+    arch: x86_64
+    accelerator: tcg
+    memory: 768M
+    cpus: 2
+    kernel: vm/vmlinuz
+    initrd: vm/initrd.img
+    rootfs: vm/rootfs.ext4
+    append: "console=ttyS0 root=/dev/vda rw"
+    guest_forwards:
+      - proto: tcp
+        host_port: "22"
+        guest_port: "22"
+    guest_flag_path: /root/flag
+    flag_injection: debugfs
+    healthcheck_mode: ssh-banner
+```
+
+交付要求：
+
+- `/start.sh` 前台执行 QEMU，并显式设置 `-m`、`-smp`、`-nographic`、网络与 `hostfwd`。
+- 默认使用 TCG；KVM 只能作为显式可选项，平台不应自动使用 `--privileged`。
+- `EXPOSE`、平台端口映射、QEMU `hostfwd` 三处要对应。
+- `changeflag.sh` 如果只写 `/flag`，guest 内不会自动看到新 flag；内层 flag 路径需要单独写入 rootfs 或由 guest 启动脚本读取。
+- PoC/EXP 不建议进入镜像，作为附件与题解资料管理。
+- 大型 kernel/rootfs 示例不建议进入默认 CI，完整启动验证应在 release/manual 阶段执行。
 
 ### RDG
 
@@ -496,7 +559,7 @@ bash scripts/release_build.sh
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.0.3-r1
+bash scripts/publish_release.sh --version v2.1.0
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

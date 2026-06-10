@@ -482,6 +482,57 @@ stacks:
           start_cmd: "catalina.sh run"
           reason: "命中 Tomcat/WebLogic 风格配置文件"
 
+  linux-qemu:
+    entry_files:
+      - vm/vmlinuz
+      - vm/bzImage
+      - vm/Image
+      - vm/initrd.img
+      - vm/initramfs.cpio.gz
+      - vm/rootfs.ext4
+      - run.sh
+      - qemu.sh
+      - launch.sh
+    defaults:
+      expose_ports:
+        - "22"
+      base_image: "debian:bookworm-slim"
+      start_cmd: "qemu-system-x86_64"
+      start_reason: "Linux QEMU 规则未命中，回退 qemu-system-x86_64"
+      ports_reason: "Linux QEMU 规则未命中，回退 SSH hostfwd 端口 22"
+      base_image_reason: "Linux QEMU 规则未命中，回退 Debian slim QEMU 基础镜像"
+    rules:
+      - id: linux-qemu-prebuilt-vm
+        any_of_files:
+          - vm/vmlinuz
+          - vm/bzImage
+          - vm/Image
+          - vm/initrd.img
+          - vm/initramfs.cpio.gz
+          - vm/rootfs.ext4
+        any_of_dirs:
+          - vm
+        infer:
+          expose_ports:
+            - "22"
+          base_image: "debian:bookworm-slim"
+          start_cmd: "qemu-system-x86_64"
+          reason: "命中预置 VM 资产，推断为 Linux kernel QEMU 题目"
+      - id: linux-qemu-launch-script
+        any_of_files:
+          - run.sh
+          - qemu.sh
+          - launch.sh
+        any_of_file_contains:
+          - file: "*.sh"
+            pattern: "qemu-system-|hostfwd=|-kernel|-initrd"
+        infer:
+          expose_ports:
+            - "22"
+          base_image: "debian:bookworm-slim"
+          start_cmd: "qemu-system-x86_64"
+          reason: "命中 QEMU 启动脚本，推断为 Linux kernel QEMU 题目"
+
   baseunit:
     entry_files: []
     defaults:

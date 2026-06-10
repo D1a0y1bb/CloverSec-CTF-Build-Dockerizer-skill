@@ -1,4 +1,4 @@
-# 目录指引（v2.0.3）
+# 目录指引（v2.1.0）
 
 ## 仓库根目录
 
@@ -16,9 +16,9 @@
 
 - `SKILL.md`：技能协议
 - `data/`：schema / stacks / profiles / components / scenario / rules
-- `templates/`：11 栈模板与 snippets
+- `templates/`：12 栈模板与 snippets，含 `linux-qemu`
 - `scripts/`：derive / parse / render / validate / smoke
-- `examples/`：单题 + baseunit + secops + scenario 示例
+- `examples/`：单题 + baseunit + secops + linux-qemu + scenario 示例
 - `docs/`：架构 / 契约 / 手册
 
 ## 脚本职责边界

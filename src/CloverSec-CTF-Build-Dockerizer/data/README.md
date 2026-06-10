@@ -1,7 +1,7 @@
-# data 目录（v2.0.3）
+# data 目录（v2.1.0）
 
 - `schema.md`：`challenge.yaml` v2 输入契约
-- `stacks.yaml`：11 栈默认值与探测规则
+- `stacks.yaml`：12 栈默认值与探测规则（含 `linux-qemu`）
 - `patterns.yaml`：端口/启动命令推断规则
 - `profiles.yaml`：profile 默认防御行为
 - `runtime_profiles.yaml`：php/node/java 运行时档位映射
@@ -16,3 +16,4 @@
 - 平台硬约束由渲染与校验链路强制执行（`/start.sh`、`/changeflag.sh`、`/bin/bash`、`EXPOSE`）。
 - `/flag` 默认必须存在，仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行。
 - scenario 生成的 compose 为本地验证用途，不改变平台单服务交付模型。
+- `linux-qemu` 使用 `challenge.vm` 描述 QEMU guest、VM 资产、hostfwd 和 guest flag 注入策略。

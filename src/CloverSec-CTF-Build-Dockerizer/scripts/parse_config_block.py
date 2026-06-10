@@ -36,6 +36,7 @@ ALLOWED_STACKS = {
     "rdg",
     "secops",
     "baseunit",
+    "linux-qemu",
 }
 ALLOWED_PROFILES = {"jeopardy", "rdg", "awd", "awdp", "secops"}
 _DURATION_RE = re.compile(r"^[0-9]+(ns|us|ms|s|m|h)$")
@@ -347,6 +348,10 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
             },
         }
     }
+
+    if stack_raw == "linux-qemu" or "vm" in proposal:
+        vm = ensure_dict(proposal.get("vm"), "vm")
+        challenge["challenge"]["vm"] = dict(vm)
 
     if profile != "jeopardy" or defense or rdg or stack_raw in {"rdg", "secops"}:
         challenge["challenge"]["defense"] = {

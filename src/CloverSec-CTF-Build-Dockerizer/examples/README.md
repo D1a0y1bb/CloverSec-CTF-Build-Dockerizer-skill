@@ -21,6 +21,7 @@
   - `python-supervisor-basic/`
   - `pwn-socat-basic/`
   - `tomcat-context-basic/`
+  - `linux-qemu-basic/`（轻量 render/validate 示例，占位 VM 资产不可 boot）
 - 兼容目录（保留历史路径）：
   - `node/`
   - `php/`
@@ -37,3 +38,4 @@
 - 可选渲染产物：`Dockerfile`、`start.sh`、`flag`
 - RDG 示例额外包含：`check/check.sh`（check-service 真实检查脚本）
 - 可选冒烟断言：`smoke_assert.sh`（由 `smoke_test.sh` 自动调用）
+- `linux-qemu-basic/` 默认只用于渲染与静态校验；完整 QEMU boot 需要替换真实 VM 资产后单独执行。

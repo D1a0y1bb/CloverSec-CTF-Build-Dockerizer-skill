@@ -46,6 +46,14 @@ def main() -> int:
     defense = challenge.get("defense") if isinstance(challenge.get("defense"), dict) else {}
     legacy = challenge.get("rdg") if isinstance(challenge.get("rdg"), dict) else {}
     source = {**legacy, **defense}
+    vm = challenge.get("vm") if isinstance(challenge.get("vm"), dict) else {}
+    guest_forwards = vm.get("guest_forwards") if isinstance(vm.get("guest_forwards"), list) else []
+    forward_host_ports = []
+    for item in guest_forwards:
+        if isinstance(item, dict):
+            value = str(item.get("host_port") or "").strip()
+            if value:
+                forward_host_ports.append(value)
 
     scoring_mode = str(
         source.get("scoring_mode")
@@ -79,6 +87,15 @@ def main() -> int:
         ),
         "FLAG_OPTIONAL_CFG": flag_optional,
         "START_CMD_CFG": str(((challenge.get("start") or {}).get("cmd")) or "").strip(),
+        "VM_ACCELERATOR_CFG": str(vm.get("accelerator") or "tcg").strip().lower(),
+        "VM_REQUIRE_KVM_CFG": pick_bool(vm, "require_kvm", False),
+        "VM_KERNEL_CFG": str(vm.get("kernel") or "vm/vmlinuz").strip(),
+        "VM_INITRD_CFG": str(vm.get("initrd") or "vm/initrd.img").strip(),
+        "VM_ROOTFS_CFG": str(vm.get("rootfs") or "vm/rootfs.ext4").strip(),
+        "VM_ASSET_MODE_CFG": str(vm.get("asset_mode") or "prebuilt").strip().lower(),
+        "VM_FLAG_INJECTION_CFG": str(vm.get("flag_injection") or "debugfs").strip().lower(),
+        "VM_GUEST_FLAG_PATH_CFG": str(vm.get("guest_flag_path") or "/root/flag").strip(),
+        "VM_HOSTFWD_PORTS_CFG": ",".join(forward_host_ports),
     }
 
     for key, value in items.items():
