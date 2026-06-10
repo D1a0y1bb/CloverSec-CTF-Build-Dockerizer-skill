@@ -119,7 +119,7 @@ challenge:
     - `stack=secops` -> `secops`
     - 其他 -> `jeopardy`
 
-- `challenge.defense`（V2 主口径）
+- `challenge.defense`（V2 推荐字段）
   - 用于统一防御注入配置（sshd/ttyd/ctf 用户/评分模式）。
   - 非 `rdg/secops` 栈在 `profile!=jeopardy` 且开启防御开关时会注入 defense block。
   - `stack=rdg` 与 `stack=secops` 使用专用模板语义，避免重复注入。

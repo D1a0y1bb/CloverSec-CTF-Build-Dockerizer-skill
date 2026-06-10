@@ -44,9 +44,9 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 | 機能 | エントリスクリプト | 目的 | 出力 |
 |---|---|---|---|
-| 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | intake/propose/accept/render/validate/status を編成 | `.ctfbuild/session.json` |
-| 入力監査と提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | スタック/ポート/起動/runtime/profile とリスクを推定 | `input_audit` / `config_proposal` |
-| 提案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | `CONFIG PROPOSAL` を `challenge.yaml` 化 | 正規化設定 |
+| 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | 分析、確認、生成、検証、状態確認を編成 | `.ctfbuild/session.json` |
+| 入力監査と提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | スタック、ポート、起動方法、実行環境、profile、リスクを推定 | 監査結果 / 構築案 |
+| 構築案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | 確認済みの構築案を `challenge.yaml` 化 | 正規化設定 |
 | 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
 | 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` / JSON summary |
 | コンポーネント生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | component+variant 最小単位化 | build 可能なサービスディレクトリ |
@@ -87,27 +87,27 @@ Codex UI における Skill カードの表示内容は `src/CloverSec-CTF-Build
 - `default_prompt`：試用・起動時に入る既定プロンプト
 - `allow_implicit_invocation`：条件一致時にモデルが暗黙起動できるか
 
-現在の既定プロンプト戦略は、先に intake/propose を実行し、evidence と `input_audit` 付きの `CONFIG PROPOSAL` を出し、ユーザーの OK 後に accept/render/validate を実行する流れです。この層は Codex UI での見え方と起動方法だけに影響し、`workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` の実行時挙動は変えません。
+現在の既定プロンプト戦略は、まず問題ディレクトリを確認し、証拠、リスク、不足情報を整理して構築案を提示する流れです。ユーザー確認後に Docker 配布物を生成し、検証を実行します。この層は Codex UI での見え方と起動方法だけに影響し、`workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` の実行時挙動は変えません。
 
 後で Codex 上のカード名、短い説明、試用プロンプトを調整したい場合は、README 本文より先にこのファイルを編集してください。
 
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
+  short_description: "将 CTF 题目整理为可验证的 Docker 交付件，支持内核题与多服务场景"
+  default_prompt: "<中国語の既定プロンプトは agents/openai.yaml に保存>"
 ```
 
 ## クイックスタート
 
-### Agent-Orchestrated フロー（推奨）
+### AI 支援フロー（推奨）
 
 標準プロンプト：
 
 ```text
 CloverSec-CTF-Build-Dockerizer を使って現在の問題ディレクトリを処理してください。
-まず intake/propose を実行し、evidence と input_audit 付きの CONFIG PROPOSAL を出力してください。
-私が OK したら accept、render、validate を実行してください。
+まず問題構成、リスク、不足情報を確認し、構築案を提示してください。
+私が確認した後に Docker 配布物を生成し、検証してください。
 ```
 
 ショートプロンプト：
@@ -149,8 +149,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 
 ```text
 現在のディレクトリを CloverSec-CTF-Build-Dockerizer で処理してください。
-まず workflow.py intake/propose を実行し、evidence と input_audit 付き CONFIG PROPOSAL を出力してください。
-私が OK した後に workflow.py accept/render/validate と必要な回帰コマンドを実行してください。
+まず問題構成、リスク、不足情報を確認してください。
+私が構築案を確認した後に、配布物生成と必要な検証コマンドを実行してください。
 対象モード: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>
 ```
 
@@ -176,7 +176,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 
 ```text
 既存スクリプト（workflow.py/render.py/validate.sh）を必ず利用し、手書き置換をしないでください。
-まず workflow.py intake/propose を実行し、OK 後にレンダリングへ進んでください。
+まず問題内容を確認し、ユーザー確認後にレンダリングへ進んでください。
 最終的に Dockerfile/start.sh/changeflag.sh 契約を満たしてください。
 ```
 
@@ -201,8 +201,8 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 
 ```text
 あなたは配布エンジニアです。
-Phase1: workflow.py intake/propose で evidence と input_audit を提示。
-Phase2: 私の確認後に workflow.py accept/render を実行。
+Phase1: 問題内容を確認し、証拠付きの構築案を提示。
+Phase2: 私の確認後に配布物を生成。
 Phase3: validate / validate_scenario / validate_bundle / smoke を必要に応じて実行。
 Phase4: リリース前確認項目と手動検証項目を提示。
 ```
@@ -229,8 +229,8 @@ bash scripts/release_build.sh --with-smoke
 
 ```text
 このリポジトリで V2 配布フローを実行してください:
-1) workflow.py intake/propose -> CONFIG PROPOSAL + input_audit
-2) workflow.py accept/render、必要に応じてモード別 renderer
+1) 問題内容を確認し、証拠付きの構築案を提示
+2) 配布物を生成し、必要に応じてモード別 renderer を使う
 3) validate.sh / validate_scenario.py --validate-rendered / validate_bundle.py / smoke_test.sh
 4) 失敗、修正内容、手動検証項目を要約
 ```
@@ -259,7 +259,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 ```text
 このリポジトリの既存スクリプト（workflow/render/validate/import_compose/render_bundle）のみで実行してください。
 Dockerfile を一から書き直さないでください。
-先に input_audit 付き CONFIG PROPOSAL を提示し、確認後に次工程へ進んでください。
+先に証拠付きの構築案を提示し、確認後に次工程へ進んでください。
 ```
 
 再試行プロンプト：
@@ -526,7 +526,7 @@ Scenario 境界：
 
 ## Workflow スクリーンショット（プロンプトから公開まで）
 
-Prompt 入力：
+プロンプト入力：
 
 ![workflow-01](docs/assets/readme/workflow-01-quick-prompt.png)
 
@@ -629,7 +629,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `derive_config.py` | 提案生成 |
 | `audit_input.py` | 入力リスク監査 |
-| `workflow.py` | stateful intake/propose/accept/render/validate/status 編成 |
+| `workflow.py` | stateful analysis, confirmation, rendering, validation, and status 編成 |
 | `parse_config_block.py` | 提案解析 |
 | `render.py` | 単体レンダリング |
 | `render_component.py` | BaseUnit レンダリング |
@@ -685,7 +685,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `architecture_overview.md` | アーキテクチャ概要 |
 | `platform_contract.md` | プラットフォーム契約 |
-| `orchestrated_workflow.md` | CONFIG PROPOSAL、OK gate、5 項確認 |
+| `orchestrated_workflow.md` | 構築案確認、OK gate、5 項確認 |
 | `stack_cookbook.md` | スタック構築手引き |
 | `validation_guide.md` | 検証ルール、check-service gate、release checks |
 | `directory_guide.md` | ディレクトリ設計説明 |

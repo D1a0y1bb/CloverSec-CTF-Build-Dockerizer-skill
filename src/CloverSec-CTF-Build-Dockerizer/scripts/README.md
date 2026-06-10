@@ -12,10 +12,10 @@
 - `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `import_compose.py`：将 compose/Vulhub-like 输入转换为 scenario draft、renderable subset 和 import report
 - `generate_check_stub.py`：生成 RDG/SecOps check-service 可编辑脚本骨架，默认带人工确认标记
-- `workflow.py`：推荐工作流入口，支持 intake/propose/accept/render/validate/status，并维护 `.ctfbuild/` 状态文件
-- `audit_input.py`：输入审计，输出 risk_level/recommended_path/support_level/verification_level/manual_required/findings
+- `workflow.py`：推荐工作流入口，依次完成题目分析、方案生成、确认、交付生成、验证和状态查看，并维护 `.ctfbuild/` 状态文件
+- `audit_input.py`：输入审计，输出风险等级、推荐处理路径、支持等级、验证等级、是否需要人工确认和发现项
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
-- `parse_config_block.py`：解析 CONFIG PROPOSAL YAML（stdin）并生成标准 challenge.yaml
+- `parse_config_block.py`：解析方案确认 YAML（stdin）并生成标准 challenge.yaml
 - `detect_stack.py`：输出技术栈侦测结果和置信度
 - `validate.sh`：执行硬规则与可配置规则校验，支持 `--json-summary`
 - `validate_scenario.py`：校验 scenario 输出，支持 `--validate-rendered` 和 `--format text|json`

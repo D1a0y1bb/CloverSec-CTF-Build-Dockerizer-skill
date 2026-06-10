@@ -14,7 +14,7 @@
 - 新增 compose import draft：`import_compose.py` 输出 `scenario.draft.yaml`、`scenario.renderable.yaml` 与 `import-report.json`，并提供导入示例。
 - 新增 `generate_check_stub.py`，支持 HTTP/TCP/Redis/MySQL/SSH check-service 可编辑骨架。
 - 新增 `validation_guide.md`，承接 `SKILL.md` 中迁出的 validate、check-service、Linux-QEMU 静态校验和发布前检查细节。
-- 新增 `orchestrated_workflow.md`，承接旧版 `SKILL.md` 的 CONFIG PROPOSAL、OK 门槛和 5 项确认协议。
+- 新增 `orchestrated_workflow.md`，承接旧版 `SKILL.md` 的方案确认、OK 门槛和 5 项确认协议。
 
 ### 变更
 
@@ -30,9 +30,9 @@
 
 ### 验证
 
-- Golden snapshot 对比基线：P1.8 前 `29d470e`，P1.8 后 `108977d`。
+- 改版前后对照验证基线：P1.8 前 `29d470e`，P1.8 后 `108977d`。
 - `SKILL.md` 从 1089 行降到 206 行，入口减少约 81.1%；字节数从 39254 降到 10204，减少约 74.0%。
-- OK 门槛、5 项确认、低风险 Node proposal/render/validate、Linux-QEMU 缺资产审计均保持一致。
+- OK 门槛、5 项确认、低风险 Node 生成与验证流程、Linux-QEMU 缺资产审计均保持一致。
 - Bundle partial 严格 digest 和 Scenario Vulhub-like 严格 digest 从失败变为通过。
 - 报告保存在 `开发文档（不同步）/golden_snapshot_p18/REPORT.md` 与 `开发文档（不同步）/golden_snapshot_p18/summary.json`；该目录不进入发布包。
 
@@ -41,7 +41,7 @@
 ### 新增
 
 - 新增 `workflow.py` 推荐入口，提供 `intake / propose / accept / render / validate / status` 命令，并在题目目录维护 `.ctfbuild/session.json`、proposal 与 accepted proposal 状态文件。
-- 新增 `audit_input.py` 输入审计，输出 `risk_level`、`recommended_path`、`support_level`、`verification_level`、`manual_required` 与 `findings[]`；`derive_config.py` 的 JSON/YAML 输出同步携带 `input_audit`。
+- 新增 `audit_input.py` 输入审计，输出风险等级、推荐处理路径、支持等级、验证等级、是否需要人工确认和发现项；`derive_config.py` 的 JSON/YAML 输出同步携带审计结果。
 - `render.py` 新增 Proposal Gate、`--format text|json`、`--manual --reason`。混合输入、脏目录、高风险输入或 derive gates 为 true 时，默认要求 accepted proposal。
 - `validate.sh` 新增 `--json-summary <path>`，`validate_scenario.py` 新增 `--format text|json`，失败结果可稳定输出结构化错误码。
 
@@ -96,7 +96,7 @@
 
 ### 发布
 
-- 本版本为展示层与文档收口发布，不引入 `render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 等运行时逻辑变更。
+- 本版本为展示层与文档整理发布，不引入 `render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 等运行时逻辑变更。
 
 ## v2.0.3 - 2026-03-06
 
@@ -104,13 +104,13 @@
 
 - 修复三语 README 的历史错链，统一当前文档入口为：`README.md`（中文默认）、`README.en.md`（英文完整）、`README.ja.md`（日文完整）。
 - 收敛 README 中过强或易过时的承诺性表述，改为以“当前已验证能力范围”和“兼容优先迭代”描述项目边界。
-- 将 `beginner_guide.md` 升级到 V2 口径，补齐 `changeflag.sh`、`secops`、`baseunit`、`scenario`、`awd`、`awdp` 等能力说明。
+- 将 `beginner_guide.md` 升级到 V2 表达，完善 `changeflag.sh`、`secops`、`baseunit`、`scenario`、`awd`、`awdp` 等能力说明。
 - 修正文档契约错位：
   - `changeflag.sh` 明确为硬产物
   - `/flag` 明确为条件产物
   - `challenge.yaml` 不再被表述为所有渲染路径都必然重新输出的硬产物
 - 更新 `directory_guide.md`、`SKILL.md`、`platform_contract.md`、`architecture_overview.md`、`stack_cookbook.md`、`data/README.md`，统一到当前实现语义。
-- `scripts/doc_guard.py` 收口到当前三语 README 结构，不再强依赖已删除的历史中文入口文件。
+- `scripts/doc_guard.py` 按当前三语 README 结构检查，不再强依赖已删除的历史中文入口文件。
 
 ### 发布
 
@@ -127,7 +127,7 @@
 - 新增“版本演进叙事”并覆盖 `v1.5.0 -> v2.0.0 -> v2.0.1 -> v2.0.2` 全链路说明。
 - 补齐并扩展高价值文档板块：
   - 一键安装与技能发现
-  - Agent-Orchestrated 流程与 `CONFIG PROPOSAL` 确认门
+  - AI 编排流程与方案确认门
   - AI 编程工具实战（Codex/Cursor/Trae/Claude Code/Copilot Chat/Aider）
   - 竞赛模式构建手册（Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Vulhub-like）
   - 文件级目录索引、FAQ、排障与发布验收清单
@@ -157,14 +157,14 @@
 
 ### 发布
 
-- 该版本为 `v2.0.0` 收口补丁发布，保持接口与契约不变，仅做一致性收口与可重复构建修复。
+- 该版本为 `v2.0.0` 整理补丁发布，保持接口与契约不变，仅做一致性整理与可重复构建修复。
 
 ## v2.0.0 - 2026-03-06
 
 ### 新增
 
 - 新增 V2 交付契约：每次渲染默认产出 `Dockerfile`、`start.sh`、`changeflag.sh`，并在需要时产出 `flag` 与 `check/check.sh`。
-- 新增 V2 配置主口径：`challenge.profile` 与 `challenge.defense`，覆盖 `jeopardy / rdg / awd / awdp / secops` 五类 profile。
+- 新增 V2 推荐配置字段：`challenge.profile` 与 `challenge.defense`，覆盖 `jeopardy / rdg / awd / awdp / secops` 五类 profile。
 - 新增独立技术栈：`secops`、`baseunit`。
 - 新增 `data/profiles.yaml`，统一管理 profile 默认行为。
 - 新增 `src/CloverSec-CTF-Build-Dockerizer/data/components.yaml` 与 `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py`，支持指定组件和指定版本变体生成“纯服务包 / 纯基座镜像最小单元”。
@@ -184,7 +184,7 @@
 
 ### 变更
 
-- `render.py` 升级到 V2 口径：
+- `render.py` 升级到 V2 语义：
   - 支持 `profile` / `defense` / `secops` / `baseunit`
   - 强制生成 `/changeflag.sh`
   - 对 `awdp` 自动生成 `patch/src/`、`patch/patch.sh`、`patch_bundle.tar.gz`
@@ -211,7 +211,7 @@
   - baseunit 组件生成器用法
   - AWDP 补丁包工作流
   - AWD 与 secops 的差异
-- `SKILL.md`、`schema.md`、`platform_contract.md`、`architecture_overview.md`、`directory_guide.md`、`stack_cookbook.md`、`data/README.md`、`templates/README.md` 同步到 V2 口径。
+- `SKILL.md`、`schema.md`、`platform_contract.md`、`architecture_overview.md`、`directory_guide.md`、`stack_cookbook.md`、`data/README.md`、`templates/README.md` 同步到 V2 语义。
 
 ### 发布与兼容
 
@@ -242,4 +242,4 @@
 - `validate.sh` 增加 legacy 运行时告警（WARN，不阻断）：`php:5.6/7.4`、`node:14/16`、`temurin:8`（含 digest 形式）。
 - 根目录治理 `.sh` 脚本改为 Python 兼容入口 wrapper，命令入口保持不变。
 - `publish_release.sh` 维持编排角色，版本读取与白名单路径判定下沉到 `publish_guard.py`。
-- `data/stacks.yaml` 与模板文档统一 Pwn 口径为 `xinetd/tcpserver/socat`。
+- `data/stacks.yaml` 与模板文档统一 Pwn 表达为 `xinetd/tcpserver/socat`。

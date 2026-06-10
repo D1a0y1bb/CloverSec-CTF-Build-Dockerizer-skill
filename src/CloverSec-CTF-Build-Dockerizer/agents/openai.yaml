@@ -1,8 +1,8 @@
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
+  short_description: "将 CTF 题目整理为可验证的 Docker 交付件，支持内核题与多服务场景"
   brand_color: "#2563EB"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
+  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录。先分析题目结构、风险点和缺失信息，给出构建方案；用户确认后，再生成 Docker 交付件并执行验证。"
 
 policy:
   allow_implicit_invocation: true

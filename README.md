@@ -105,9 +105,9 @@ flowchart LR
 
 | 阶段 | 入口 | 作用 | 产出 |
 |---|---|---|---|
-| 1. 状态化工作流 | `workflow.py` | 编排 intake/propose/accept/render/validate/status | `.ctfbuild/session.json` |
-| 2. 输入审计与提案 | `audit_input.py` / `derive_config.py` | 推断栈、端口、启动命令、runtime/profile 和风险等级 | `input_audit` / `config_proposal` |
-| 3. 提案解析 | `parse_config_block.py` | 把 `CONFIG PROPOSAL` 转成规范 `challenge.yaml` | 标准化配置 |
+| 1. 状态化工作流 | `workflow.py` | 依次完成题目分析、方案生成、确认、交付生成和验证 | `.ctfbuild/session.json` |
+| 2. 输入审计与提案 | `audit_input.py` / `derive_config.py` | 推断栈、端口、启动命令、运行环境和风险等级 | 风险审计结果 / 构建方案 |
+| 3. 提案解析 | `parse_config_block.py` | 把方案确认内容转成规范 `challenge.yaml` | 标准化配置 |
 | 4. 单题渲染 | `render.py` | 生成平台交付物 | `Dockerfile` `start.sh` `changeflag.sh` `flag(可选)` |
 | 5. 合规校验 | `validate.sh` | 执行平台契约与风险规则检查 | `ERROR/WARN/INFO` / JSON summary |
 | 6. 回归验收 | `validate_examples.sh` / `smoke_test.sh` | 批量回归与构建级冒烟 | 回归汇总 / pass-fail |
@@ -140,7 +140,7 @@ npx -y skills add \
   --agent codex -y
 ```
 
-安装后，建议先用示例目录做一次完整闭环，确认 Docker 与脚本依赖可用。
+安装后，建议先用示例目录完整执行一次，确认 Docker 与脚本依赖可用。
 
 ### Codex UI 展示策略
 
@@ -152,27 +152,27 @@ npx -y skills add \
 - `default_prompt`：点击试用或直接调用时的默认提示词
 - `allow_implicit_invocation`：允许模型在匹配场景下隐式触发该 Skill
 
-当前默认提示词策略是：先让 Agent 执行 intake/propose，输出含证据和 `input_audit` 的 `CONFIG PROPOSAL`；用户确认 OK 后，再执行 accept/render/validate。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变 `workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 的运行时逻辑。
+当前默认提示词策略是：先分析题目目录，整理证据、风险点和缺失信息，给出构建方案；用户确认后，再生成 Docker 交付件并执行验证。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变 `workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 的运行时逻辑。
 
 如果后续你想调整 Codex 里的卡片标题、简介文案或试用提示词，优先改这里，而不是去改 `README` 正文：
 
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
+  short_description: "将 CTF 题目整理为可验证的 Docker 交付件，支持内核题与多服务场景"
+  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录。先分析题目结构、风险点和缺失信息，给出构建方案；用户确认后，再生成 Docker 交付件并执行验证。"
 ```
 
 ## 如何快速开始
 
-### Agent-Orchestrated 流程（推荐）
+### AI 辅助流程（推荐）
 
 标准提示词（建议直接复制）：
 
 ```text
 请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。
-先执行 intake/propose 并输出 CONFIG PROPOSAL（含证据和 input_audit）。
-我确认 OK 后再 accept、render、validate。
+先分析题目结构、风险点和缺失信息，给出构建方案。
+我确认后，再生成 Docker 交付件并执行验证。
 ```
 
 快捷业务提示词（懒人版）：
@@ -430,7 +430,7 @@ Scenario 边界：允许输出 `docker-compose.yml` 做本地编排。平台最�
 
 ## Workflow 演示案例
 
-Prompt 触发
+提示词触发
 
 ![workflow-01](docs/assets/readme/workflow-01-quick-prompt.png)
 
@@ -438,7 +438,7 @@ Prompt 触发
 
 ![workflow-02](docs/assets/readme/workflow-02-prebuild-decision.png)
 
-错误闭环
+错误处理
 
 ![workflow-03](docs/assets/readme/workflow-03-error-closure.png)
 
@@ -527,8 +527,8 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 |---|---|
 | `derive_config.py` | 自动推断 challenge 配置 |
 | `audit_input.py` | 输入风险审计 |
-| `workflow.py` | 状态化 intake/propose/accept/render/validate/status 编排 |
-| `parse_config_block.py` | 解析 CONFIG PROPOSAL |
+| `workflow.py` | 状态化题目分析、方案确认、交付生成与验证编排 |
+| `parse_config_block.py` | 解析方案确认内容 |
 | `render.py` | 单题渲染入口 |
 | `render_component.py` | BaseUnit 组件渲染入口 |
 | `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe 渲染与校验 |
@@ -583,7 +583,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 |---|---|
 | `architecture_overview.md` | 架构总览 |
 | `platform_contract.md` | 平台硬契约说明 |
-| `orchestrated_workflow.md` | CONFIG PROPOSAL、OK 门槛和 5 项确认协议 |
+| `orchestrated_workflow.md` | 方案确认、确认门槛和 5 项确认协议 |
 | `stack_cookbook.md` | 各栈构建建议 |
 | `validation_guide.md` | 校验规则、check-service 门禁与发布前检查 |
 | `directory_guide.md` | 目录设计说明 |

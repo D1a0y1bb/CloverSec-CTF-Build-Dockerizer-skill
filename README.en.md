@@ -44,9 +44,9 @@ This release covers:
 
 | Capability | Entry Script | Purpose | Output |
 |---|---|---|---|
-| Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate intake/propose/accept/render/validate/status | `.ctfbuild/session.json` |
-| Input audit and proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | Infer stack/ports/start/runtime/profile and risk level | `input_audit` / `config_proposal` |
-| Proposal parsing | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert `CONFIG PROPOSAL` into `challenge.yaml` | normalized config |
+| Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate analysis, confirmation, rendering, validation, and status tracking | `.ctfbuild/session.json` |
+| Input audit and proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | Infer stack, ports, start command, runtime, profile, and risk level | audit result / build plan |
+| Build-plan parsing | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert the confirmed plan into `challenge.yaml` | normalized config |
 | Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
 | Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` / JSON summary |
 | Component render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Generate component+variant base units | build-ready service directory |
@@ -87,27 +87,27 @@ Skill card presentation in Codex UI is controlled by `src/CloverSec-CTF-Build-Do
 - `default_prompt`: the prefilled prompt used for try/run actions
 - `allow_implicit_invocation`: whether the model may invoke the skill implicitly when the task matches
 
-The current default prompt strategy is: run intake/propose first, output CONFIG PROPOSAL with evidence and `input_audit`, wait for user OK, then run accept/render/validate. This layer only affects how the skill is presented and started in Codex UI. It does not change the runtime behavior of `workflow.py`, `render.py`, `validate.sh`, `render_component.py`, or `render_scenario.py`.
+The current default prompt strategy is: inspect the challenge directory first, summarize evidence, risks, and missing information, then ask the user to confirm the build plan. After confirmation, the skill generates the Docker delivery files and runs validation. This layer only affects how the skill is presented and started in Codex UI. It does not change the runtime behavior of `workflow.py`, `render.py`, `validate.sh`, `render_component.py`, or `render_scenario.py`.
 
 If you want to adjust the Codex card title, subtitle, or trial prompt later, edit this file first instead of rewriting the README body:
 
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
+  short_description: "将 CTF 题目整理为可验证的 Docker 交付件，支持内核题与多服务场景"
+  default_prompt: "<Chinese prompt stored in agents/openai.yaml>"
 ```
 
 ## Quick Start
 
-### Agent-Orchestrated flow (recommended)
+### AI-assisted flow (recommended)
 
 Standard prompt template:
 
 ```text
 Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory.
-Run intake/propose first and output CONFIG PROPOSAL with evidence and input_audit.
-After I reply OK, run accept, render, and validate.
+Inspect the challenge structure, risks, and missing information first.
+After I confirm the build plan, generate the Docker delivery files and run validation.
 ```
 
 Shortcut prompt:
@@ -149,8 +149,8 @@ Recommended prompt:
 
 ```text
 Use CloverSec-CTF-Build-Dockerizer for the current directory.
-Run workflow.py intake/propose first and output CONFIG PROPOSAL with evidence and input_audit.
-After I confirm OK, run workflow.py accept/render/validate and the relevant regression command.
+Inspect the challenge structure, risks, and missing information first.
+After I confirm the build plan, generate the delivery files and run the relevant validation command.
 Target mode: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>.
 ```
 
@@ -176,7 +176,7 @@ Recommended prompt:
 
 ```text
 Use existing repository scripts only; do not replace workflow.py/render.py/validate.sh with handwritten logic.
-Run workflow.py intake/propose first, then wait for OK before rendering.
+Inspect the challenge first, then wait for confirmation before rendering.
 Final artifacts must pass Dockerfile/start.sh/changeflag.sh contract checks.
 ```
 
@@ -195,14 +195,14 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 
 ### Trae
 
-Call pattern: force four stages: proposal confirmation, render, validation, postmortem.
+Call pattern: force four stages: build-plan confirmation, render, validation, postmortem.
 
 Recommended prompt:
 
 ```text
 You are the delivery engineer for this repo.
-Stage 1: run workflow.py intake/propose with evidence and input_audit.
-Stage 2: after my confirmation, run workflow.py accept/render.
+Stage 1: inspect the challenge and present the build plan with evidence.
+Stage 2: after my confirmation, generate the delivery files.
 Stage 3: run validate / validate_scenario / validate_bundle / smoke as applicable.
 Stage 4: summarize release gate checks and manual verification items.
 ```
@@ -229,8 +229,8 @@ Recommended prompt:
 
 ```text
 Execute the V2 delivery workflow in this repository:
-1) workflow.py intake/propose -> CONFIG PROPOSAL + input_audit
-2) workflow.py accept/render or a mode-specific renderer when required
+1) inspect the challenge and produce a build plan with evidence
+2) generate the delivery files or use a mode-specific renderer when required
 3) validate.sh / validate_scenario.py --validate-rendered / validate_bundle.py / smoke_test.sh
 4) summarize failures, fixes, and manual verification items
 ```
@@ -259,7 +259,7 @@ Recommended prompt:
 ```text
 Use repository scripts (workflow/render/validate/import_compose/render_bundle) only.
 Do not rewrite Dockerfile from scratch.
-Show CONFIG PROPOSAL with input_audit first and wait for confirmation.
+Show the build plan with input evidence first and wait for confirmation.
 ```
 
 Retry prompt:
@@ -630,8 +630,8 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `derive_config.py` | infer challenge config proposal |
 | `audit_input.py` | input risk audit |
-| `workflow.py` | stateful intake/propose/accept/render/validate/status orchestration |
-| `parse_config_block.py` | parse `CONFIG PROPOSAL` block |
+| `workflow.py` | stateful analysis, confirmation, rendering, validation, and status orchestration |
+| `parse_config_block.py` | parse the confirmed build-plan block |
 | `render.py` | single challenge rendering |
 | `render_component.py` | BaseUnit rendering |
 | `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe rendering and validation |
@@ -686,7 +686,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `architecture_overview.md` | architecture overview |
 | `platform_contract.md` | platform contract |
-| `orchestrated_workflow.md` | CONFIG PROPOSAL, OK gate, and five confirmation items |
+| `orchestrated_workflow.md` | build-plan confirmation, OK gate, and five confirmation items |
 | `stack_cookbook.md` | stack-specific cookbook |
 | `validation_guide.md` | validation rules, check-service gate, and release checks |
 | `directory_guide.md` | repository structure design |
