@@ -14,7 +14,9 @@ from pathlib import Path
 
 PACKAGE_NAME = "CloverSec-CTF-Build-Dockerizer"
 SKILL_SOURCE_NAME = "CloverSec-CTF-Build-Dockerizer"
+SKILL_SLUG = "cloversec-ctf-build-dockerizer"
 VERSION_RE = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+([a-z0-9.-]+)?$")
+SKILL_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,6 +40,28 @@ def load_version(version_file: Path) -> str:
     if not VERSION_RE.match(version):
         raise RuntimeError(f"VERSION 格式非法: {version}")
     return version
+
+
+def load_skill_name(skill_file: Path) -> str:
+    text = skill_file.read_text(encoding="utf-8", errors="ignore")
+    if not text.startswith("---"):
+        raise RuntimeError(f"SKILL.md 缺少 frontmatter: {skill_file}")
+    end = text.find("\n---", 3)
+    if end == -1:
+        raise RuntimeError(f"SKILL.md frontmatter 未结束: {skill_file}")
+    frontmatter = text[3:end]
+    for line in frontmatter.splitlines():
+        if line.startswith("name:"):
+            return line.split(":", 1)[1].strip().strip("\"'")
+    raise RuntimeError(f"SKILL.md frontmatter 缺少 name: {skill_file}")
+
+
+def assert_skillhub_slug(skill_file: Path) -> None:
+    name = load_skill_name(skill_file)
+    if not SKILL_SLUG_RE.fullmatch(name):
+        raise RuntimeError(f"SKILL.md frontmatter name 不符合 SkillHub slug 规则: {name}")
+    if name != SKILL_SLUG:
+        raise RuntimeError(f"SKILL.md frontmatter name 应为 {SKILL_SLUG}: {name}")
 
 
 def shell_syntax_check(root: Path, skill_src: Path) -> None:
@@ -96,6 +120,36 @@ def privacy_scan(paths: list[Path]) -> None:
                     text = file.read_text(encoding="utf-8", errors="ignore")
                     if pattern.search(text):
                         raise RuntimeError(f"公开目录存在私有信息: {file}")
+
+
+def iter_files(paths: list[Path]) -> list[Path]:
+    files: list[Path] = []
+    for path in paths:
+        if path.is_file():
+            files.append(path)
+        elif path.is_dir():
+            files.extend(file for file in sorted(path.rglob("*")) if file.is_file())
+    return files
+
+
+def assert_no_trailing_whitespace(paths: list[Path]) -> None:
+    hits: list[str] = []
+    for file in iter_files(paths):
+        data = file.read_bytes()
+        if b"\0" in data:
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        for line_no, line in enumerate(text.splitlines(keepends=True), start=1):
+            content = line.rstrip("\r\n")
+            if content.endswith((" ", "\t")):
+                hits.append(f"{file}:{line_no}: trailing whitespace")
+    if hits:
+        preview = "\n".join(hits[:50])
+        more = "" if len(hits) <= 50 else f"\n... and {len(hits) - 50} more"
+        raise RuntimeError(f"公开发布文件存在行尾空格:\n{preview}{more}")
 
 
 def is_git_ignored(repo_root: Path, path: Path) -> bool:
@@ -165,6 +219,8 @@ def main() -> int:
             raise RuntimeError(f"技能真源目录不存在: {src_skill_dir}")
         if not sbom_script.exists():
             raise RuntimeError(f"缺少 SBOM 脚本: {sbom_script}")
+        assert_skillhub_slug(src_skill_dir / "SKILL.md")
+        assert_no_trailing_whitespace([src_skill_dir])
 
         package_basename = f"{PACKAGE_NAME}-{version}"
         release_root = dist / package_basename
@@ -215,6 +271,8 @@ def main() -> int:
             raise RuntimeError("发布目录不应包含 internal/")
 
         privacy_scan([release_root])
+        assert_skillhub_slug(release_root / "SKILL.md")
+        assert_no_trailing_whitespace([release_root])
 
         print(f"[INFO] 生成 zip: {zip_path}")
         zip_dir(dist, package_basename, zip_path)

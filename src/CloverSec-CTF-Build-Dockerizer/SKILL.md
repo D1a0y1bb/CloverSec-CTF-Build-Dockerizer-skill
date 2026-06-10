@@ -1,5 +1,5 @@
 ---
-name: CloverSec-CTF-Build-Dockerizer
+name: cloversec-ctf-build-dockerizer
 description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Linux-QEMU/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。
 metadata:
   short-description: 四叶草安全题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排
@@ -271,19 +271,19 @@ Q1 技术栈 + 运行时档位（仅 php/node/java 显示档位候选）
 默认：`<stack_guess.id> + <recommended_profile>`
 可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/linux-qemu` + runtime profile 候选（若有）
 
-Q2 容器端口 
-默认：`<port_guess.ports>` 
+Q2 容器端口
+默认：`<port_guess.ports>`
 格式：单端口或逗号分隔多端口
 
-Q3 工作目录 WORKDIR 
+Q3 工作目录 WORKDIR
 默认：`<workdir_guess.workdir>`
 
-Q4 启动命令 
-默认：候选 1 
-同时展示候选 2/3 
+Q4 启动命令
+默认：候选 1
+同时展示候选 2/3
 允许用户直接输入自定义命令
 
-Q5 代码拷贝路径 
+Q5 代码拷贝路径
 默认：`app_src="." -> app_dst=WORKDIR`
 
 固定提问模板（必须按此结构）：
