@@ -165,7 +165,6 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type
 | Linux-QEMU release/manual 验证 | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
 | 常见 render/validate/build/run 问题 | `src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
 | 目录职责 | `src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md` |
-| 旧版长入口内容迁移位置 | `src/CloverSec-CTF-Build-Dockerizer/docs/skill_content_migration_map.md` |
 
 读取原则：只读当前任务需要的文件，避免把 schema、栈手册和排障手册一次性全部读入上下文。
 

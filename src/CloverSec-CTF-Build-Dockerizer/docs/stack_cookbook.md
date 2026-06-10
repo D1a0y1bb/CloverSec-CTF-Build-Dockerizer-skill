@@ -2,6 +2,21 @@
 
 本手册给出各栈最小配置与 V2 使用建议。
 
+## 目录
+
+- 全局规则
+- 支持栈
+- 12 栈最小模板库索引
+- 通用最小片段
+- profile/defense 示例
+- stack=rdg 建议
+- stack=secops 建议
+- stack=baseunit 建议
+- stack=linux-qemu 建议
+- scenario（本地编排）
+- AWDP 契约提示
+- 运行时档位（php/node/java）
+
 ## 全局规则
 
 - 所有栈最终交付都必须包含：`Dockerfile/start.sh/changeflag.sh`

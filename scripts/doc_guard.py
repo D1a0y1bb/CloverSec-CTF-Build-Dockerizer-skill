@@ -216,12 +216,17 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
         "默认确认项固定为 5 个",
         "docs/orchestrated_workflow.md",
         "docs/beginner_guide.md",
-        "docs/skill_content_migration_map.md",
         "parse_config_block.py",
     )
     for term in required_terms:
         if term not in text:
             counter.log_error(f"SKILL.md 缺少渐进加载关键入口：{term}")
+
+    runtime_audit_doc = root / "src" / "CloverSec-CTF-Build-Dockerizer" / "docs" / "skill_content_migration_map.md"
+    if runtime_audit_doc.exists():
+        counter.log_error("运行时 docs 不应包含 skill_content_migration_map.md；迁移审计信息保留在 Git 历史即可。")
+    if "skill_content_migration_map.md" in text:
+        counter.log_error("SKILL.md 不应索引 skill_content_migration_map.md，避免 Agent 把迁移审计记录当作执行手册。")
 
     bulky_patterns = {
         "challenge 字段大表": r"^\| `challenge\.[^`]+` \| 否 \|",

@@ -2,6 +2,17 @@
 
 本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入契约。
 
+## 目录
+
+- 顶层结构
+- 关键字段说明
+- 平台硬约束（V2）
+- AWDP 契约
+- BaseUnit 约定
+- Scenario 约定（本地编排）
+- 运行时档位（php/node/java）
+- 参考文件
+
 ## 顶层结构
 
 ```yaml

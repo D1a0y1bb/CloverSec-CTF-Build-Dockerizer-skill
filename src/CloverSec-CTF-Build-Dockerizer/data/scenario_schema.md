@@ -8,6 +8,22 @@
 - 生成仅供本地联调使用的 `docker-compose.yml`；
 - 保持平台最终交付仍然是**每个服务各自的 `Dockerfile + start.sh + changeflag.sh`**。
 
+## 目录
+
+- 设计边界
+- 顶层结构
+- 顶层字段
+- `scenario.services[]`
+- Service 字段
+- Profile 继承与一致性
+- AWDP 补丁契约
+- 输出结构
+- 示例 1：现有题目 + 组件服务混合
+- 示例 2：AWDP 服务
+- 示例 3：Vulhub-like 迁移场景
+- 命令示例
+- Compose 导入草案
+
 ## 设计边界
 
 - `scenario.yaml` 不是平台最终投产格式。
