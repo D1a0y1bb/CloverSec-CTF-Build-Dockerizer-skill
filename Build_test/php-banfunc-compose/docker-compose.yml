@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  php-test:
+    build: .
+    container_name: php-test-env
+    ports:
+      - "8080:80"
+    volumes:
+      - ./1.php:/var/www/html/1.php
+    restart: unless-stopped
+    environment:
+      - APACHE_DOCUMENT_ROOT=/var/www/html
+    networks:
+      - php-network
+
+networks:
+  php-network:
+    driver: bridge

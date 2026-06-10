@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Push RCE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Varela+Round&display=swap');
+
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f8ff; /* AliceBlue */
+            color: #333;
+            font-family: 'Varela Round', 'Courier New', monospace; /* Cute rounded font */
+        }
+        canvas {
+            border: 4px solid #87ceeb; /* SkyBlue */
+            background-color: #ffffff;
+            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(135, 206, 235, 0.2);
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            color: #0277bd;
+            font-size: 14px; /* Smaller font size */
+        }
+        h3 {
+            margin-bottom: 5px;
+            color: #01579b;
+            font-family: 'Fredoka One', cursive; /* Cute chubby font for title */
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        <h3>推推字母1.0</h3>
+        <p>WASD / Arrows to move.</p>
+        <p>Push letters into the TOP BOX.</p>
+        <p>Step on the CIRCLE BUTTON to execute.</p>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game State
+        const player = { x: 400, y: 300, w: 32, h: 32, color: '#29b6f6', speed: 3 }; // Light Blue Player
+        const letters = [];
+        // Larger Launch Box
+        const launchBox = { x: 100, y: 10, w: 600, h: 120, color: 'rgba(225, 245, 254, 0.8)' };
+        // Circular Button
+        const launchButton = { x: 400, y: 180, r: 25, color: '#ff8a80', active: false };
+
+        const availableChars = "abcdefghijklmnopqrstuvwxyz";
+
+        // Initialize letters
+        let startX = 80;
+        let startY = 400;
+        for (let i = 0; i < availableChars.length; i++) {
+            const col = i % 13;
+            const row = Math.floor(i / 13);
+            letters.push({
+                char: availableChars[i],
+                x: startX + col * 50,
+                y: startY + row * 90,
+                w: 32,
+                h: 32,
+                vx: 0,
+                vy: 0
+            });
+        }
+
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        function checkRectCollide(r1, r2) {
+            return r1.x < r2.x + r2.w &&
+                   r1.x + r1.w > r2.x &&
+                   r1.y < r2.y + r2.h &&
+                   r1.y + r1.h > r2.y;
+        }
+
+        // Circle-Rect collision for button
+        function checkCircleRectCollide(circle, rect) {
+            let testX = circle.x;
+            let testY = circle.y;
+
+            if (circle.x < rect.x)         testX = rect.x;
+            else if (circle.x > rect.x + rect.w) testX = rect.x + rect.w;
+            if (circle.y < rect.y)         testY = rect.y;
+            else if (circle.y > rect.y + rect.h) testY = rect.y + rect.h;
+
+            let distX = circle.x - testX;
+            let distY = circle.y - testY;
+            let distance = Math.sqrt((distX*distX) + (distY*distY));
+
+            return distance <= circle.r;
+        }
+
+        function update() {
+            // Player Movement Intent
+            let dx = 0;
+            let dy = 0;
+            if (keys['ArrowUp'] || keys['w']) dy = -player.speed;
+            if (keys['ArrowDown'] || keys['s']) dy = player.speed;
+            if (keys['ArrowLeft'] || keys['a']) dx = -player.speed;
+            if (keys['ArrowRight'] || keys['d']) dx = player.speed;
+
+            // --- X Axis Movement ---
+            player.x += dx;
+
+            // Player Wall collision X
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+
+            // Player -> Letter Collision X
+            letters.forEach(l => {
+                if (checkRectCollide(player, l)) {
+                    // Moving right
+                    if (dx > 0) {
+                        l.x = player.x + player.w;
+                        // Check if L hits another letter or wall
+                        if (checkLetterCollision(l) || checkLetterWall(l)) {
+                            l.x = l.oldX; // Revert letter
+                            player.x = l.x - player.w; // Revert player to touch letter
+                        }
+                    }
+                    // Moving left
+                    if (dx < 0) {
+                        l.x = player.x - l.w;
+                         if (checkLetterCollision(l) || checkLetterWall(l)) {
+                            l.x = l.oldX;
+                            player.x = l.x + l.w;
+                        }
+                    }
+                }
+            });
+
+            // --- Y Axis Movement ---
+            player.y += dy;
+
+            // Player Wall collision Y
+            if (player.y < 0) player.y = 0;
+            if (player.y + player.h > canvas.height) player.y = canvas.height - player.h;
+
+             // Player -> Letter Collision Y
+             letters.forEach(l => {
+                if (checkRectCollide(player, l)) {
+                    // Moving down
+                    if (dy > 0) {
+                        l.y = player.y + player.h;
+                        if (checkLetterCollision(l) || checkLetterWall(l)) {
+                            l.y = l.oldY;
+                            player.y = l.y - player.h;
+                        }
+                    }
+                    // Moving up
+                    if (dy < 0) {
+                        l.y = player.y - l.h;
+                        if (checkLetterCollision(l) || checkLetterWall(l)) {
+                            l.y = l.oldY;
+                            player.y = l.y + l.h;
+                        }
+                    }
+                }
+            });
+
+            // Save old positions for next frame (simple physics)
+            letters.forEach(l => {
+                l.oldX = l.x;
+                l.oldY = l.y;
+            });
+
+            // Button Logic (Circle)
+            // Player is rect, Button is circle
+            // Launch button is at launchButton.x, launchButton.y (Center)
+            if (checkCircleRectCollide(launchButton, player)) {
+                if (!launchButton.active) {
+                    launchButton.active = true;
+                    executeCommand();
+                }
+            } else {
+                launchButton.active = false;
+            }
+        }
+
+        // Check if letter 'l' collides with any OTHER letter
+        function checkLetterCollision(currentLetter) {
+            for (let other of letters) {
+                if (other === currentLetter) continue;
+                if (checkRectCollide(currentLetter, other)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // Check if letter hits the wall margin (letters cannot touch border)
+        function checkLetterWall(l) {
+            const margin = 20; // Letter margin
+            if (l.x < margin) return true;
+            if (l.x + l.w > canvas.width - margin) return true;
+            if (l.y < margin) return true;
+            if (l.y + l.h > canvas.height - margin) return true;
+            return false;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Launch Box
+            ctx.fillStyle = launchBox.color;
+            ctx.fillRect(launchBox.x, launchBox.y, launchBox.w, launchBox.h);
+            ctx.strokeStyle = '#81d4fa';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(launchBox.x, launchBox.y, launchBox.w, launchBox.h);
+            // Removed text "LAUNCH ZONE"
+
+            // Launch Button (Circle)
+            ctx.beginPath();
+            ctx.arc(launchButton.x, launchButton.y, launchButton.r, 0, Math.PI * 2);
+            ctx.fillStyle = launchButton.active ? '#ff5252' : '#ff8a80';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("RUN", launchButton.x, launchButton.y);
+
+            // Player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            // Player Face (simple)
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(player.x + 6, player.y + 6, 8, 8);
+            ctx.fillRect(player.x + 18, player.y + 6, 8, 8);
+
+            // Letters
+            ctx.font = '24px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            letters.forEach(l => {
+                ctx.fillStyle = '#e1f5fe'; // Light blue letter box
+                ctx.fillRect(l.x, l.y, l.w, l.h);
+                ctx.strokeStyle = '#0288d1';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(l.x, l.y, l.w, l.h);
+                ctx.fillStyle = '#01579b';
+                ctx.fillText(l.char, l.x + l.w/2, l.y + l.h/2);
+            });
+        }
+
+        function executeCommand() {
+            // Gather letters in box
+            const gathered = letters.filter(l => checkRectCollide(l, launchBox));
+            // Sort by X
+            gathered.sort((a, b) => a.x - b.x);
+            const command = gathered.map(l => l.char).join('');
+
+            if (command.length === 0) return;
+
+            // POST to backend
+            fetch('api.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'code=' + encodeURIComponent(command)
+            })
+            .then(response => response.text())
+            .then(data => {
+                alert("Output:\n" + data);
+            })
+            .catch(err => {
+                alert("Error: " + err);
+            });
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+
+        // Hint
+        console.log("hint：我好像留了什么后门来着，不管了，你先随便推点东西看看");
+    </script>
+</body>
+</html>

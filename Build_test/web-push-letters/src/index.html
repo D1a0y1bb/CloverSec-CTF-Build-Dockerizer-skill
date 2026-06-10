@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>推推字母2.0</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Varela+Round&display=swap');
+
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f8ff; /* AliceBlue */
+            color: #333;
+            font-family: 'Varela Round', 'Courier New', monospace; /* Cute rounded font */
+        }
+        canvas {
+            border: 4px solid #87ceeb; /* SkyBlue */
+            background-color: #ffffff;
+            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(135, 206, 235, 0.2);
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            pointer-events: none;
+            color: #0277bd;
+            font-size: 14px; /* Smaller font size */
+        }
+        h3 {
+            margin-bottom: 5px;
+            color: #01579b;
+            font-family: 'Fredoka One', cursive; /* Cute chubby font for title */
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        <h3>推推字母2.0</h3>
+        <p>WASD / Arrows to move.</p>
+        <p>Push letters into the TOP BOX.</p>
+        <p>Step on the CIRCLE BUTTON to execute.</p>
+        <p>Open Console (F12) for hints!</p>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game State
+        const player = { x: 400, y: 300, w: 32, h: 32, color: '#29b6f6', speed: 4 }; // Light Blue Player
+        const letters = [];
+        // Larger Launch Box
+        const launchBox = { x: 100, y: 10, w: 600, h: 120, color: 'rgba(225, 245, 254, 0.8)' };
+        // Circular Button
+        const launchButton = { x: 400, y: 180, r: 25, color: '#ff8a80', active: false };
+
+        const availableChars = "abcdefghijklmnopqrstuvwxyz";
+
+        // Global Flags
+        let stressActive = true; // Controls the "d, i, e" movement
+        let gameBusted = false;  // True if "d, i, e" reach the box
+
+        window.stop_stress = function(answer) {
+            if (answer === 1033692) {
+                stressActive = false;
+                console.log("呼... 终于平静下来了。(Stress relieved)");
+            } else {
+                console.log("Wrong answer! Stress increases! (Hint: 114514 + 919178 = ?)");
+            }
+        };
+
+        // Initialize letters
+        let startX = 80;
+        let startY = 400;
+        for (let i = 0; i < availableChars.length; i++) {
+            const col = i % 13;
+            const row = Math.floor(i / 13);
+            const char = availableChars[i];
+            letters.push({
+                char: char,
+                x: startX + col * 50,
+                y: startY + row * 90,
+                w: 32,
+                h: 32,
+                vx: 0,
+                vy: 0,
+                isDie: ['d', 'i', 'e'].includes(char) // Mark special letters
+            });
+        }
+
+        const keys = {};
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
+
+        function checkRectCollide(r1, r2) {
+            return r1.x < r2.x + r2.w &&
+                   r1.x + r1.w > r2.x &&
+                   r1.y < r2.y + r2.h &&
+                   r1.y + r1.h > r2.y;
+        }
+
+        function checkCircleRectCollide(circle, rect) {
+            let testX = circle.x;
+            let testY = circle.y;
+
+            if (circle.x < rect.x)         testX = rect.x;
+            else if (circle.x > rect.x + rect.w) testX = rect.x + rect.w;
+            if (circle.y < rect.y)         testY = rect.y;
+            else if (circle.y > rect.y + rect.h) testY = rect.y + rect.h;
+
+            let distX = circle.x - testX;
+            let distY = circle.y - testY;
+            let distance = Math.sqrt((distX*distX) + (distY*distY));
+
+            return distance <= circle.r;
+        }
+
+        function moveEntity(entity, dx, dy, pusher = null) {
+            const originalX = entity.x;
+            const originalY = entity.y;
+
+            // Tentative move
+            entity.x += dx;
+            entity.y += dy;
+
+            // Wall Collision
+            if (entity.x < 0 || entity.x + entity.w > canvas.width ||
+                entity.y < 0 || entity.y + entity.h > canvas.height) {
+                entity.x = originalX;
+                entity.y = originalY;
+                return false;
+            }
+
+            // Collision with other letters
+            let collided = false;
+            for (let other of letters) {
+                if (other === entity || other === pusher) continue; // Don't collide with self or pusher
+                if (checkRectCollide(entity, other)) {
+                    // Try to push the other letter
+                    if (!moveEntity(other, dx, dy, entity)) {
+                        collided = true;
+                        break;
+                    }
+                }
+            }
+
+            if (collided) {
+                entity.x = originalX;
+                entity.y = originalY;
+                return false;
+            }
+
+            return true;
+        }
+
+        function update() {
+            if (gameBusted) return;
+
+            // Player Movement
+            let dx = 0;
+            let dy = 0;
+            if (keys['ArrowUp'] || keys['w']) dy = -player.speed;
+            if (keys['ArrowDown'] || keys['s']) dy = player.speed;
+            if (keys['ArrowLeft'] || keys['a']) dx = -player.speed;
+            if (keys['ArrowRight'] || keys['d']) dx = player.speed;
+
+            // Apply Player Movement with Push Logic
+            // We handle X and Y separately for better sliding
+            if (dx !== 0) {
+                moveEntity(player, dx, 0);
+            }
+            if (dy !== 0) {
+                moveEntity(player, 0, dy);
+            }
+
+            if (stressActive) {
+                letters.forEach(l => {
+                    if (l.isDie) {
+                        // Move towards center of launch box
+                        const targetX = launchBox.x + launchBox.w / 2 - l.w / 2;
+                        const targetY = launchBox.y + launchBox.h / 2 - l.h / 2;
+
+                        const angle = Math.atan2(targetY - l.y, targetX - l.x);
+                        const speed = 2; // Approx 2 seconds to cross
+                        const vx = Math.cos(angle) * speed;
+                        const vy = Math.sin(angle) * speed;
+
+                        // Force move (pushing others aside)
+                        // We use moveEntity but ignore the return value?
+                        // Or just force position update and push others?
+                        // Let's try moveEntity first. If blocked, maybe just stop?
+                        // User said "Fast... bump other letters".
+                        moveEntity(l, vx, vy);
+
+                        // Check if in Launch Box
+                        if (checkRectCollide(l, launchBox)) {
+                            // 3. Fail State
+                            gameBusted = true;
+                            alert("老弟的压力像个缸 (Brother's pressure is like a vat)");
+                        }
+                    }
+                });
+            }
+
+            // Button Logic
+            if (checkCircleRectCollide(launchButton, player)) {
+                if (!launchButton.active) {
+                    launchButton.active = true;
+                    executeCommand();
+                }
+            } else {
+                launchButton.active = false;
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Launch Box
+            ctx.fillStyle = launchBox.color;
+            ctx.fillRect(launchBox.x, launchBox.y, launchBox.w, launchBox.h);
+            ctx.strokeStyle = '#81d4fa';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(launchBox.x, launchBox.y, launchBox.w, launchBox.h);
+
+            // Launch Button
+            ctx.beginPath();
+            ctx.arc(launchButton.x, launchButton.y, launchButton.r, 0, Math.PI * 2);
+            ctx.fillStyle = launchButton.active ? '#ff5252' : '#ff8a80';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText("RUN", launchButton.x, launchButton.y);
+
+            // Player
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.w, player.h);
+            // Face
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(player.x + 6, player.y + 6, 8, 8);
+            ctx.fillRect(player.x + 18, player.y + 6, 8, 8);
+
+            // Letters
+            ctx.font = '24px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            letters.forEach(l => {
+                // Highlight 'die' letters if stress is active
+                if (stressActive && l.isDie) {
+                    ctx.fillStyle = '#ffcdd2'; // Reddish for stress
+                } else {
+                    ctx.fillStyle = '#e1f5fe'; // Light blue
+                }
+
+                ctx.fillRect(l.x, l.y, l.w, l.h);
+                ctx.strokeStyle = '#0288d1';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(l.x, l.y, l.w, l.h);
+                ctx.fillStyle = '#01579b';
+                ctx.fillText(l.char, l.x + l.w/2, l.y + l.h/2);
+            });
+
+            if (gameBusted) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#fff';
+                ctx.font = '40px Fredoka One';
+                ctx.fillText("老弟的压力像个缸", canvas.width/2, canvas.height/2);
+            }
+        }
+
+        function executeCommand() {
+            if (gameBusted) return;
+
+            // Gather letters in box
+            const gathered = letters.filter(l => checkRectCollide(l, launchBox));
+            // Sort by X
+            gathered.sort((a, b) => a.x - b.x);
+            const command = gathered.map(l => l.char).join('');
+
+            if (command.length === 0) return;
+
+            fetch('api.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'coke=' + encodeURIComponent(command)
+            })
+            .then(response => response.text())
+            .then(data => {
+                alert("Output:\n" + data);
+            })
+            .catch(err => {
+                alert("Error: " + err);
+            });
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+
+        console.log("Hint: The stress is overwhelming! Maybe you can stop it? Riddle: 114514 + 919178 = ?");
+    </script>
+</body>
+</html>

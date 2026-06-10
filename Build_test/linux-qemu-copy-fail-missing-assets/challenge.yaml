@@ -1,0 +1,27 @@
+challenge:
+  name: CVE-2026-31431-copy-fail-qemu
+  stack: linux-qemu
+  profile: jeopardy
+  base_image: debian:bookworm-slim
+  workdir: /opt/copyfail
+  app_src: .
+  app_dst: /opt/copyfail
+  expose_ports:
+    - "22"
+  start:
+    mode: cmd
+    cmd: "qemu-system-x86_64"
+  platform:
+    entrypoint: "/start.sh"
+    require_bash: true
+    allow_loopback_bind: false
+  flag:
+    path: "/flag"
+    permission: "444"
+  healthcheck:
+    enabled: true
+    cmd: "bash -lc 'exec 3<>/dev/tcp/127.0.0.1/22 && IFS= read -r -t 3 line <&3 && [[ \"$line\" == SSH-* ]]'"
+    interval: "30s"
+    timeout: "5s"
+    retries: 5
+    start_period: "90s"

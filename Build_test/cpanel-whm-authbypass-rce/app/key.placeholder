@@ -1,0 +1,4 @@
+Build_test placeholder for a TLS private key.
+
+The original local sample used a self-signed private key. The real key is not
+stored in this repository because publish guards block PEM/key material.

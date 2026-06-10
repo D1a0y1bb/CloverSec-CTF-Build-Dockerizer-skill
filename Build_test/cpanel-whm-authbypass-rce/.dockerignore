@@ -1,0 +1,7 @@
+*.tar
+.DS_Store
+__pycache__/
+*.pyc
+poc/
+tools/
+*.md

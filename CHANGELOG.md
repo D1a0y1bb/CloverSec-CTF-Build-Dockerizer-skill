@@ -2,6 +2,14 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## Unreleased
+
+### 新增
+
+- `Build_test/` 升级为真实样例池，新增 `cases.yaml`、每个样例的 `case_note.md` 和独立说明文档。
+- 新增 `scripts/validate_build_test.py`，按 `cases.yaml` 对真实样例执行输入审计与 Docker 契约期望匹配，支持 `--format json`、`--case` 和 `--fail-fast`。
+- 首批样例覆盖现有历史样例、cPanel/WHM 仿真、Linux-QEMU 缺资产、Web 历史题、Pwn compose/xinetd 输入和 PHP compose 输入。
+
 ## v2.1.2 - 2026-06-10
 
 ### 新增

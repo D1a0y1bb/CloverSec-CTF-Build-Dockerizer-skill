@@ -19,6 +19,7 @@
 - `validate_examples.sh`：遍历 examples 全目录并做静态校验；默认只读执行，scenario 默认逐服务校验
 - `smoke_test.sh`：执行 render/validate/build/run 冒烟回归；scenario 默认逐服务校验
 - `test_runtime_profiles.sh`：运行时档位推断回归（php/node/java）
+- `../../../scripts/validate_build_test.py`：校验仓库根目录 `Build_test/` 真实样例池，按 `cases.yaml` 做期望匹配
 - `cleanup_test_containers.sh`：清理 `ctf-skill-test*` 容器和镜像
 - `utils.py`：模板 include、变量渲染、推断与通用函数
 
@@ -46,6 +47,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config path/to/ch
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+python3 scripts/validate_build_test.py
 ```
 
 Scenario 回归说明：

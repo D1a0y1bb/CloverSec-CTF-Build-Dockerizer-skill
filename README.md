@@ -428,25 +428,19 @@ Prompt 触发
 
 ![workflow-07](docs/assets/readme/workflow-07-delivery-checklist.png)
 
-## Build_test 样例（后期补充更新）
+## Build_test 真实样例池
 
-`Build_test/` 用来存放真实题目样例，方便你做可重复构建 + 可重复校验（实验性质，可参考此内容检验该Skill完成情况与基准测试）
+`Build_test/` 存放真实 CTF 和漏洞环境样例，用来覆盖 `examples/` 不适合承担的历史目录、半成品交付、脏输入、Linux-QEMU 缺资产和控制面板类仿真场景。
 
-| 样例目录 | 栈 | 端口 | 启动命令 | 主要文件 |
-|---|---|---:|---|---|
-| `Build_test/CTF-NodeJs RCE-Test1` | node | 3000 | `node app.js` | `challenge.yaml` `Dockerfile` `start.sh` `app.js` |
-| `Build_test/CTF-Python沙箱逃逸-Test2` | python | 5000 | `python app.py` | `challenge.yaml` `Dockerfile` `start.sh` `Build_test/CTF-Python沙箱逃逸-Test2/src/app.py` |
-
-复查命令：
+样例池采用期望匹配规则：历史样例可以声明 `validate.sh` 预期失败，只要实际结果与 `Build_test/cases.yaml` 一致，回归就通过。这样可以保留真实问题样本，而不会把它们误写成可发布交付件。
 
 ```bash
-cd "Build_test/CTF-NodeJs RCE-Test1"
-npm ci
-bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
-
-cd "../CTF-Python沙箱逃逸-Test2"
-bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 scripts/validate_build_test.py
+python3 scripts/validate_build_test.py --format json
+python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 ```
+
+详细样例清单、字段说明和当前限制见 `Build_test/README.md`。每个样例目录都有 `case_note.md`，记录来源、预期路径、支持等级、验证等级和契约期望。
 
 ## 文件目录索引
 

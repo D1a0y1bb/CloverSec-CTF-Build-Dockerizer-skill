@@ -1,0 +1,4 @@
+Build_test placeholder for a TLS certificate.
+
+The original local sample used a self-signed certificate. The real PEM file is
+not stored in this repository because publish guards block PEM/key material.

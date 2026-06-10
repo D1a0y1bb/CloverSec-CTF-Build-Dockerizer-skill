@@ -1,0 +1,121 @@
+schema_version: "1.0"
+cases:
+  - id: node-rce-existing
+    path: "CTF-NodeJs RCE-Test1"
+    title: "Existing Node.js RCE sample"
+    original_source: "Build_test/CTF-NodeJs RCE-Test1 before P1.3"
+    audit:
+      risk_level: clean
+      recommended_path: direct_render
+      support_level: supported
+      verification_level: static
+      manual_required: false
+    contract:
+      enabled: true
+      expected: fail
+      reason: "Missing changeflag.sh delivery contract."
+
+  - id: python-sandbox-existing
+    path: "CTF-Python沙箱逃逸-Test2"
+    title: "Existing Python sandbox escape sample"
+    original_source: "Build_test/CTF-Python沙箱逃逸-Test2 before P1.3"
+    audit:
+      risk_level: clean
+      recommended_path: direct_render
+      support_level: supported
+      verification_level: static
+      manual_required: false
+    contract:
+      enabled: true
+      expected: fail
+      reason: "Missing changeflag.sh delivery contract and /flag readable permission."
+
+  - id: cpanel-whm-authbypass-rce
+    path: "cpanel-whm-authbypass-rce"
+    title: "cPanel/WHM auth bypass to RCE"
+    original_source: "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-41940 watchTowr-vs-cPanel-WHM-AuthBypass-to-RCE/code"
+    audit:
+      risk_level: mixed
+      recommended_path: bundle_recipe
+      support_level: partial
+      verification_level: manual
+      manual_required: true
+    contract:
+      enabled: true
+      expected: pass
+      reason: "The current Docker contract is complete, while audit still routes it to bundle_recipe for product handling."
+
+  - id: linux-qemu-copy-fail-missing-assets
+    path: "linux-qemu-copy-fail-missing-assets"
+    title: "Copy Fail Linux-QEMU sample with missing VM assets"
+    original_source: "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-31431 Copy Fail Linux Kernel LPE/code"
+    audit:
+      risk_level: high_risk
+      recommended_path: manual_review
+      support_level: unsupported
+      verification_level: manual
+      manual_required: true
+    contract:
+      enabled: true
+      expected: fail
+      reason: "VM assets are intentionally absent and debugfs flag injection is not fully verifiable."
+
+  - id: web-push-boxs
+    path: "web-push-boxs"
+    title: "Web push boxes sample"
+    original_source: "/Users/d1a0y1bb/Documents/Competition/2026年-内部题目未整理/杨梦灏出的CTF题目（使用Skill）/Web-push_boxs/题目源码"
+    audit:
+      risk_level: clean
+      recommended_path: direct_render
+      support_level: supported
+      verification_level: static
+      manual_required: false
+    contract:
+      enabled: true
+      expected: fail
+      reason: "The historical Dockerfile does not satisfy current platform contract and port declaration checks."
+
+  - id: web-push-letters
+    path: "web-push-letters"
+    title: "Web push letters sample"
+    original_source: "/Users/d1a0y1bb/Documents/Competition/2026年-内部题目未整理/杨梦灏出的CTF题目（使用Skill）/Web-推推字母2.0/题目源码"
+    audit:
+      risk_level: clean
+      recommended_path: direct_render
+      support_level: supported
+      verification_level: static
+      manual_required: false
+    contract:
+      enabled: true
+      expected: fail
+      reason: "The historical Dockerfile does not satisfy current platform contract and port declaration checks."
+
+  - id: pwn-house-deploy
+    path: "pwn-house-deploy"
+    title: "Pwn house deploy sample"
+    original_source: "/Users/d1a0y1bb/Documents/Competition/2025年-交通银行网络实战攻防对抗技能大赛/赛事题目/Pwn-失控的内存堡垒机House/题目源码/deploy"
+    audit:
+      risk_level: dirty
+      recommended_path: manual_review
+      support_level: partial
+      verification_level: manual
+      manual_required: true
+    contract:
+      enabled: false
+      expected: skipped
+      reason: "No challenge.yaml/start.sh pair is available; this case validates dirty input routing."
+
+  - id: php-banfunc-compose
+    path: "php-banfunc-compose"
+    title: "PHP banned function compose sample"
+    original_source: "/Users/d1a0y1bb/Documents/Competition/2025年-某不知名比赛题目附件/某极限ban函数的PHP题目"
+    audit:
+      risk_level: dirty
+      recommended_path: manual_review
+      support_level: partial
+      verification_level: manual
+      manual_required: true
+    contract:
+      enabled: false
+      expected: skipped
+      reason: "Compose-style input without challenge.yaml is used for manual_review routing."
