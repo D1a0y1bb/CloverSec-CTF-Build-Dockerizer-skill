@@ -221,6 +221,25 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --validate-rendered
 ```
 
+## Compose 导入草案
+
+已有 `docker-compose.yml` 的目录可以先通过 `import_compose.py` 生成审计草案：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
+  --compose docker-compose.yml \
+  --output /tmp/compose-import \
+  --scenario-name imported-scenario
+```
+
+输出包含：
+
+- `scenario.draft.yaml`：完整导入草案，保留 volumes、networks、environment、unsupported 原因。
+- `scenario.renderable.yaml`：只包含可继续交给 `render_scenario.py` 的服务。
+- `import-report.json`：机器可读摘要。
+
+`scenario.draft.yaml` 不是最终交付输入；只有 `scenario.renderable.yaml` 适合进入渲染链路。
+
 Vulhub-like 示例渲染与校验：
 
 ```bash

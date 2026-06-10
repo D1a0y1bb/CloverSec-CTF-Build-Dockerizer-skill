@@ -415,6 +415,17 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 
 上面的命令只校验 scenario/compose 结构；如需同时调用 `validate.sh` 检查每个服务目录，可追加 `--validate-rendered`。批量回归入口默认会执行逐服务交付校验；设置 `SCENARIO_VALIDATE_RENDERED=0` 可恢复为仅检查 scenario/compose 结构。
 
+已有 `docker-compose.yml` 的目录可先生成导入草案：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
+  --compose path/to/docker-compose.yml \
+  --output /tmp/compose-import \
+  --scenario-name imported-scenario
+```
+
+该命令会同时生成完整 `scenario.draft.yaml`、可渲染子集 `scenario.renderable.yaml` 和 `import-report.json`。只有可渲染子集适合继续交给 `render_scenario.py`。
+
 ## 平台硬契约与边界
 
 所有渲染产物必须满足：存在 `Dockerfile`。存在可执行 `start.sh`。存在可执行 `changeflag.sh`。容器内存在 `/bin/bash`。Dockerfile 声明 `EXPOSE`。`start.sh` 启动真实服务进程，禁止空转保活。
@@ -523,6 +534,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `render.py` | 单题渲染入口 |
 | `render_component.py` | BaseUnit 组件渲染入口 |
 | `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe 渲染与校验 |
+| `import_compose.py` | compose/Vulhub-like 导入草案 |
 | `render_scenario.py` | 场景编排渲染入口 |
 | `validate.sh` | 单题契约校验入口 |
 | `validate_scenario.py` | 场景契约校验入口 |
@@ -561,6 +573,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `examples/scenario-awd-basic` | AWD 场景示例 |
 | `examples/scenario-awdp-basic` | AWDP 场景示例 |
 | `examples/scenario-vulhub-like-basic` | Vulhub-like 迁移示例 |
+| `examples/scenario-compose-import-basic` | compose 导入草案示例 |
 | `examples/README.md` | 示例目录说明 |
 
 ### `src/CloverSec-CTF-Build-Dockerizer/docs`（设计文档）

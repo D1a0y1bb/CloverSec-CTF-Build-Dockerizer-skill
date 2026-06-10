@@ -10,6 +10,7 @@ RENDER_BUNDLE_PY="${SCRIPT_DIR}/render_bundle.py"
 RENDER_SCENARIO_PY="${SCRIPT_DIR}/render_scenario.py"
 VALIDATE_BUNDLE_PY="${SCRIPT_DIR}/validate_bundle.py"
 VALIDATE_SCENARIO_PY="${SCRIPT_DIR}/validate_scenario.py"
+IMPORT_COMPOSE_PY="${SCRIPT_DIR}/import_compose.py"
 
 usage() {
   cat <<'USAGE'
@@ -110,6 +111,13 @@ for dir in "$EXAMPLES_DIR"/*; do
   name="$(basename "$dir")"
   scenario_yaml="${dir}/scenario.yaml"
   bundle_yaml="${dir}/bundle.yaml"
+  compose_yaml=""
+  for candidate in "${dir}/docker-compose.yml" "${dir}/docker-compose.yaml" "${dir}/compose.yml" "${dir}/compose.yaml"; do
+    if [[ -f "$candidate" ]]; then
+      compose_yaml="$candidate"
+      break
+    fi
+  done
 
   echo
   echo "== 示例目录: ${name} =="
@@ -177,6 +185,38 @@ for dir in "$EXAMPLES_DIR"/*; do
     fi
     if [[ "$KEEP_ARTIFACTS" != "1" ]]; then
       rm -rf "$bundle_out"
+    fi
+    continue
+  fi
+
+  if [[ -n "$compose_yaml" ]]; then
+    echo "[INFO] 检测到 compose 文件，执行 scenario import draft 与可渲染子集校验"
+    if [[ "$READONLY" != "0" && -n "$OUTPUT_ROOT" ]]; then
+      import_out="${OUTPUT_ROOT}/${name}-compose-import"
+      scenario_out="${OUTPUT_ROOT}/${name}-compose-rendered"
+      rm -rf "$import_out" "$scenario_out"
+      mkdir -p "$import_out" "$scenario_out"
+    else
+      import_out="$(mktemp -d "/tmp/ctf-validate-compose-import-${name}-XXXXXX")"
+      scenario_out="$(mktemp -d "/tmp/ctf-validate-compose-rendered-${name}-XXXXXX")"
+    fi
+    if python3 "$IMPORT_COMPOSE_PY" --compose "$compose_yaml" --output "$import_out" --scenario-name "$name"; then
+      if python3 "$RENDER_SCENARIO_PY" --config "$import_out/scenario.renderable.yaml" --output "$scenario_out" \
+        && python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out" --validate-rendered; then
+        validate_rc=0
+      else
+        validate_rc=$?
+      fi
+    else
+      validate_rc=$?
+    fi
+    if [[ "$validate_rc" -eq 0 ]]; then
+      PASS_LIST+=("$name:compose-import")
+    else
+      FAIL_LIST+=("$name:compose-import")
+    fi
+    if [[ "$KEEP_ARTIFACTS" != "1" ]]; then
+      rm -rf "$import_out" "$scenario_out"
     fi
     continue
   fi
