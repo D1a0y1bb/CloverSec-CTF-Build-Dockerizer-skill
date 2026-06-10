@@ -2,6 +2,25 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.1.2 - 2026-06-10
+
+### 新增
+
+- 新增 `workflow.py` 推荐入口，提供 `intake / propose / accept / render / validate / status` 命令，并在题目目录维护 `.ctfbuild/session.json`、proposal 与 accepted proposal 状态文件。
+- 新增 `audit_input.py` 输入审计，输出 `risk_level`、`recommended_path`、`support_level`、`verification_level`、`manual_required` 与 `findings[]`；`derive_config.py` 的 JSON/YAML 输出同步携带 `input_audit`。
+- `render.py` 新增 Proposal Gate、`--format text|json`、`--manual --reason`。混合输入、脏目录、高风险输入或 derive gates 为 true 时，默认要求 accepted proposal。
+- `validate.sh` 新增 `--json-summary <path>`，`validate_scenario.py` 新增 `--format text|json`，失败结果可稳定输出结构化错误码。
+
+### 变更
+
+- `validate_context.py` 在传入 `challenge.yaml` 后如遇文件缺失、PyYAML 缺失或 YAML 解析失败，会返回非 0，并统一归类为 `CONFIG_CONTEXT_PARSE_FAILED`。
+- 发布检查升级：`release_build.py` 支持 `--with-smoke`、SkillHub metadata 检查、当前版本 CHANGELOG 标题检查、`agents/` 打包检查、SBOM 来源记录和 `release-status.json`。
+- `publish_release.sh` 正式发布默认执行 Docker smoke；如需跳过必须传入 `--skip-smoke-with-reason "..."`。找不到当前版本 release notes 时发布失败。
+
+### 发布
+
+- 本版本聚焦工作流门槛、输入审计、结构化错误与发布前检查，不扩展样例池，不引入 Bundle/Recipe 或 Scenario import，也不重写 `SKILL.md` 主体。
+
 ## v2.1.1 - 2026-06-10
 
 ### 修复

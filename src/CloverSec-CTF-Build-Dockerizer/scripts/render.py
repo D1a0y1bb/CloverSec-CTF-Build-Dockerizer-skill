@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import gzip
+import io
 import os
 import re
 import shlex
@@ -65,6 +67,8 @@ from utils import (  # noqa: E402
     resolve_runtime_profile_base_image,
     validate_rendered,
 )
+from audit_input import audit_project, proposal_gate_required  # noqa: E402
+from result_utils import dump_json, read_json, sha256_file, structured_error, structured_ok  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -89,6 +93,9 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--output", default=".", help="输出目录，默认当前目录")
     parser.add_argument("--detect-debug", action="store_true", help="打印栈侦测详情")
+    parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式")
+    parser.add_argument("--manual", action="store_true", help="人工确认后绕过 proposal gate")
+    parser.add_argument("--reason", default="", help="manual 绕过原因")
     return parser.parse_args()
 
 
@@ -1338,20 +1345,135 @@ def maybe_print_detect_debug(args: argparse.Namespace, details: List[Dict[str, A
         )
 
 
-def main() -> int:
+def _challenge_path(args: argparse.Namespace) -> Path | None:
+    if not args.config:
+        return None
+    return Path(args.config).resolve()
+
+
+def _project_dir(args: argparse.Namespace) -> Path:
+    return resolve_scan_dir(args.config).resolve()
+
+
+def _cli_challenge(args: argparse.Namespace) -> Dict[str, Any]:
+    challenge: Dict[str, Any] = {}
+    if args.stack:
+        challenge["stack"] = args.stack
+    if args.profile:
+        challenge["profile"] = args.profile
+    if args.port:
+        challenge["expose_ports"] = args.port
+    if args.start_cmd:
+        challenge["start"] = {"cmd": args.start_cmd}
+    return challenge
+
+
+def _accepted_path(project_dir: Path) -> Path:
+    return project_dir / ".ctfbuild" / "accepted_proposal.json"
+
+
+def _accepted_matches(project_dir: Path, challenge_path: Path | None) -> bool:
+    if challenge_path is None or not challenge_path.exists():
+        return False
+    path = _accepted_path(project_dir)
+    if not path.exists():
+        return False
     try:
-        args = parse_args()
+        accepted = read_json(path)
+    except Exception:
+        return False
+    if not accepted.get("accepted"):
+        return False
+    return accepted.get("challenge_sha256") == sha256_file(challenge_path)
+
+
+def _emit_error(args: argparse.Namespace, payload: Dict[str, Any]) -> int:
+    if args.format == "json":
+        print(dump_json(payload, pretty=True))
+    else:
+        print(f"[ERROR] {payload['code']}: {payload['summary']}", file=sys.stderr)
+        if payload.get("hint"):
+            print(f"[HINT] {payload['hint']}", file=sys.stderr)
+    return 2
+
+
+def _manual_payload(args: argparse.Namespace) -> Dict[str, Any]:
+    return {
+        "enabled": bool(args.manual),
+        "reason": args.reason.strip() if args.manual else "",
+    }
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        project_dir = _project_dir(args)
+        challenge_path = _challenge_path(args)
+        cli_challenge = _cli_challenge(args) if not challenge_path else {}
+        audit = audit_project(
+            project_dir,
+            challenge_path=challenge_path if challenge_path and challenge_path.exists() else None,
+            challenge=cli_challenge or None,
+        )
+        if args.manual and not args.reason.strip():
+            return _emit_error(
+                args,
+                structured_error(
+                    "render",
+                    "RENDER_MANUAL_REASON_REQUIRED",
+                    "--manual 必须同时提供 --reason。",
+                    hint="示例：--manual --reason \"trusted regression example\"",
+                    support_level=audit.get("support_level", "partial"),
+                ),
+            )
+        if proposal_gate_required(audit) and not args.manual and not _accepted_matches(project_dir, challenge_path):
+            return _emit_error(
+                args,
+                structured_error(
+                    "render",
+                    "CONFIG_PROPOSAL_NOT_ACCEPTED",
+                    "当前输入需要先接受 proposal，render 已拒绝。",
+                    file=str(challenge_path or project_dir),
+                    hint="执行 workflow.py propose 与 workflow.py accept；确认无风险时可使用 --manual --reason。",
+                    support_level=audit.get("support_level", "partial"),
+                ),
+            )
+
         stacks = load_stack_defs(DATA_DIR / "stacks.yaml")
         patterns = load_patterns(DATA_DIR / "patterns.yaml")
         profiles = load_profile_defs(DATA_DIR / "profiles.yaml")
         runtime_profiles = load_runtime_profiles(DATA_DIR / "runtime_profiles.yaml")
         context = build_render_context(args, stacks, patterns, profiles, runtime_profiles)
-        maybe_print_detect_debug(args, context["detect_details"])
-        render_files(context)
+        if args.format == "json":
+            with contextlib.redirect_stdout(io.StringIO()):
+                render_files(context)
+            print(
+                dump_json(
+                    structured_ok(
+                        "render",
+                        output_dir=str(Path(context["output_dir"])),
+                        stack_id=context["stack_id"],
+                        profile=context["profile"],
+                        input_audit=audit,
+                        manual_override=_manual_payload(args),
+                        accepted_proposal=str(_accepted_path(project_dir))
+                        if _accepted_matches(project_dir, challenge_path)
+                        else "",
+                    ),
+                    pretty=True,
+                )
+            )
+        else:
+            if args.manual:
+                print(f"[WARN] manual override: {args.reason.strip()}")
+            maybe_print_detect_debug(args, context["detect_details"])
+            render_files(context)
         return 0
     except ConfigError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
-        return 2
+        return _emit_error(
+            args,
+            structured_error("render", "RENDER_CONFIG_ERROR", str(exc), support_level="unknown"),
+        )
 
 
 if __name__ == "__main__":

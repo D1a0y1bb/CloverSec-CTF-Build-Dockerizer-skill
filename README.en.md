@@ -14,17 +14,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.1.1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.1.2</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
+
+## v2.1.2 Workflow Gates and Release Checks
+
+`v2.1.2` adds guardrails for high-risk input handling, structured errors, and formal release checks. It does not change the existing `challenge.yaml` render contract. Clear low-risk configurations can still render directly; mixed, dirty, high-risk, or `gates=true` inputs require an accepted proposal by default.
+
+This release covers:
+
+- Recommended workflow entrypoint: `workflow.py intake/propose/accept/render/validate/status`, with `.ctfbuild/session.json`, proposal, and accepted proposal state files.
+- Input audit: `audit_input.py` and `derive_config.py` now expose `input_audit` with risk level, recommended path, support level, verification level, manual requirement, and findings.
+- Proposal Gate: `render.py` blocks risky inputs until proposal acceptance. Manual override is still available with `--manual --reason "..."`.
+- Structured results: `render.py --format json`, `validate_scenario.py --format json`, and `validate.sh --json-summary <path>` provide stable machine-readable outputs.
+- Release checks: `release_build.py --with-smoke` writes `dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json`; `publish_release.sh` runs smoke by default and requires `--skip-smoke-with-reason "..."` to skip it.
 
 ## v2.1.1 Release Fixes
 
@@ -257,7 +269,7 @@ Acceptance commands:
 
 ```bash
 npx -y skills add . --list
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 ### Claude Code
@@ -311,7 +323,7 @@ Patch only affected files and rerun impacted checks.
 Acceptance commands:
 
 ```bash
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 ### Aider
@@ -702,13 +714,13 @@ bash scripts/doc_guard.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.1.1
+bash scripts/publish_release.sh --version v2.1.2
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

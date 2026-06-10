@@ -13,6 +13,7 @@ RELEASE_NOTES_FILE=""
 SKIP_CHECKS="false"
 SKIP_RELEASE="false"
 SKIP_UPLOAD="false"
+SKIP_SMOKE_REASON=""
 DRY_RUN="false"
 COMMIT_MESSAGE=""
 VERSION_OVERRIDE=""
@@ -75,6 +76,8 @@ Options:
   --notes-file <path>     Use custom release notes file
   --commit-message <msg>  Commit message (default: "release: <VERSION>")
   --skip-checks           Pass --skip-checks to scripts/release_build.sh
+  --skip-smoke-with-reason <text>
+                          Skip Docker smoke test with an explicit reason
   --skip-release          Skip GitHub Release create/update and asset upload
   --skip-upload           Create/update release but skip asset upload
   --dry-run               Validate and build only; skip commit/push/tag/release
@@ -118,6 +121,12 @@ parse_args() {
       --skip-checks)
         SKIP_CHECKS="true"
         shift
+        ;;
+      --skip-smoke-with-reason)
+        [[ $# -ge 2 ]] || die "--skip-smoke-with-reason requires text"
+        [[ -n "$2" ]] || die "--skip-smoke-with-reason cannot be empty"
+        SKIP_SMOKE_REASON="$2"
+        shift 2
         ;;
       --skip-release)
         SKIP_RELEASE="true"
@@ -191,6 +200,10 @@ build_release_zip() {
   local cmd=(bash "${RELEASE_BUILD_SCRIPT}")
   if [[ "${SKIP_CHECKS}" == "true" ]]; then
     cmd+=(--skip-checks)
+  elif [[ -n "${SKIP_SMOKE_REASON}" ]]; then
+    cmd+=(--skip-smoke-with-reason "${SKIP_SMOKE_REASON}")
+  else
+    cmd+=(--with-smoke)
   fi
 
   log "Building release artifact with ${cmd[*]}"
@@ -204,7 +217,9 @@ build_release_zip() {
   for extra_asset in \
     "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.sbom.spdx.json" \
     "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.sbom.cdx.json" \
-    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.deps.txt"; do
+    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.deps.txt" \
+    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.sbom.meta.json" \
+    "${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.release-status.json"; do
     if [[ -f "${extra_asset}" ]]; then
       ASSET_UPLOAD_PATHS+=("${extra_asset}")
     else
@@ -391,6 +406,14 @@ extract_release_notes() {
   fi
 }
 
+require_release_notes() {
+  local notes
+  notes="$(extract_release_notes)"
+  if [[ -z "$(printf '%s' "${notes}" | tr -d '[:space:]')" ]]; then
+    die "CHANGELOG.md 缺少 ${VERSION} 的 release notes；请先填写当前版本更新日志，或传 --notes-file"
+  fi
+}
+
 json_read() {
   local json_file="$1"
   local expression="$2"
@@ -469,7 +492,7 @@ create_or_prepare_release() {
 
   notes="$(extract_release_notes)"
   if [[ -z "$(printf '%s' "${notes}" | tr -d '[:space:]')" ]]; then
-    notes="Release ${VERSION}"
+    die "CHANGELOG.md 缺少 ${VERSION} 的 release notes；请先填写当前版本更新日志，或传 --notes-file"
   fi
   notes_body="$(printf '%s\n' "${notes}")"
 
@@ -679,6 +702,9 @@ main() {
   load_version
   sync_from_source
   build_release_zip
+  if [[ "${SKIP_RELEASE}" != "true" ]]; then
+    require_release_notes
+  fi
   commit_and_push
   ensure_version_tag
 

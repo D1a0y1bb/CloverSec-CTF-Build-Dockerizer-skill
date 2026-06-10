@@ -55,7 +55,7 @@ for dir in "$EXAMPLES_DIR"/*; do
       echo "[INFO] 未检测到 Dockerfile/start.sh，尝试先渲染"
       log_file="/tmp/ctf_web_render_${name}_$$_${RANDOM}.log"
       : >"$log_file"
-      if python3 "$RENDER_PY" --config "$challenge_yaml" --output "$dir" >"$log_file" 2>&1; then
+      if python3 "$RENDER_PY" --config "$challenge_yaml" --output "$dir" --manual --reason "trusted examples regression" >"$log_file" 2>&1; then
         echo "[INFO] 渲染成功"
         rm -f "$log_file"
       else

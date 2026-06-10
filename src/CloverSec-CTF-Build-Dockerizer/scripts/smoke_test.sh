@@ -267,7 +267,7 @@ while IFS= read -r dir; do
     continue
   fi
 
-  if ! python3 "$RENDER_PY" --config "$challenge_yaml" --output "$dir"; then
+  if ! python3 "$RENDER_PY" --config "$challenge_yaml" --output "$dir" --manual --reason "trusted smoke regression"; then
     echo "[ERROR] render 失败: ${name}"
     FAIL_LIST+=("${name}:render")
     continue

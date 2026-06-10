@@ -65,6 +65,18 @@ docker run -d -p 3001:3000 ctf-node-basic:latest /start.sh
 docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 1)
 ```
 
+推荐工作流入口（v2.1.2）：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir path/to/challenge
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir path/to/challenge
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir path/to/challenge
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir path/to/challenge
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir path/to/challenge
+```
+
+当输入目录包含旧 Dockerfile、多技术栈线索、compose/Vulhub-like 结构、Linux-QEMU 占位 VM 资产或 derive gates 为 true 时，先走 proposal，再接受后渲染。明确、低风险的 `challenge.yaml` 仍可直接调用 `render.py`。
+
 ## 文档导航
 
 - 输入 schema：`src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
@@ -168,7 +180,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 | `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
 | `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
 
-### RDG/Defense check 脚本契约（v2.1.1）
+### RDG/Defense check 脚本契约（v2.1.2）
 
 - 推荐入口：`bash check/check.sh [target_ip] [target_port]`
 - 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
@@ -202,7 +214,7 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
 - `VM_GUEST_FLAG_PATH`
 - `VM_FLAG_INJECTION`
 
-## validate 自动修复与发布门禁（v2.1.1）
+## validate 自动修复与发布门禁（v2.1.2）
 
 - `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
   - 仅预览安全自动修复，不落盘。
@@ -210,7 +222,10 @@ docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 
   - 应用安全自动修复后继续校验。
 - `bash .../validate.sh --fix --fix-loopback ...`
   - 允许把显式 loopback 绑定参数（如 `--host 127.0.0.1`）改写为 `0.0.0.0`。
+- `bash .../validate.sh --json-summary /tmp/result.json Dockerfile start.sh challenge.yaml`
+  - 保留文本日志，同时写入机器可读摘要。
 - 发布链路可设置 `VALIDATE_ENFORCE_DIGEST=1`，触发基础镜像 digest 强门禁（官方白名单 tag-only 放行）。
+- 正式发布建议使用 `bash scripts/release_build.sh --with-smoke`；跳过 Docker smoke 必须记录原因。
 
 ## 平台契约解释（执行时必须牢记）
 

@@ -7,11 +7,6 @@ import shlex
 import sys
 from pathlib import Path
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    raise SystemExit(0)
-
 
 def pick_bool(source: dict, name: str, default: bool) -> str:
     value = source.get(name, default)
@@ -24,14 +19,29 @@ def main() -> int:
     if len(sys.argv) < 2:
         return 0
 
+    try:
+        import yaml
+    except ModuleNotFoundError:
+        print("CONFIG_CONTEXT_PARSE_FAILED: 缺少依赖 PyYAML", file=sys.stderr)
+        return 2
+
     path = Path(sys.argv[1])
     if not path.is_file():
-        return 0
+        print(f"CONFIG_CONTEXT_PARSE_FAILED: challenge.yaml 不存在: {path}", file=sys.stderr)
+        return 2
 
-    raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        print(f"CONFIG_CONTEXT_PARSE_FAILED: YAML 解析失败: {path}: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(raw, dict):
+        print(f"CONFIG_CONTEXT_PARSE_FAILED: YAML 顶层必须是对象: {path}", file=sys.stderr)
+        return 2
     challenge = raw.get("challenge") or {}
     if not isinstance(challenge, dict):
-        return 0
+        print(f"CONFIG_CONTEXT_PARSE_FAILED: challenge 字段必须是对象: {path}", file=sys.stderr)
+        return 2
 
     stack = str(challenge.get("stack") or "").strip()
     profile = str(challenge.get("profile") or "").strip().lower()

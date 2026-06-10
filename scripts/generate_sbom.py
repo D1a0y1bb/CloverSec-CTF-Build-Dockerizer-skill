@@ -17,6 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate SBOM assets")
     parser.add_argument("--source-dir", required=True, help="source directory")
     parser.add_argument("--output-prefix", required=True, help="dist output prefix")
+    parser.add_argument("--metadata-output", help="optional SBOM metadata JSON path")
     return parser.parse_args()
 
 
@@ -124,10 +125,11 @@ def write_source_inventory_sbom(source_dir: Path, spdx: Path, cdx: Path, reason:
     write_source_inventory_cdx(source_dir, cdx, reason)
 
 
-def generate_deps_report(source_dir: Path, out_file: Path) -> None:
+def generate_deps_report(source_dir: Path, out_file: Path, sbom_source: str) -> None:
     lines: list[str] = []
     lines.append("# CloverSec release dependency summary")
     lines.append(f"source_dir: {source_dir.name}")
+    lines.append(f"sbom_source: {sbom_source}")
 
     stacks_yaml = source_dir / "data" / "stacks.yaml"
     if stacks_yaml.exists():
@@ -234,17 +236,19 @@ def main() -> int:
     spdx = Path(f"{out_prefix}.sbom.spdx.json")
     cdx = Path(f"{out_prefix}.sbom.cdx.json")
     deps = Path(f"{out_prefix}.deps.txt")
+    meta = Path(args.metadata_output).resolve() if args.metadata_output else Path(f"{out_prefix}.sbom.meta.json")
     spdx.parent.mkdir(parents=True, exist_ok=True)
-
-    generate_deps_report(source_dir, deps)
 
     generated = False
     fallback_reason = ""
+    sbom_source = "source-inventory"
 
     if shutil.which("syft"):
         generated = syft_generate(source_dir, spdx, cdx)
         if not generated:
             fallback_reason = "syft failed; generated source inventory SBOM"
+        else:
+            sbom_source = "syft"
     else:
         has_docker = shutil.which("docker") is not None
         docker_sbom_help = subprocess.run(["docker", "sbom", "--help"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0 if has_docker else False
@@ -252,13 +256,34 @@ def main() -> int:
             generated = docker_sbom_generate(source_dir, spdx, cdx)
             if not generated:
                 fallback_reason = "docker sbom failed; generated source inventory SBOM"
+            else:
+                sbom_source = "docker-sbom"
         else:
             fallback_reason = "no syft/docker sbom available; generated source inventory SBOM"
 
     if not generated:
         write_source_inventory_sbom(source_dir, spdx, cdx, fallback_reason)
 
-    for required in (spdx, cdx, deps):
+    generate_deps_report(source_dir, deps, sbom_source)
+    meta.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "source": sbom_source,
+                "fallback_reason": fallback_reason,
+                "spdx": str(spdx),
+                "cyclonedx": str(cdx),
+                "deps": str(deps),
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    for required in (spdx, cdx, deps, meta):
         if not required.exists():
             print(f"[ERROR] missing output: {required}", flush=True)
             return 1
@@ -267,6 +292,7 @@ def main() -> int:
     print(f"  - {spdx}")
     print(f"  - {cdx}")
     print(f"  - {deps}")
+    print(f"  - {meta}")
     return 0
 
 

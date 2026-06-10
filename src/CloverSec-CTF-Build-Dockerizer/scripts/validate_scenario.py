@@ -20,6 +20,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from utils import ConfigError, ensure_dict, ensure_list, load_yaml_file  # noqa: E402
+from result_utils import dump_json, structured_error, structured_ok  # noqa: E402
 
 ALLOWED_PROFILES = {"jeopardy", "rdg", "awd", "awdp", "secops"}
 
@@ -36,7 +37,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="额外调用 validate.sh 校验每个渲染出的服务目录",
     )
+    parser.add_argument("--format", choices=("text", "json"), default="text", help="输出格式")
     return parser.parse_args()
+
+
+def wants_json_output(argv: List[str]) -> bool:
+    for idx, item in enumerate(argv):
+        if item == "--format" and idx + 1 < len(argv) and argv[idx + 1] == "json":
+            return True
+        if item == "--format=json":
+            return True
+    return False
 
 
 def resolve_paths(args: argparse.Namespace) -> Tuple[Path, Path, Path]:
@@ -213,7 +224,7 @@ def validate_awdp_patch_contract(service_dir: Path, service_name: str, messages:
         )
 
 
-def run_validate_sh(service_dir: Path, service_name: str, errors: List[str]) -> None:
+def run_validate_sh(service_dir: Path, service_name: str, errors: List[str], *, capture: bool = False) -> None:
     dockerfile = service_dir / "Dockerfile"
     start_sh = service_dir / "start.sh"
     challenge_yaml = service_dir / "challenge.yaml"
@@ -223,6 +234,8 @@ def run_validate_sh(service_dir: Path, service_name: str, errors: List[str]) -> 
     result = subprocess.run(
         ["bash", str(VALIDATE_SH), str(dockerfile), str(start_sh), str(challenge_yaml)],
         check=False,
+        text=True,
+        capture_output=capture,
     )
     if result.returncode != 0:
         errors.append(f"service {service_name}: validate.sh failed")
@@ -291,13 +304,43 @@ def main() -> int:
         if rendered_profile == "awdp":
             validate_awdp_patch_contract(service_dir, service_name, messages, errors)
         if args.validate_rendered:
-            run_validate_sh(service_dir, service_name, errors)
+            run_validate_sh(service_dir, service_name, errors, capture=args.format == "json")
 
     if errors:
-        for item in errors:
-            print(f"[ERROR] {item}")
+        if args.format == "json":
+            payload = structured_error(
+                "scenario",
+                "SCENARIO_VALIDATION_FAILED",
+                f"scenario validation failed with {len(errors)} error(s)",
+                file=str(scenario_path),
+                hint=errors[0] if errors else "",
+            )
+            payload["errors"] = errors
+            print(
+                dump_json(
+                    payload,
+                    pretty=True,
+                )
+            )
+        else:
+            for item in errors:
+                print(f"[ERROR] {item}")
         return 1
-    print("[OK] scenario validation passed")
+    if args.format == "json":
+        print(
+            dump_json(
+                structured_ok(
+                    "scenario",
+                    summary="scenario validation passed",
+                    compose_file=str(compose_path),
+                    output_root=str(output_root),
+                    scenario_file=str(scenario_path),
+                ),
+                pretty=True,
+            )
+        )
+    else:
+        print("[OK] scenario validation passed")
     return 0
 
 
@@ -305,5 +348,13 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except ConfigError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        if wants_json_output(sys.argv):
+            print(
+                dump_json(
+                    structured_error("scenario", "SCENARIO_CONFIG_ERROR", str(exc)),
+                    pretty=True,
+                )
+            )
+        else:
+            print(f"[ERROR] {exc}", file=sys.stderr)
         raise SystemExit(2)

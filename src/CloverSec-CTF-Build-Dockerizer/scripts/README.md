@@ -8,10 +8,13 @@
 ## 脚本列表
 
 - `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh/changeflag.sh/flag(可选)
+- `workflow.py`：推荐工作流入口，支持 intake/propose/accept/render/validate/status，并维护 `.ctfbuild/` 状态文件
+- `audit_input.py`：输入审计，输出 risk_level/recommended_path/support_level/verification_level/manual_required/findings
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
 - `parse_config_block.py`：解析 CONFIG PROPOSAL YAML（stdin）并生成标准 challenge.yaml
 - `detect_stack.py`：输出技术栈侦测结果和置信度
-- `validate.sh`：执行硬规则与可配置规则校验
+- `validate.sh`：执行硬规则与可配置规则校验，支持 `--json-summary`
+- `validate_scenario.py`：校验 scenario 输出，支持 `--format text|json`
 - `autofix.py`：`validate.sh --fix/--fix-write` 对应的安全自动修复执行器
 - `validate_examples.sh`：遍历 examples 全目录并做静态校验
 - `smoke_test.sh`：执行 render/validate/build/run 冒烟回归
@@ -26,12 +29,21 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-di
 ```
 
 ```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
+```
+
+```bash
 cat config-proposal.yaml | python3 src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py --output challenge.yaml
 ```
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config path/to/challenge.yaml
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config path/to/challenge.yaml --format json
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 ```

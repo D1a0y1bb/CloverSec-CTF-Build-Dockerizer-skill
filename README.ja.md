@@ -14,17 +14,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.1.1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.1.2</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
+
+## v2.1.2 ワークフロー制御とリリース検査
+
+`v2.1.2` は、高リスク入力の扱い、構造化エラー、正式リリース前検査を強化する版です。既存の `challenge.yaml` レンダリング契約は変更しません。明確な低リスク設定は直接 render できますが、mixed/dirty/high_risk または `gates=true` の入力は既定で accepted proposal を要求します。
+
+この版の内容：
+
+- 推奨入口として `workflow.py intake/propose/accept/render/validate/status` を追加し、`.ctfbuild/session.json`、proposal、accepted proposal を管理。
+- `audit_input.py` と `derive_config.py` が `input_audit` を出力し、risk level、recommended path、support level、verification level、manual requirement、findings を確認可能。
+- `render.py` が Proposal Gate を実装し、必要な場合は proposal acceptance まで render を拒否。人工確認済みの場合は `--manual --reason "..."` を使用可能。
+- `render.py --format json`、`validate_scenario.py --format json`、`validate.sh --json-summary <path>` が機械可読の結果を出力。
+- `release_build.py --with-smoke` が release status を生成し、`publish_release.sh` は既定で smoke を実行。省略する場合は `--skip-smoke-with-reason "..."` が必要。
 
 ## v2.1.1 修正版
 
@@ -257,7 +269,7 @@ Phase4: 残リスクとリリース前確認項目を提示。
 
 ```bash
 npx -y skills add . --list
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 ### Claude Code
@@ -311,7 +323,7 @@ Dockerfile を一から書き直さないでください。
 検収コマンド：
 
 ```bash
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 ### Aider
@@ -701,13 +713,13 @@ bash scripts/doc_guard.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.1.1
+bash scripts/publish_release.sh --version v2.1.2
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 用法：
-  bash scripts/validate.sh [--fix] [--fix-write] [--fix-loopback] Dockerfile start.sh [challenge.yaml]
+  bash scripts/validate.sh [--fix] [--fix-write] [--fix-loopback] [--json-summary path] Dockerfile start.sh [challenge.yaml]
 
 说明：
   - 先执行平台硬规则，再执行 data/validate_rules.yaml 可配置规则。
@@ -13,12 +13,14 @@ usage() {
   - --fix 仅预览安全自动修复（dry-run，不落盘）
   - --fix-write 应用安全自动修复（落盘）并继续校验
   - --fix-loopback 允许自动修复将显式 loopback 绑定参数改为 0.0.0.0
+  - --json-summary 写入机器可读校验摘要
 USAGE
 }
 
 AUTOFIX_MODE="false"
 AUTOFIX_WRITE="false"
 AUTOFIX_LOOPBACK="false"
+JSON_SUMMARY_PATH=""
 POSITIONAL_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -39,6 +41,14 @@ while [[ $# -gt 0 ]]; do
     --fix-loopback)
       AUTOFIX_LOOPBACK="true"
       shift
+      ;;
+    --json-summary)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "[ERROR] --json-summary 需要路径参数" >&2
+        exit 2
+      fi
+      JSON_SUMMARY_PATH="$2"
+      shift 2
       ;;
     --)
       shift
@@ -158,6 +168,51 @@ log_result() {
   esac
 
   printf '[%s] %s\n' "$level" "$message"
+}
+
+write_json_summary() {
+  local exit_code="$1"
+  local code="$2"
+  local summary="$3"
+
+  if [[ -z "$JSON_SUMMARY_PATH" ]]; then
+    return
+  fi
+
+  python3 - "$JSON_SUMMARY_PATH" "$exit_code" "$code" "$summary" \
+    "$CHECK_COUNT" "$ERROR_COUNT" "$WARN_COUNT" "$INFO_COUNT" \
+    "$DOCKERFILE" "$START_SH" "$CHALLENGE_YAML" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+out, exit_code, code, summary, checks, errors, warns, infos, dockerfile, start_sh, challenge = sys.argv[1:]
+payload = {
+    "ok": int(exit_code) == 0,
+    "stage": "validate",
+    "code": code,
+    "level": "error" if int(exit_code) else "info",
+    "summary": summary,
+    "file": challenge or dockerfile,
+    "hint": "",
+    "autofixable": False,
+    "support_level": "unknown",
+    "counts": {
+        "checks": int(checks),
+        "errors": int(errors),
+        "warnings": int(warns),
+        "info": int(infos),
+    },
+    "inputs": {
+        "dockerfile": dockerfile,
+        "start_sh": start_sh,
+        "challenge_yaml": challenge,
+    },
+}
+path = Path(out)
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
 }
 
 contains_re() {
@@ -424,20 +479,27 @@ parse_challenge_stack() {
 }
 
 load_challenge_v2_context() {
-  if [[ -z "$CHALLENGE_YAML" || ! -f "$CHALLENGE_YAML" ]]; then
+  if [[ -z "$CHALLENGE_YAML" ]]; then
     return
   fi
 
   if ! command -v python3 >/dev/null 2>&1; then
-    return
+    log_result ERROR "CONFIG_CONTEXT_PARSE_FAILED: 未找到 python3"
+    return 2
   fi
 
   if [[ ! -f "$VALIDATE_CONTEXT_PY" ]]; then
-    return
+    log_result ERROR "CONFIG_CONTEXT_PARSE_FAILED: validate_context.py 不存在: $VALIDATE_CONTEXT_PY"
+    return 2
   fi
 
   local context_lines=""
-  context_lines="$(python3 "$VALIDATE_CONTEXT_PY" "$CHALLENGE_YAML" 2>/dev/null || true)"
+  if ! context_lines="$(python3 "$VALIDATE_CONTEXT_PY" "$CHALLENGE_YAML" 2>&1)"; then
+    local one_line
+    one_line="$(printf '%s' "$context_lines" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g')"
+    log_result ERROR "${one_line:-CONFIG_CONTEXT_PARSE_FAILED}"
+    return 2
+  fi
 
   local line
   while IFS= read -r line; do
@@ -492,7 +554,7 @@ normalize_bool_text() {
 }
 
 load_rdg_config_from_challenge() {
-  if [[ -z "$CHALLENGE_YAML" || ! -f "$CHALLENGE_YAML" ]]; then
+  if [[ -z "$CHALLENGE_YAML" ]]; then
     return
   fi
   load_challenge_v2_context
@@ -1439,7 +1501,17 @@ fi
 
 echo
 
-load_rdg_config_from_challenge
+if ! load_rdg_config_from_challenge; then
+  echo
+  echo "校验汇总"
+  echo "- 总检查项: $CHECK_COUNT"
+  echo "- ERROR:    $ERROR_COUNT"
+  echo "- WARN:     $WARN_COUNT"
+  echo "- INFO:     $INFO_COUNT"
+  echo "结果：失败（challenge.yaml 上下文解析失败）"
+  write_json_summary 2 "CONFIG_CONTEXT_PARSE_FAILED" "challenge.yaml 上下文解析失败"
+  exit 2
+fi
 
 run_hard_rules
 run_configurable_rules
@@ -1455,8 +1527,10 @@ echo "- INFO:     $INFO_COUNT"
 
 if [[ $ERROR_COUNT -gt 0 ]]; then
   echo "结果：失败（存在 ERROR）"
+  write_json_summary 1 "CONTRACT_VALIDATION_FAILED" "存在 ERROR"
   exit 1
 fi
 
 echo "结果：通过（无 ERROR）"
+write_json_summary 0 "CONTRACT_VALIDATION_PASSED" "无 ERROR"
 exit 0

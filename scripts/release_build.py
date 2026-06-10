@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -22,6 +23,8 @@ SKILL_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build release artifact")
     parser.add_argument("--skip-checks", action="store_true", help="skip pre checks")
+    parser.add_argument("--with-smoke", action="store_true", help="run Docker smoke test during release build")
+    parser.add_argument("--skip-smoke-with-reason", default="", help="skip smoke test with an explicit reason")
     return parser.parse_args()
 
 
@@ -62,6 +65,68 @@ def assert_skillhub_slug(skill_file: Path) -> None:
         raise RuntimeError(f"SKILL.md frontmatter name 不符合 SkillHub slug 规则: {name}")
     if name != SKILL_SLUG:
         raise RuntimeError(f"SKILL.md frontmatter name 应为 {SKILL_SLUG}: {name}")
+
+
+def assert_skill_metadata(skill_dir: Path) -> None:
+    meta = skill_dir / "agents" / "openai.yaml"
+    if not meta.is_file():
+        raise RuntimeError(f"缺少 SkillHub metadata: {meta}")
+    try:
+        import yaml  # type: ignore
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("检查 agents/openai.yaml 需要 PyYAML") from exc
+    raw = yaml.safe_load(meta.read_text(encoding="utf-8")) or {}
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"agents/openai.yaml 顶层必须是对象: {meta}")
+    interface = raw.get("interface") if isinstance(raw.get("interface"), dict) else {}
+    policy = raw.get("policy") if isinstance(raw.get("policy"), dict) else {}
+    required = {
+        "interface.display_name": interface.get("display_name"),
+        "interface.short_description": interface.get("short_description"),
+        "interface.brand_color": interface.get("brand_color"),
+        "interface.default_prompt": interface.get("default_prompt"),
+        "policy.allow_implicit_invocation": policy.get("allow_implicit_invocation"),
+    }
+    missing = [key for key, value in required.items() if value in (None, "")]
+    if missing:
+        raise RuntimeError(f"agents/openai.yaml 缺少字段: {', '.join(missing)}")
+
+
+def assert_changelog_has_version(root: Path, version: str) -> None:
+    path = root / "CHANGELOG.md"
+    if not path.is_file():
+        raise RuntimeError(f"缺少 CHANGELOG.md: {path}")
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    pattern = re.compile(rf"^##\s+{re.escape(version)}(?:\s|$)", re.MULTILINE)
+    if not pattern.search(text):
+        raise RuntimeError(f"CHANGELOG.md 缺少当前版本标题: {version}")
+
+
+def new_status(version: str, package_basename: str) -> dict:
+    return {
+        "schema_version": "1.0",
+        "version": version,
+        "package": package_basename,
+        "checks": [],
+        "smoke": {"executed": False, "skipped": False, "reason": ""},
+        "skillhub_metadata": {"ok": False, "file": "agents/openai.yaml"},
+        "sbom": {"source": "", "metadata_file": ""},
+        "release_ready": False,
+    }
+
+
+def record_check(status: dict, name: str, ok: bool, *, skipped: bool = False, reason: str = "") -> None:
+    status["checks"].append({"name": name, "ok": bool(ok), "skipped": bool(skipped), "reason": reason})
+
+
+def write_release_status(path: Path, status: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(status, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def run_check(status: dict, name: str, cmd: list[str], cwd: Path | None = None, env: dict[str, str] | None = None) -> None:
+    run(cmd, cwd=cwd, env=env)
+    record_check(status, name, True)
 
 
 def shell_syntax_check(root: Path, skill_src: Path) -> None:
@@ -212,17 +277,30 @@ def main() -> int:
     src_skill_dir = root / "src" / SKILL_SOURCE_NAME
     dist = root / "dist"
     sbom_script = root / "scripts" / "generate_sbom.py"
+    status: dict | None = None
+    status_path: Path | None = None
 
     try:
         version = load_version(version_file)
+        package_basename = f"{PACKAGE_NAME}-{version}"
+        status_path = dist / f"{package_basename}.release-status.json"
+        status = new_status(version, package_basename)
+        if args.with_smoke and args.skip_smoke_with_reason:
+            raise RuntimeError("--with-smoke 与 --skip-smoke-with-reason 不能同时使用")
         if not src_skill_dir.exists():
             raise RuntimeError(f"技能真源目录不存在: {src_skill_dir}")
         if not sbom_script.exists():
             raise RuntimeError(f"缺少 SBOM 脚本: {sbom_script}")
         assert_skillhub_slug(src_skill_dir / "SKILL.md")
+        record_check(status, "skillhub_slug", True)
+        assert_skill_metadata(src_skill_dir)
+        status["skillhub_metadata"]["ok"] = True
+        record_check(status, "skillhub_metadata", True)
+        assert_changelog_has_version(root, version)
+        record_check(status, "changelog_current_version", True)
         assert_no_trailing_whitespace([src_skill_dir])
+        record_check(status, "trailing_whitespace", True)
 
-        package_basename = f"{PACKAGE_NAME}-{version}"
         release_root = dist / package_basename
         zip_path = dist / f"{package_basename}.zip"
 
@@ -239,31 +317,46 @@ def main() -> int:
             status_before_checks = git_status_snapshot(root)
             py_files = [str(p) for p in sorted((src_skill_dir / "scripts").glob("*.py"))]
             py_files.extend(str(p) for p in sorted((root / "scripts").glob("*.py")))
-            run([sys.executable, "-m", "py_compile", *py_files])
+            run_check(status, "py_compile", [sys.executable, "-m", "py_compile", *py_files])
             # py_compile 会在源码树写入 __pycache__，其中可能包含绝对路径信息，
             # 需要在私有信息扫描前清理，避免误报。
             cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
             shell_syntax_check(root, src_skill_dir)
+            record_check(status, "shell_syntax", True)
             env = os.environ.copy()
             env["VALIDATE_ENFORCE_DIGEST"] = "1"
-            run(["bash", str(src_skill_dir / "scripts" / "validate_examples.sh")], env=env)
+            run_check(status, "validate_examples", ["bash", str(src_skill_dir / "scripts" / "validate_examples.sh")], env=env)
             # validate_examples 会触发 Python 脚本执行并再次生成 __pycache__，
             # 需要在隐私扫描前做二次清理，避免绝对路径残留导致误报。
             cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
             privacy_scan([root / "README.md", src_skill_dir])
-            run(["bash", str(root / "scripts" / "doc_guard.sh")])
+            record_check(status, "privacy_scan", True)
+            run_check(status, "doc_guard", ["bash", str(root / "scripts" / "doc_guard.sh")])
+            if args.with_smoke:
+                run_check(status, "smoke_test", ["bash", str(src_skill_dir / "scripts" / "smoke_test.sh")])
+                status["smoke"] = {"executed": True, "skipped": False, "reason": ""}
+            elif args.skip_smoke_with_reason:
+                status["smoke"] = {"executed": False, "skipped": True, "reason": args.skip_smoke_with_reason}
+                record_check(status, "smoke_test", True, skipped=True, reason=args.skip_smoke_with_reason)
+            else:
+                status["smoke"] = {"executed": False, "skipped": True, "reason": "not requested"}
+                record_check(status, "smoke_test", False, skipped=True, reason="not requested")
             cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
             assert_checks_did_not_modify_source(root, status_before_checks)
+            record_check(status, "source_tree_unchanged", True)
         else:
             print("[WARN] 已跳过发布前检查（--skip-checks）")
+            record_check(status, "pre_checks", True, skipped=True, reason="--skip-checks")
+            status["smoke"] = {"executed": False, "skipped": True, "reason": "--skip-checks"}
 
         print("[INFO] 组装发布目录...")
         copy_skill_tree(src_skill_dir, release_root, root)
 
-        required = ["SKILL.md", "data", "scripts", "templates", "examples", "docs"]
+        required = ["SKILL.md", "agents", "data", "scripts", "templates", "examples", "docs"]
         for item in required:
             if not (release_root / item).exists():
                 raise RuntimeError(f"发布目录缺少 {item}: {release_root}")
+        record_check(status, "release_required_paths", True)
 
         if (release_root / "README.md").exists():
             raise RuntimeError(f"发布目录不应包含技能根 README.md: {release_root / 'README.md'}")
@@ -273,12 +366,15 @@ def main() -> int:
         privacy_scan([release_root])
         assert_skillhub_slug(release_root / "SKILL.md")
         assert_no_trailing_whitespace([release_root])
+        record_check(status, "release_tree_validation", True)
 
         print(f"[INFO] 生成 zip: {zip_path}")
         zip_dir(dist, package_basename, zip_path)
         assert_zip_layout(zip_path)
+        record_check(status, "zip_layout", True)
 
         print("[INFO] 生成 SBOM 与依赖清单...")
+        sbom_meta = Path(f"{dist / package_basename}.sbom.meta.json")
         run(
             [
                 sys.executable,
@@ -287,13 +383,34 @@ def main() -> int:
                 str(release_root),
                 "--output-prefix",
                 str(dist / package_basename),
+                "--metadata-output",
+                str(sbom_meta),
             ]
         )
+        if sbom_meta.exists():
+            meta = json.loads(sbom_meta.read_text(encoding="utf-8"))
+            status["sbom"]["source"] = str(meta.get("source") or "")
+            status["sbom"]["metadata_file"] = str(sbom_meta)
+        record_check(status, "sbom", True)
+
+        status["release_ready"] = (
+            not args.skip_checks
+            and (status["smoke"].get("executed") or bool(status["smoke"].get("reason") and status["smoke"].get("reason") != "not requested"))
+        )
+        write_release_status(status_path, status)
 
         print(f"[OK] 发布目录已生成: {release_root}")
         print(f"[OK] 发布包已生成: {zip_path}")
+        print(f"[OK] 发布状态已生成: {status_path}")
         return 0
     except Exception as exc:
+        if status is not None and status_path is not None:
+            status["release_ready"] = False
+            status["error"] = str(exc)
+            try:
+                write_release_status(status_path, status)
+            except Exception:
+                pass
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
 

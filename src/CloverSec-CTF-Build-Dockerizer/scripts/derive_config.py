@@ -29,6 +29,7 @@ from utils import (  # noqa: E402
     load_stack_defs,
     normalize_ports,
 )
+from audit_input import audit_project  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -846,6 +847,22 @@ def derive(project_dir: Path) -> Dict[str, Any]:
         proposal["port_guess"]["ports"] = rdg_ports
         proposal["config_proposal"]["expose_ports"] = rdg_ports
         proposal["config_proposal"]["rdg"] = dict(defense_proposal)
+
+    challenge_path = project_dir / "challenge.yaml"
+    if challenge_path.exists():
+        proposal["input_audit"] = audit_project(project_dir, challenge_path=challenge_path)
+    else:
+        proposal["input_audit"] = audit_project(
+            project_dir,
+            gates=proposal["gates"],
+            stack_guess=proposal["stack_guess"],
+            config_proposal=proposal["config_proposal"],
+        )
+    proposal["risk_level"] = proposal["input_audit"]["risk_level"]
+    proposal["recommended_path"] = proposal["input_audit"]["recommended_path"]
+    proposal["support_level"] = proposal["input_audit"]["support_level"]
+    proposal["verification_level"] = proposal["input_audit"]["verification_level"]
+    proposal["manual_required"] = proposal["input_audit"]["manual_required"]
 
     return proposal
 

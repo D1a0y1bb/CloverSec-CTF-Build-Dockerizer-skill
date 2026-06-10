@@ -11,17 +11,33 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.1.1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.1.2</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
 如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
+
+## V2.1.2 工作流门槛与发布检查
+
+v2.1.2 面向高风险输入治理、结构化错误和正式发布检查做增强，不改变既有 `challenge.yaml` 渲染契约。明确、低风险的配置仍可直接使用 `render.py`；混合输入、脏目录、高风险输入或 derive gates 为 true 时，默认进入 proposal 确认流程。
+
+本次更新覆盖以下内容：
+
+1、推荐入口：新增 `workflow.py intake/propose/accept/render/validate/status`，在题目目录维护 `.ctfbuild/session.json`、proposal 与 accepted proposal 状态文件，便于跟踪当前阶段和人工确认记录。
+
+2、输入审计：新增 `audit_input.py`，`derive_config.py` 输出同步包含 `input_audit`，会标记风险等级、建议路径、支持等级、验证等级和需要人工确认的发现项。
+
+3、Proposal Gate：`render.py` 对 mixed/dirty/high_risk 或 `gates=true` 的输入要求 accepted proposal。确有人工确认时可使用 `--manual --reason "..."`，原因会进入文本或 JSON 输出。
+
+4、结构化错误：`render.py --format json`、`validate_scenario.py --format json`、`validate.sh --json-summary <path>` 可输出机器可读结果，错误码覆盖 `CONFIG_*`、`RENDER_*`、`SCENARIO_*`、`LINUX_QEMU_*`、`RELEASE_*` 等命名空间。
+
+5、发布检查：`release_build.py --with-smoke` 会生成 `dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json`，记录 smoke、SkillHub metadata、CHANGELOG 当前版本标题、SBOM 来源和是否可发布。`publish_release.sh` 正式发布默认执行 smoke，跳过时必须提供原因。
 
 ## V2.1.1 发布修复
 
@@ -569,13 +585,13 @@ bash scripts/doc_guard.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list
-bash scripts/release_build.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.1.1
+bash scripts/publish_release.sh --version v2.1.2
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

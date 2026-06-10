@@ -186,7 +186,19 @@ def render_from_challenge_source(
     challenge_doc["profile"] = resolve_profile(service, scenario_mode, challenge_doc)
     write_challenge_doc(challenge_path, challenge_doc)
 
-    run([sys.executable, str(RENDER_PY), "--config", str(challenge_path), "--output", str(out_dir)])
+    run(
+        [
+            sys.executable,
+            str(RENDER_PY),
+            "--config",
+            str(challenge_path),
+            "--output",
+            str(out_dir),
+            "--manual",
+            "--reason",
+            "trusted scenario render",
+        ]
+    )
 
     rendered_doc = load_challenge_doc(challenge_path)
     port_mappings = build_port_mappings(service, rendered_doc)
@@ -237,7 +249,19 @@ def render_from_component_source(
     challenge_doc["profile"] = resolve_profile(service, scenario_mode, challenge_doc)
     if challenge_doc != original_doc:
         write_challenge_doc(challenge_path, challenge_doc)
-        run([sys.executable, str(RENDER_PY), "--config", str(challenge_path), "--output", str(out_dir)])
+        run(
+            [
+                sys.executable,
+                str(RENDER_PY),
+                "--config",
+                str(challenge_path),
+                "--output",
+                str(out_dir),
+                "--manual",
+                "--reason",
+                "trusted scenario render",
+            ]
+        )
         challenge_doc = load_challenge_doc(challenge_path)
 
     port_mappings = build_port_mappings(service, challenge_doc)
