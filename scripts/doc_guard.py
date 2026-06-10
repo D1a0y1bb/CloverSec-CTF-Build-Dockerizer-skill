@@ -211,6 +211,11 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
         "docs/linux_qemu_manual_validation.md",
         "data/scenario_schema.md",
         "docs/bundle_design.md",
+        "CONFIG PROPOSAL",
+        "回复 `OK`",
+        "默认确认项固定为 5 个",
+        "docs/beginner_guide.md",
+        "parse_config_block.py",
     )
     for term in required_terms:
         if term not in text:

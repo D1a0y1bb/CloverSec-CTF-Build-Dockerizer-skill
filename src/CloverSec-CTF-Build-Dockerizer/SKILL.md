@@ -98,6 +98,25 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 
 使用 `--manual` 时必须写明原因，并在结果中保留 manual override 记录。
 
+## 交互确认规则
+
+当输入不是明确、低风险的 `challenge.yaml` 时，必须先给用户输出 proposal，不得直接 render。
+
+用户确认方式只接受两种：
+
+- 回复 `OK`
+- 返回修改后的 `CONFIG PROPOSAL` YAML
+
+用户未确认前，不得执行 `render.py` 或 `workflow.py render`。默认确认项固定为 5 个：
+
+1. 技术栈 + profile / runtime profile
+2. 容器端口
+3. WORKDIR
+4. 启动命令
+5. `app_src` -> `app_dst`
+
+详细提案格式读取 `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`，解析使用 `parse_config_block.py`。
+
 ## 运行顺序
 
 常规题目：
@@ -139,6 +158,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type
 | 栈选择、运行时档位、Linux-QEMU 配置示例 | `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
 | 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md` |
 | 校验项、错误码、check-service 门禁 | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
+| 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md` |
 | 脚本入口和常用命令 | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md` |
 | Scenario schema 和 compose import 边界 | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
 | Bundle/Recipe 边界 | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md` |
