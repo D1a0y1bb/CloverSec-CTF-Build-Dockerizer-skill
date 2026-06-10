@@ -425,6 +425,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 
 上記は scenario/compose 構造だけを検証します。各 service ディレクトリにも `validate.sh` を実行する場合は `--validate-rendered` を追加します。
 
+一括回帰入口の `validate_examples.sh` と `smoke_test.sh` は、scenario 例に対して既定で逐 service の交付検証を実行します。軽量な scenario/compose 構造検証だけにする場合は `SCENARIO_VALIDATE_RENDERED=0` を設定します。
+
 ### AWDP
 
 attack + fix 向け。直接 SSH 修正ではなく、パッチバンドル提出方式。
@@ -499,7 +501,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
 
-上記は scenario/compose 構造だけを検証します。各 service ディレクトリにも `validate.sh` を実行する場合は `--validate-rendered` を追加します。
+上記は scenario/compose 構造だけを検証します。各 service ディレクトリにも `validate.sh` を実行する場合は `--validate-rendered` を追加します。一括回帰では既定で逐 service の交付検証を行い、`SCENARIO_VALIDATE_RENDERED=0` で構造検証のみに戻せます。
 
 ## プラットフォーム硬契約と境界
 

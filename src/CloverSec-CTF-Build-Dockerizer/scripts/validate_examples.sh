@@ -17,6 +17,7 @@ usage() {
 说明：
   - 默认只读校验 examples：先复制到临时目录，再在临时目录渲染或校验。
   - VALIDATE_EXAMPLES_READONLY=0 或 --in-place 可恢复旧行为，在 example 原目录写入缺失产物。
+  - scenario 示例默认逐服务执行 validate.sh；SCENARIO_VALIDATE_RENDERED=0 可只校验 scenario/compose 结构。
   - KEEP_VALIDATE_EXAMPLES_ARTIFACTS=1 可保留临时输出目录。
 USAGE
 }
@@ -24,6 +25,7 @@ USAGE
 OUTPUT_ROOT="${VALIDATE_EXAMPLES_OUTPUT_ROOT:-}"
 READONLY="${VALIDATE_EXAMPLES_READONLY:-1}"
 KEEP_ARTIFACTS="${KEEP_VALIDATE_EXAMPLES_ARTIFACTS:-0}"
+SCENARIO_VALIDATE_RENDERED="${SCENARIO_VALIDATE_RENDERED:-1}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -98,6 +100,7 @@ echo "- READONLY: ${READONLY}"
 if [[ "$READONLY" != "0" ]]; then
   echo "- OUTPUT_ROOT: ${OUTPUT_ROOT}"
 fi
+echo "- SCENARIO_VALIDATE_RENDERED: ${SCENARIO_VALIDATE_RENDERED}"
 
 for dir in "$EXAMPLES_DIR"/*; do
   [[ -d "$dir" ]] || continue
@@ -117,8 +120,24 @@ for dir in "$EXAMPLES_DIR"/*; do
     else
       scenario_out="$(mktemp -d "/tmp/ctf-validate-scenario-${name}-XXXXXX")"
     fi
-    if python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out" && \
-       python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out"; then
+    if python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out"; then
+      if [[ "$SCENARIO_VALIDATE_RENDERED" != "0" ]]; then
+        if python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out" --validate-rendered; then
+          validate_rc=0
+        else
+          validate_rc=$?
+        fi
+      else
+        if python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out"; then
+          validate_rc=0
+        else
+          validate_rc=$?
+        fi
+      fi
+    else
+      validate_rc=$?
+    fi
+    if [[ "$validate_rc" -eq 0 ]]; then
       PASS_LIST+=("$name:scenario")
     else
       FAIL_LIST+=("$name:scenario")

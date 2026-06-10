@@ -318,6 +318,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --validate-rendered
 ```
 
+批量回归入口 `validate_examples.sh` 和 `smoke_test.sh` 默认会对 scenario 示例执行逐服务交付校验，也就是自动追加等价的 `--validate-rendered`。如只需要轻量结构校验，可设置 `SCENARIO_VALIDATE_RENDERED=0`。
+
 ### AWDP
 
 适用：attack + fix双竞赛模式下的题目，选手需要提交补丁包后通过竞赛平台上传后自动执行。
@@ -386,7 +388,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
 
-上面的命令只校验 scenario/compose 结构；如需同时调用 `validate.sh` 检查每个服务目录，可追加 `--validate-rendered`。
+上面的命令只校验 scenario/compose 结构；如需同时调用 `validate.sh` 检查每个服务目录，可追加 `--validate-rendered`。批量回归入口默认会执行逐服务交付校验；设置 `SCENARIO_VALIDATE_RENDERED=0` 可恢复为仅检查 scenario/compose 结构。
 
 ## 平台硬契约与边界
 

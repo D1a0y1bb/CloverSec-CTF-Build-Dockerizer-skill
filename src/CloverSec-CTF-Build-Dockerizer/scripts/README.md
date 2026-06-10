@@ -14,10 +14,10 @@
 - `parse_config_block.py`：解析 CONFIG PROPOSAL YAML（stdin）并生成标准 challenge.yaml
 - `detect_stack.py`：输出技术栈侦测结果和置信度
 - `validate.sh`：执行硬规则与可配置规则校验，支持 `--json-summary`
-- `validate_scenario.py`：校验 scenario 输出，支持 `--format text|json`
+- `validate_scenario.py`：校验 scenario 输出，支持 `--validate-rendered` 和 `--format text|json`
 - `autofix.py`：`validate.sh --fix/--fix-write` 对应的安全自动修复执行器
-- `validate_examples.sh`：遍历 examples 全目录并做静态校验
-- `smoke_test.sh`：执行 render/validate/build/run 冒烟回归
+- `validate_examples.sh`：遍历 examples 全目录并做静态校验；默认只读执行，scenario 默认逐服务校验
+- `smoke_test.sh`：执行 render/validate/build/run 冒烟回归；scenario 默认逐服务校验
 - `test_runtime_profiles.sh`：运行时档位推断回归（php/node/java）
 - `cleanup_test_containers.sh`：清理 `ctf-skill-test*` 容器和镜像
 - `utils.py`：模板 include、变量渲染、推断与通用函数
@@ -47,3 +47,10 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --json-summary /tmp/
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 ```
+
+Scenario 回归说明：
+
+- 直接调用 `validate_scenario.py` 时，默认只校验 scenario/compose 结构。
+- 追加 `--validate-rendered` 后，会对每个渲染出的服务目录调用 `validate.sh`。
+- `validate_examples.sh` 和 `smoke_test.sh` 默认启用逐服务校验。
+- 设置 `SCENARIO_VALIDATE_RENDERED=0` 可让批量回归只做 scenario/compose 结构校验。

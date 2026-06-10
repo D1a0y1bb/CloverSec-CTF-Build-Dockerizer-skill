@@ -425,6 +425,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 
 The command above validates scenario/compose structure only. Add `--validate-rendered` when each rendered service directory should also pass `validate.sh`.
 
+Batch regression entrypoints `validate_examples.sh` and `smoke_test.sh` enable rendered-service validation for scenario examples by default. Set `SCENARIO_VALIDATE_RENDERED=0` when you only want the lightweight scenario/compose structure check.
+
 ### AWDP
 
 Use for attack + fix workflows where teams submit patch bundles instead of live SSH maintenance.
@@ -501,7 +503,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
 
-The command above validates scenario/compose structure only. Add `--validate-rendered` when each rendered service directory should also pass `validate.sh`.
+The command above validates scenario/compose structure only. Add `--validate-rendered` when each rendered service directory should also pass `validate.sh`. Batch regression enables rendered-service validation by default; set `SCENARIO_VALIDATE_RENDERED=0` to keep structure-only validation.
 
 ## Platform Hard Contract and Boundaries
 

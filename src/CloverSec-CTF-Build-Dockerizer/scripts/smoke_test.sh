@@ -16,6 +16,7 @@ KEEP_ARTIFACTS="${KEEP_SMOKE_ARTIFACTS:-0}"
 LAMP_RUN_MODE="${LAMP_RUN_MODE:-build-only}" # build-only/full
 AI_TRANSFORMERS_RUN_MODE="${AI_TRANSFORMERS_RUN_MODE:-build-only}" # build-only/full
 LINUX_QEMU_RUN_MODE="${LINUX_QEMU_RUN_MODE:-validate-only}" # validate-only/build-only/full
+SCENARIO_VALIDATE_RENDERED="${SCENARIO_VALIDATE_RENDERED:-1}"
 
 PASS_LIST=()
 FAIL_LIST=()
@@ -215,6 +216,7 @@ echo "- FORCE_RUN: ${FORCE_RUN_LIST}"
 echo "- LAMP_RUN_MODE: ${LAMP_RUN_MODE}"
 echo "- AI_TRANSFORMERS_RUN_MODE: ${AI_TRANSFORMERS_RUN_MODE}"
 echo "- LINUX_QEMU_RUN_MODE: ${LINUX_QEMU_RUN_MODE}"
+echo "- SCENARIO_VALIDATE_RENDERED: ${SCENARIO_VALIDATE_RENDERED}"
 echo "- WAIT_SECONDS: ${WAIT_SECONDS}"
 
 while IFS= read -r dir; do
@@ -238,7 +240,20 @@ while IFS= read -r dir; do
     fi
 
     compose_file="${scenario_out}/docker-compose.yml"
-    if ! python3 "$VALIDATE_SCENARIO_PY" "$compose_file" "$scenario_out"; then
+    if [[ "$SCENARIO_VALIDATE_RENDERED" != "0" ]]; then
+      if python3 "$VALIDATE_SCENARIO_PY" "$compose_file" "$scenario_out" --validate-rendered; then
+        scenario_validate_rc=0
+      else
+        scenario_validate_rc=$?
+      fi
+    else
+      if python3 "$VALIDATE_SCENARIO_PY" "$compose_file" "$scenario_out"; then
+        scenario_validate_rc=0
+      else
+        scenario_validate_rc=$?
+      fi
+    fi
+    if [[ "$scenario_validate_rc" -ne 0 ]]; then
       echo "[ERROR] scenario validate 失败: ${name}"
       FAIL_LIST+=("${name}:scenario-validate")
       rm -rf "$scenario_out"
