@@ -140,6 +140,7 @@ flowchart LR
 | 场景能力 | 入口 | 作用 | 产出 |
 |---|---|---|---|
 | BaseUnit 组件渲染 | `render_component.py` | 生成“组件 + 指定版本”最小单元 | 可直接 `docker build` 的目录 |
+| Bundle/Recipe 渲染 | `render_bundle.py` | 生成固定组合的单容器多服务 Recipe | 标准交付目录 |
 | Linux-QEMU 内核题渲染 | `render.py` | 生成 Docker 内 QEMU guest 启动环境 | 单镜像交付目录 |
 | Scenario 场景渲染 | `render_scenario.py` | 渲染多服务本地编排 | 服务目录 + `docker-compose.yml` |
 | Scenario 场景校验 | `validate_scenario.py` | 校验 mode/profile/端口/AWDP 补丁契约 | pass/fail |
@@ -384,6 +385,21 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/baseunit-redis/challenge.yaml
 ```
 
+### Bundle / Recipe（固定组合老环境）
+
+适用：少数固定组合的单容器多服务老环境。BaseUnit 是单组件，Scenario 是本地多服务编排，Bundle 是一个 Docker 镜像内的有限 Recipe。
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py \
+  --recipe legacy-centos7-python39-mysql57-redis5 \
+  --output /tmp/bundle-centos7
+
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py \
+  --bundle-dir /tmp/bundle-centos7
+```
+
+当前首批 Recipe 为 `legacy-centos7-python39-mysql57-redis5` 与 `tomcat85-jdk8-mysql57`，均为 `support_level=partial`。旧系统包源和 MySQL 5.7 安装方式可能需要人工处理，默认回归只要求 render 与静态契约校验。
+
 ### Vulhub-like（多服务漏洞环境迁移）
 
 适用：把 Vulhub 风格的多服务场景迁移到本地 compose 编排 + 平台单服务交付。快速的完成历史CVE的本地靶场引擎的适配，`docker-compose.yml` 仅用于本地验证，平台交付仍是每个服务独立目录。
@@ -487,6 +503,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 |---|---|
 | `schema.md` | `challenge.yaml` 输入契约 |
 | `scenario_schema.md` | `scenario.yaml` 输入契约 |
+| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe 输入契约与固定组合定义 |
 | `stacks.yaml` | 栈默认值与模板映射 |
 | `profiles.yaml` | profile 默认行为定义 |
 | `components.yaml` | BaseUnit 组件与版本变体 |
@@ -505,6 +522,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `parse_config_block.py` | 解析 CONFIG PROPOSAL |
 | `render.py` | 单题渲染入口 |
 | `render_component.py` | BaseUnit 组件渲染入口 |
+| `render_bundle.py` / `validate_bundle.py` | Bundle/Recipe 渲染与校验 |
 | `render_scenario.py` | 场景编排渲染入口 |
 | `validate.sh` | 单题契约校验入口 |
 | `validate_scenario.py` | 场景契约校验入口 |
@@ -538,6 +556,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `examples/node-awdp-basic` | AWDP 单题补丁契约示例 |
 | `examples/secops-*-basic` | SecOps 示例 |
 | `examples/baseunit-*` | BaseUnit 示例 |
+| `examples/bundle-*` | Bundle/Recipe 输入示例 |
 | `examples/linux-qemu-basic` | Linux-QEMU 占位 VM 资产示例 |
 | `examples/scenario-awd-basic` | AWD 场景示例 |
 | `examples/scenario-awdp-basic` | AWDP 场景示例 |

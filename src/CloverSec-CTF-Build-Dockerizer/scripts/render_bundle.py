@@ -1,0 +1,301 @@
+#!/usr/bin/env python3
+"""Render fixed Bundle/Recipe definitions into a platform delivery directory."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+SKILL_ROOT = SCRIPT_DIR.parent
+DATA_DIR = SKILL_ROOT / "data"
+RECIPES_FILE = DATA_DIR / "bundle_recipes.yaml"
+
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from result_utils import dump_json, structured_error, structured_ok  # noqa: E402
+from utils import ConfigError, ensure_dict, ensure_list, load_yaml_file  # noqa: E402
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Render a fixed Bundle/Recipe delivery directory")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--recipe", help="Known recipe id")
+    source.add_argument("--config", help="bundle.yaml path")
+    parser.add_argument("--output", required=True, help="Output delivery directory")
+    parser.add_argument("--format", choices=("text", "json"), default="text")
+    return parser.parse_args()
+
+
+def dump_yaml(data: Dict[str, Any], output: Path) -> None:
+    try:
+        import yaml
+    except ModuleNotFoundError as exc:
+        raise ConfigError("缺少 PyYAML，请先安装 scripts/requirements.txt") from exc
+    output.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+
+
+def load_recipes() -> Dict[str, Dict[str, Any]]:
+    raw = load_yaml_file(RECIPES_FILE) or {}
+    recipes = ensure_list(raw.get("recipes"), "recipes")
+    result: Dict[str, Dict[str, Any]] = {}
+    for item in recipes:
+        recipe = ensure_dict(item, "recipes[]")
+        recipe_id = str(recipe.get("id") or "").strip()
+        if not recipe_id:
+            raise ConfigError("bundle recipe 缺少 id")
+        result[recipe_id] = recipe
+    return result
+
+
+def service_signature(services: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
+    signature = []
+    for service in services:
+        service_id = str(service.get("id") or "").strip().lower()
+        version = str(service.get("version") or "").strip()
+        if service_id:
+            signature.append((service_id, version))
+    return sorted(signature)
+
+
+def match_recipe(bundle: Dict[str, Any], recipes: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    explicit = str(bundle.get("recipe") or bundle.get("recipe_id") or "").strip()
+    if explicit:
+        if explicit not in recipes:
+            raise ConfigError(f"BUNDLE_UNSUPPORTED_COMBINATION: unknown recipe {explicit}")
+        return recipes[explicit]
+
+    requested_services = [ensure_dict(item, "bundle.services[]") for item in ensure_list(bundle.get("services"), "bundle.services")]
+    requested_signature = service_signature(requested_services)
+    requested_base = str(bundle.get("base_os") or bundle.get("base_image") or "").strip()
+    requested_mode = str(bundle.get("mode") or "single_container").strip()
+
+    for recipe in recipes.values():
+        if requested_base and requested_base != str(recipe.get("base_os") or recipe.get("base_image") or "").strip():
+            continue
+        if requested_mode != str(recipe.get("mode") or "single_container").strip():
+            continue
+        if requested_signature == service_signature(ensure_list(recipe.get("services"), "recipe.services")):
+            return recipe
+
+    raise ConfigError("BUNDLE_UNSUPPORTED_COMBINATION: no fixed recipe matches requested services")
+
+
+def load_bundle_request(config_path: Path | None, recipe_id: str | None, recipes: Dict[str, Dict[str, Any]]) -> Tuple[Dict[str, Any], Dict[str, Any], Path | None]:
+    if recipe_id:
+        if recipe_id not in recipes:
+            raise ConfigError(f"BUNDLE_UNSUPPORTED_COMBINATION: unknown recipe {recipe_id}")
+        return {"name": recipe_id, "recipe": recipe_id}, recipes[recipe_id], None
+
+    assert config_path is not None
+    raw = load_yaml_file(config_path) or {}
+    if not isinstance(raw, dict):
+        raise ConfigError("bundle.yaml 顶层必须是对象")
+    bundle = ensure_dict(raw.get("bundle"), "bundle")
+    recipe = match_recipe(bundle, recipes)
+    return bundle, recipe, config_path.parent
+
+
+def copy_app(bundle: Dict[str, Any], config_dir: Path | None, output: Path, recipe: Dict[str, Any]) -> None:
+    app_dir = output / "app"
+    if app_dir.exists():
+        shutil.rmtree(app_dir)
+    app_dir.mkdir(parents=True, exist_ok=True)
+
+    app_src_raw = str(bundle.get("app_src") or "").strip()
+    if app_src_raw and config_dir:
+        src = (config_dir / app_src_raw).resolve()
+        if src.is_dir():
+            shutil.copytree(src, app_dir, dirs_exist_ok=True)
+            return
+        if src.is_file():
+            shutil.copy2(src, app_dir / src.name)
+            return
+        raise ConfigError(f"bundle.app_src 不存在: {src}")
+
+    if str(recipe.get("id")) == "tomcat85-jdk8-mysql57":
+        (app_dir / "index.jsp").write_text(
+            "<% out.println(\"bundle tomcat85-jdk8-mysql57\"); %>\n",
+            encoding="utf-8",
+        )
+    else:
+        (app_dir / "index.html").write_text("bundle legacy-centos7-python39-mysql57-redis5\n", encoding="utf-8")
+
+
+def dockerfile_text(recipe: Dict[str, Any]) -> str:
+    install_commands = ensure_list(recipe.get("install_commands"), "recipe.install_commands")
+    run_lines = " && \\\n    ".join(str(item) for item in install_commands) or ":"
+    expose_ports = " ".join(str(port) for port in ensure_list(recipe.get("expose_ports"), "recipe.expose_ports"))
+    healthcheck_cmd = str(recipe.get("healthcheck_cmd") or "bash -lc 'true'")
+    app_dst = str(recipe.get("app_dst") or recipe.get("workdir") or "/app")
+    return (
+        f"FROM {recipe['base_image']}\n\n"
+        "ENV DEBIAN_FRONTEND=noninteractive\n\n"
+        f"RUN set -eux; \\\n    {run_lines}\n\n"
+        f"WORKDIR {recipe['workdir']}\n\n"
+        f"COPY app {app_dst}\n"
+        "COPY flag /flag\n"
+        "COPY changeflag.sh /changeflag.sh\n"
+        "COPY start.sh /start.sh\n\n"
+        "RUN chmod 555 /start.sh /changeflag.sh && chmod 444 /flag\n\n"
+        f"EXPOSE {expose_ports}\n\n"
+        f"HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=20s CMD {healthcheck_cmd}\n\n"
+        "ENTRYPOINT [\"/start.sh\"]\n"
+    )
+
+
+def start_script_text(recipe: Dict[str, Any]) -> str:
+    recipe_id = str(recipe.get("id"))
+    if recipe_id == "legacy-centos7-python39-mysql57-redis5":
+        return """#!/bin/bash
+set -euo pipefail
+
+cd /opt/bundle/app
+echo "[INFO] starting bundle recipe: legacy-centos7-python39-mysql57-redis5"
+
+if command -v mysqld_safe >/dev/null 2>&1; then
+  mysqld_safe --datadir=/var/lib/mysql --bind-address=0.0.0.0 >/tmp/bundle-mysql.log 2>&1 &
+else
+  echo "[WARN] mysql 5.7 runtime not installed; static recipe validation only"
+fi
+
+if command -v redis-server >/dev/null 2>&1; then
+  redis-server --protected-mode no --bind 0.0.0.0 >/tmp/bundle-redis.log 2>&1 &
+else
+  echo "[WARN] redis 5 runtime not installed; static recipe validation only"
+fi
+
+if command -v python3.9 >/dev/null 2>&1; then
+  exec python3.9 -m http.server 8000 --bind 0.0.0.0
+elif command -v python3 >/dev/null 2>&1; then
+  exec python3 -m http.server 8000 --bind 0.0.0.0
+fi
+
+echo "[WARN] python runtime not installed; waiting for any background service"
+wait -n || exit 1
+"""
+    if recipe_id == "tomcat85-jdk8-mysql57":
+        return """#!/bin/bash
+set -euo pipefail
+
+cd /usr/local/tomcat
+echo "[INFO] starting bundle recipe: tomcat85-jdk8-mysql57"
+
+if command -v mysqld_safe >/dev/null 2>&1; then
+  mysqld_safe --datadir=/var/lib/mysql --bind-address=0.0.0.0 >/tmp/bundle-mysql.log 2>&1 &
+else
+  echo "[WARN] mysql 5.7 runtime not installed; static recipe validation only"
+fi
+
+if command -v catalina.sh >/dev/null 2>&1; then
+  exec catalina.sh run
+fi
+
+echo "[ERROR] catalina.sh not found"
+exit 1
+"""
+    raise ConfigError(f"BUNDLE_UNSUPPORTED_COMBINATION: no start template for {recipe_id}")
+
+
+def changeflag_text() -> str:
+    return """#!/bin/bash
+set -euo pipefail
+
+TARGET_FLAG="${1:-${FLAG:-${CTF_FLAG:-flag{bundle_recipe_placeholder}}}}"
+printf '%s\\n' "${TARGET_FLAG}" > /flag
+chmod 444 /flag
+chown root:root /flag 2>/dev/null || true
+echo "[INFO] flag updated"
+"""
+
+
+def challenge_doc(bundle: Dict[str, Any], recipe: Dict[str, Any]) -> Dict[str, Any]:
+    name = str(bundle.get("name") or recipe.get("id")).strip()
+    return {
+        "challenge": {
+            "name": name,
+            "stack": "bundle",
+            "profile": "jeopardy",
+            "support_level": str(recipe.get("support_level") or "partial"),
+            "base_image": str(recipe["base_image"]),
+            "workdir": str(recipe["workdir"]),
+            "app_src": "app",
+            "app_dst": str(recipe.get("app_dst") or recipe["workdir"]),
+            "expose_ports": [str(port) for port in ensure_list(recipe.get("expose_ports"), "recipe.expose_ports")],
+            "start": {"mode": "cmd", "cmd": "bash /start.sh"},
+            "healthcheck": {
+                "enabled": True,
+                "cmd": str(recipe.get("healthcheck_cmd") or "bash -lc 'true'"),
+            },
+            "bundle": {
+                "recipe_id": str(recipe["id"]),
+                "mode": str(recipe.get("mode") or "single_container"),
+                "support_level": str(recipe.get("support_level") or "partial"),
+                "services": ensure_list(recipe.get("services"), "recipe.services"),
+                "startup_order": ensure_list(recipe.get("startup_order"), "recipe.startup_order"),
+                "notes": ensure_list(recipe.get("notes"), "recipe.notes"),
+            },
+        }
+    }
+
+
+def render_bundle(bundle: Dict[str, Any], recipe: Dict[str, Any], config_dir: Path | None, output: Path) -> Dict[str, Any]:
+    output.mkdir(parents=True, exist_ok=True)
+    copy_app(bundle, config_dir, output, recipe)
+    (output / "Dockerfile").write_text(dockerfile_text(recipe), encoding="utf-8")
+    (output / "start.sh").write_text(start_script_text(recipe), encoding="utf-8")
+    (output / "changeflag.sh").write_text(changeflag_text(), encoding="utf-8")
+    (output / "flag").write_text("flag{bundle_recipe_placeholder}\n", encoding="utf-8")
+    dump_yaml(challenge_doc(bundle, recipe), output / "challenge.yaml")
+    os.chmod(output / "start.sh", 0o755)
+    os.chmod(output / "changeflag.sh", 0o755)
+    os.chmod(output / "flag", 0o444)
+    return structured_ok(
+        "bundle",
+        recipe_id=str(recipe["id"]),
+        output=str(output),
+        support_level=str(recipe.get("support_level") or "partial"),
+        files=["Dockerfile", "start.sh", "changeflag.sh", "flag", "challenge.yaml"],
+    )
+
+
+def main() -> int:
+    args = parse_args()
+    try:
+        recipes = load_recipes()
+        bundle, recipe, config_dir = load_bundle_request(
+            Path(args.config).resolve() if args.config else None,
+            args.recipe,
+            recipes,
+        )
+        result = render_bundle(bundle, recipe, config_dir, Path(args.output).resolve())
+    except ConfigError as exc:
+        result = structured_error(
+            "bundle",
+            "BUNDLE_UNSUPPORTED_COMBINATION" if "BUNDLE_UNSUPPORTED_COMBINATION" in str(exc) else "BUNDLE_CONFIG_ERROR",
+            str(exc),
+            support_level="unsupported",
+        )
+        if args.format == "json":
+            print(dump_json(result, pretty=True))
+        else:
+            print(f"[ERROR] {result['code']}: {result['summary']}", file=sys.stderr)
+        return 2
+
+    if args.format == "json":
+        print(dump_json(result, pretty=True))
+    else:
+        print("Bundle render complete")
+        print(f"- recipe: {result['recipe_id']}")
+        print(f"- output: {result['output']}")
+        print(f"- support_level: {result['support_level']}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -6,6 +6,8 @@
 - `profiles.yaml`：profile 默认防御行为
 - `runtime_profiles.yaml`：php/node/java 运行时档位映射
 - `components.yaml`：baseunit 组件与版本变体
+- `bundle_schema.md`：Bundle/Recipe 输入契约
+- `bundle_recipes.yaml`：Bundle/Recipe 固定组合定义
 - `scenario_schema.md`：scenario 输入约定
 - `validate_rules.yaml`：单题规则校验
 - `validate_scenario_rules.yaml`：scenario 校验规则
@@ -16,4 +18,5 @@
 - 平台硬约束由渲染与校验链路强制执行（`/start.sh`、`/changeflag.sh`、`/bin/bash`、`EXPOSE`）。
 - `/flag` 默认必须存在，仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行。
 - scenario 生成的 compose 为本地验证用途，不改变平台单服务交付模型。
+- bundle 只覆盖固定单容器多服务 Recipe，当前为 partial support，不承诺任意版本组合。
 - `linux-qemu` 使用 `challenge.vm` 描述 QEMU guest、VM 资产、hostfwd 和 guest flag 注入策略。

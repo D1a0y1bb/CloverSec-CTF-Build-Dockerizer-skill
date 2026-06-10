@@ -8,6 +8,8 @@
 ## 脚本列表
 
 - `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh/changeflag.sh/flag(可选)
+- `render_bundle.py`：根据固定 Bundle/Recipe 渲染单容器多服务交付目录
+- `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `workflow.py`：推荐工作流入口，支持 intake/propose/accept/render/validate/status，并维护 `.ctfbuild/` 状态文件
 - `audit_input.py`：输入审计，输出 risk_level/recommended_path/support_level/verification_level/manual_required/findings
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
@@ -45,6 +47,8 @@ cat config-proposal.yaml | python3 src/CloverSec-CTF-Build-Dockerizer/scripts/pa
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config path/to/challenge.yaml
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config path/to/challenge.yaml --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py --bundle-dir /tmp/bundle
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh

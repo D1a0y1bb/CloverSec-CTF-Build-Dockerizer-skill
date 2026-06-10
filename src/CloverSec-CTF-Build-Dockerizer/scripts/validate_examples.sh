@@ -6,7 +6,9 @@ SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EXAMPLES_DIR="${SKILL_ROOT}/examples"
 VALIDATE_SH="${SCRIPT_DIR}/validate.sh"
 RENDER_PY="${SCRIPT_DIR}/render.py"
+RENDER_BUNDLE_PY="${SCRIPT_DIR}/render_bundle.py"
 RENDER_SCENARIO_PY="${SCRIPT_DIR}/render_scenario.py"
+VALIDATE_BUNDLE_PY="${SCRIPT_DIR}/validate_bundle.py"
 VALIDATE_SCENARIO_PY="${SCRIPT_DIR}/validate_scenario.py"
 
 usage() {
@@ -107,6 +109,7 @@ for dir in "$EXAMPLES_DIR"/*; do
 
   name="$(basename "$dir")"
   scenario_yaml="${dir}/scenario.yaml"
+  bundle_yaml="${dir}/bundle.yaml"
 
   echo
   echo "== 示例目录: ${name} =="
@@ -144,6 +147,36 @@ for dir in "$EXAMPLES_DIR"/*; do
     fi
     if [[ "$KEEP_ARTIFACTS" != "1" ]]; then
       rm -rf "$scenario_out"
+    fi
+    continue
+  fi
+
+  if [[ -f "$bundle_yaml" ]]; then
+    echo "[INFO] 检测到 bundle.yaml，执行 bundle 渲染与校验"
+    if [[ "$READONLY" != "0" && -n "$OUTPUT_ROOT" ]]; then
+      bundle_out="${OUTPUT_ROOT}/${name}-bundle"
+      rm -rf "$bundle_out"
+      mkdir -p "$bundle_out"
+    else
+      bundle_out="$(mktemp -d "/tmp/ctf-validate-bundle-${name}-XXXXXX")"
+    fi
+    if python3 "$RENDER_BUNDLE_PY" --config "$bundle_yaml" --output "$bundle_out"; then
+      if python3 "$VALIDATE_BUNDLE_PY" --bundle-dir "$bundle_out" \
+        && bash "$VALIDATE_SH" "$bundle_out/Dockerfile" "$bundle_out/start.sh" "$bundle_out/challenge.yaml"; then
+        validate_rc=0
+      else
+        validate_rc=$?
+      fi
+    else
+      validate_rc=$?
+    fi
+    if [[ "$validate_rc" -eq 0 ]]; then
+      PASS_LIST+=("$name:bundle")
+    else
+      FAIL_LIST+=("$name:bundle")
+    fi
+    if [[ "$KEEP_ARTIFACTS" != "1" ]]; then
+      rm -rf "$bundle_out"
     fi
     continue
   fi

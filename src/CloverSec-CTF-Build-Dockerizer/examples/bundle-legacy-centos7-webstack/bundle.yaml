@@ -1,0 +1,15 @@
+bundle:
+  name: bundle-legacy-centos7-webstack
+  base_os: centos:7
+  mode: single_container
+  app_src: app
+  services:
+    - id: mysql
+      version: "5.7"
+      role: database
+    - id: redis
+      version: "5.0"
+      role: cache
+    - id: python
+      version: "3.9"
+      role: app_runtime

@@ -1,0 +1,4 @@
+bundle:
+  name: bundle-tomcat8-mysql57
+  recipe: tomcat85-jdk8-mysql57
+  app_src: app

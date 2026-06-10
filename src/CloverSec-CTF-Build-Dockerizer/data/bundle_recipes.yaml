@@ -1,0 +1,57 @@
+version: 1
+recipes:
+  - id: legacy-centos7-python39-mysql57-redis5
+    display_name: Legacy CentOS 7 Python/MySQL/Redis WebStack
+    support_level: partial
+    base_os: centos:7
+    base_image: centos:7
+    mode: single_container
+    workdir: /opt/bundle/app
+    app_dst: /opt/bundle/app
+    expose_ports: ["8000", "3306", "6379"]
+    healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/8000'
+    install_commands:
+      - yum install -y bash || true
+      - yum clean all || true
+    services:
+      - id: mysql
+        version: "5.7"
+        role: database
+      - id: redis
+        version: "5.0"
+        role: cache
+      - id: python
+        version: "3.9"
+        role: app_runtime
+    startup_order: ["mysql", "redis", "python"]
+    notes:
+      - CentOS 7 upstream mirrors may require operator-side repository handling.
+      - This recipe is validated as a static delivery prototype; Docker build evidence is manual.
+
+  - id: tomcat85-jdk8-mysql57
+    display_name: Tomcat 8.5 JDK8 MySQL 5.7 WebStack
+    support_level: partial
+    base_os: tomcat:8.5-jre8-temurin-focal
+    base_image: tomcat:8.5-jre8-temurin-focal
+    mode: single_container
+    workdir: /usr/local/tomcat
+    app_dst: /usr/local/tomcat/webapps/ROOT
+    expose_ports: ["8080", "3306"]
+    healthcheck_cmd: bash -lc 'echo > /dev/tcp/127.0.0.1/8080'
+    install_commands:
+      - apt-get update && apt-get install -y --no-install-recommends bash default-mysql-client || true
+      - rm -rf /var/lib/apt/lists/*
+    services:
+      - id: tomcat
+        version: "8.5"
+        role: app_runtime
+      - id: jdk
+        version: "8"
+        role: java_runtime
+      - id: mysql
+        version: "5.7"
+        role: database
+    startup_order: ["mysql", "tomcat"]
+    notes:
+      - MySQL 5.7 server installation is environment-specific and remains manual in this prototype.
+      - This recipe keeps Tomcat as the foreground process for platform compatibility.
