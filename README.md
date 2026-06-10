@@ -152,7 +152,7 @@ npx -y skills add \
 - `default_prompt`：点击试用或直接调用时的默认提示词
 - `allow_implicit_invocation`：允许模型在匹配场景下隐式触发该 Skill
 
-当前默认提示词策略是：先让 Agent 自动探测技术栈与 `profile`，再生成合规的 `Dockerfile` / `start.sh` / `changeflag.sh`，最后执行 `validate` 并给出交付建议。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变 `render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 的运行时逻辑。
+当前默认提示词策略是：先让 Agent 执行 intake/propose，输出含证据和 `input_audit` 的 `CONFIG PROPOSAL`；用户确认 OK 后，再执行 accept/render/validate。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变 `workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 的运行时逻辑。
 
 如果后续你想调整 Codex 里的卡片标题、简介文案或试用提示词，优先改这里，而不是去改 `README` 正文：
 
@@ -160,7 +160,7 @@ npx -y skills add \
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
   short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
+  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
 ```
 
 ## 如何快速开始
@@ -542,7 +542,9 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `validate_context.py` | challenge 上下文解析辅助 |
 | `autofix.py` | 常见问题自动修复辅助 |
 | `detect_stack.py` | 栈识别辅助 |
+| `result_utils.py` | 结构化结果输出辅助 |
 | `utils.py` | 公共工具函数 |
+| `requirements.txt` | Python 脚本依赖 |
 | `cleanup_test_containers.sh` | 测试容器清理 |
 | `test_runtime_profiles.sh` | runtime profiles 回归 |
 | `README.md` | scripts 目录说明 |

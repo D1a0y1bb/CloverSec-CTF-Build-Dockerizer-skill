@@ -87,7 +87,7 @@ Skill card presentation in Codex UI is controlled by `src/CloverSec-CTF-Build-Do
 - `default_prompt`: the prefilled prompt used for try/run actions
 - `allow_implicit_invocation`: whether the model may invoke the skill implicitly when the task matches
 
-The current default prompt strategy is: detect stack and `profile` first, then generate compliant `Dockerfile` / `start.sh` / `changeflag.sh`, and finally run `validate` with delivery guidance. This layer only affects how the skill is presented and started in Codex UI. It does not change the runtime behavior of `render.py`, `validate.sh`, `render_component.py`, or `render_scenario.py`.
+The current default prompt strategy is: run intake/propose first, output CONFIG PROPOSAL with evidence and `input_audit`, wait for user OK, then run accept/render/validate. This layer only affects how the skill is presented and started in Codex UI. It does not change the runtime behavior of `workflow.py`, `render.py`, `validate.sh`, `render_component.py`, or `render_scenario.py`.
 
 If you want to adjust the Codex card title, subtitle, or trial prompt later, edit this file first instead of rewriting the README body:
 
@@ -95,7 +95,7 @@ If you want to adjust the Codex card title, subtitle, or trial prompt later, edi
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
   short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
+  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
 ```
 
 ## Quick Start
@@ -149,16 +149,16 @@ Recommended prompt:
 
 ```text
 Use CloverSec-CTF-Build-Dockerizer for the current directory.
-Run derive_config.py first and output CONFIG PROPOSAL with evidence.
-After I confirm, execute render + validate + smoke and report fixes for failures.
-Target mode: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario>.
+Run workflow.py intake/propose first and output CONFIG PROPOSAL with evidence and input_audit.
+After I confirm OK, run workflow.py accept/render/validate and the relevant regression command.
+Target mode: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>.
 ```
 
 Retry prompt:
 
 ```text
-Do not rerun everything. Apply the minimal fix only for current ERROR items,
-then rerun only required checks and report changed files with command results.
+Do not rerun everything. Fix only the current ERROR items,
+then rerun the required checks and report changed files with command results.
 ```
 
 Acceptance commands:
@@ -175,8 +175,8 @@ Call pattern: ask Cursor to read `challenge.yaml`/`scenario.yaml` before editing
 Recommended prompt:
 
 ```text
-Use existing repository scripts only; do not replace render.py/validate.sh with handwritten logic.
-Output CONFIG PROPOSAL first, then wait for OK before rendering.
+Use existing repository scripts only; do not replace workflow.py/render.py/validate.sh with handwritten logic.
+Run workflow.py intake/propose first, then wait for OK before rendering.
 Final artifacts must pass Dockerfile/start.sh/changeflag.sh contract checks.
 ```
 
@@ -201,10 +201,10 @@ Recommended prompt:
 
 ```text
 You are the delivery engineer for this repo.
-Stage 1: run derive_config with evidence.
-Stage 2: render after my confirmation.
-Stage 3: run validate/smoke.
-Stage 4: summarize residual risks and release gate checks.
+Stage 1: run workflow.py intake/propose with evidence and input_audit.
+Stage 2: after my confirmation, run workflow.py accept/render.
+Stage 3: run validate / validate_scenario / validate_bundle / smoke as applicable.
+Stage 4: summarize release gate checks and manual verification items.
 ```
 
 Retry prompt:
@@ -229,17 +229,17 @@ Recommended prompt:
 
 ```text
 Execute the V2 delivery workflow in this repository:
-1) derive_config -> CONFIG PROPOSAL
-2) render.py / render_component.py / render_scenario.py (mode dependent)
-3) validate.sh / validate_scenario.py / smoke_test.sh
-4) summarize failures, fixes, and residual risks
+1) workflow.py intake/propose -> CONFIG PROPOSAL + input_audit
+2) workflow.py accept/render or a mode-specific renderer when required
+3) validate.sh / validate_scenario.py --validate-rendered / validate_bundle.py / smoke_test.sh
+4) summarize failures, fixes, and manual verification items
 ```
 
 Retry prompt:
 
 ```text
 Ignore completed steps. Focus on the latest failed command.
-Explain root cause first, then apply the smallest patch and recheck.
+Explain the failure first, then patch the affected files and recheck.
 ```
 
 Acceptance commands:
@@ -257,9 +257,9 @@ Call pattern: enforce project-script-only workflow in VS Code chat.
 Recommended prompt:
 
 ```text
-Use repository scripts (derive_config/render/validate) only.
+Use repository scripts (workflow/render/validate/import_compose/render_bundle) only.
 Do not rewrite Dockerfile from scratch.
-Show CONFIG PROPOSAL first and wait for confirmation.
+Show CONFIG PROPOSAL with input_audit first and wait for confirmation.
 ```
 
 Retry prompt:
@@ -338,7 +338,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 
 Delivery notes:
 
-- `guest_forwards[*].proto` is TCP-only in the current release; this constraint was introduced in `v2.1.0`.
+- `guest_forwards[*].proto` is TCP-only in the current release.
 - The default smoke path renders and validates the placeholder sample; full QEMU boot and exploit replay require real VM assets.
 - `flag_injection=debugfs` requires `changeflag.sh` to write the guest flag path into the rootfs image.
 
@@ -645,7 +645,9 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `validate_context.py` | challenge context parser helper |
 | `autofix.py` | common issue auto-fix helper |
 | `detect_stack.py` | stack detection helper |
+| `result_utils.py` | structured result output helper |
 | `utils.py` | shared utilities |
+| `requirements.txt` | Python script dependencies |
 | `cleanup_test_containers.sh` | test container cleanup |
 | `test_runtime_profiles.sh` | runtime profile regression |
 | `README.md` | scripts directory guide |

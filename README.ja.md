@@ -87,7 +87,7 @@ Codex UI における Skill カードの表示内容は `src/CloverSec-CTF-Build
 - `default_prompt`：試用・起動時に入る既定プロンプト
 - `allow_implicit_invocation`：条件一致時にモデルが暗黙起動できるか
 
-現在の既定プロンプト戦略は、先に技術スタックと `profile` を自動検出し、その後に準拠した `Dockerfile` / `start.sh` / `changeflag.sh` を生成し、最後に `validate` と配布ガイダンスを実行するという流れです。この層は Codex UI での見え方と起動方法だけに影響し、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` の実行時挙動は変えません。
+現在の既定プロンプト戦略は、先に intake/propose を実行し、evidence と `input_audit` 付きの `CONFIG PROPOSAL` を出し、ユーザーの OK 後に accept/render/validate を実行する流れです。この層は Codex UI での見え方と起動方法だけに影響し、`workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` の実行時挙動は変えません。
 
 後で Codex 上のカード名、短い説明、試用プロンプトを調整したい場合は、README 本文より先にこのファイルを編集してください。
 
@@ -95,7 +95,7 @@ Codex UI における Skill カードの表示内容は `src/CloverSec-CTF-Build
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
   short_description: "标准化题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排"
-  default_prompt: "Use $cloversec-ctf-build-dockerizer to处理当前题目目录，先自动探测技术栈与 profile，再生成合规的 Dockerfile/start.sh/changeflag.sh，并执行 validate 与交付建议。"
+  default_prompt: "Use $cloversec-ctf-build-dockerizer 处理当前题目目录，先执行 intake/propose，输出含证据和 input_audit 的 CONFIG PROPOSAL；用户确认 OK 后再 accept/render/validate。"
 ```
 
 ## クイックスタート
@@ -149,16 +149,16 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 
 ```text
 現在のディレクトリを CloverSec-CTF-Build-Dockerizer で処理してください。
-まず derive_config.py を実行して evidence 付き CONFIG PROPOSAL を出力。
-私の確認後に render + validate + smoke を実行し、失敗修正を報告してください。
-対象モード: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario>
+まず workflow.py intake/propose を実行し、evidence と input_audit 付き CONFIG PROPOSAL を出力してください。
+私が OK した後に workflow.py accept/render/validate と必要な回帰コマンドを実行してください。
+対象モード: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>
 ```
 
 再試行プロンプト：
 
 ```text
-全体をやり直さず、現行 ERROR の最小修正のみ実施してください。
-必要最小限の再検証だけ実行し、変更ファイルと結果を報告してください。
+全体をやり直さず、現行 ERROR だけを修正してください。
+必要な再検証を実行し、変更ファイルと結果を報告してください。
 ```
 
 検収コマンド：
@@ -175,8 +175,8 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 推奨プロンプト：
 
 ```text
-既存スクリプト（render.py/validate.sh）を必ず利用し、手書き置換をしないでください。
-CONFIG PROPOSAL を先に提示し、OK 後にレンダリングへ進んでください。
+既存スクリプト（workflow.py/render.py/validate.sh）を必ず利用し、手書き置換をしないでください。
+まず workflow.py intake/propose を実行し、OK 後にレンダリングへ進んでください。
 最終的に Dockerfile/start.sh/changeflag.sh 契約を満たしてください。
 ```
 
@@ -201,10 +201,10 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 
 ```text
 あなたは配布エンジニアです。
-Phase1: derive_config と evidence を提示。
-Phase2: 私の確認後に render 実行。
-Phase3: validate/smoke 実行。
-Phase4: 残リスクとリリース前確認項目を提示。
+Phase1: workflow.py intake/propose で evidence と input_audit を提示。
+Phase2: 私の確認後に workflow.py accept/render を実行。
+Phase3: validate / validate_scenario / validate_bundle / smoke を必要に応じて実行。
+Phase4: リリース前確認項目と手動検証項目を提示。
 ```
 
 再試行プロンプト：
@@ -229,17 +229,17 @@ bash scripts/release_build.sh --with-smoke
 
 ```text
 このリポジトリで V2 配布フローを実行してください:
-1) derive_config -> CONFIG PROPOSAL
-2) render.py / render_component.py / render_scenario.py（モードに応じて）
-3) validate.sh / validate_scenario.py / smoke_test.sh
-4) 失敗原因、修正内容、残リスクを要約
+1) workflow.py intake/propose -> CONFIG PROPOSAL + input_audit
+2) workflow.py accept/render、必要に応じてモード別 renderer
+3) validate.sh / validate_scenario.py --validate-rendered / validate_bundle.py / smoke_test.sh
+4) 失敗、修正内容、手動検証項目を要約
 ```
 
 再試行プロンプト：
 
 ```text
 通過済み手順は無視し、最新失敗コマンドに集中してください。
-根因説明の後、最小パッチを適用して再検証してください。
+失敗内容を説明してから、影響ファイルを修正し再検証してください。
 ```
 
 検収コマンド：
@@ -257,9 +257,9 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 推奨プロンプト：
 
 ```text
-このリポジトリの既存スクリプト（derive_config/render/validate）のみで実行してください。
+このリポジトリの既存スクリプト（workflow/render/validate/import_compose/render_bundle）のみで実行してください。
 Dockerfile を一から書き直さないでください。
-先に CONFIG PROPOSAL を提示し、確認後に次工程へ進んでください。
+先に input_audit 付き CONFIG PROPOSAL を提示し、確認後に次工程へ進んでください。
 ```
 
 再試行プロンプト：
@@ -338,7 +338,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 
 配布メモ：
 
-- `guest_forwards[*].proto` は現在のリリースでも TCP のみ対応します。この制約は `v2.1.0` で導入されました。
+- `guest_forwards[*].proto` は現在のリリースでは TCP のみ対応します。
 - 既定の smoke は placeholder sample の render/validate までです。完全な QEMU boot と exploit 再現は実 VM アセットで検証します。
 - `flag_injection=debugfs` では、`changeflag.sh` が guest flag path を rootfs image に書き込む必要があります。
 
@@ -644,7 +644,9 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `validate_context.py` | challenge 文脈解析補助 |
 | `autofix.py` | 自動修正補助 |
 | `detect_stack.py` | スタック検出補助 |
+| `result_utils.py` | 構造化結果出力補助 |
 | `utils.py` | 共通ユーティリティ |
+| `requirements.txt` | Python スクリプト依存 |
 | `cleanup_test_containers.sh` | テストコンテナ掃除 |
 | `test_runtime_profiles.sh` | runtime profile 回帰 |
 | `README.md` | scripts 説明 |
