@@ -189,6 +189,43 @@ def check_additional_consistency(counter: Counter, docs: list[Path]) -> None:
         counter.log_info("/flag 契约描述检查通过")
 
 
+def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
+    skill_path = root / "src" / "CloverSec-CTF-Build-Dockerizer" / "SKILL.md"
+    text = read_text(skill_path)
+    lines = text.splitlines()
+
+    max_lines = 500
+    if len(lines) > max_lines:
+        counter.log_error(f"SKILL.md 行数过长：{len(lines)} > {max_lines}。请把 schema、栈手册、排障和命令细节迁到 docs/data。")
+    else:
+        counter.log_info(f"SKILL.md 渐进加载行数检查通过（{len(lines)} <= {max_lines}）")
+
+    required_terms = (
+        "workflow.py",
+        "Proposal Gate",
+        "validate.sh",
+        "release_build.sh",
+        "按需读取索引",
+        "docs/validation_guide.md",
+        "docs/stack_cookbook.md",
+        "docs/linux_qemu_manual_validation.md",
+        "data/scenario_schema.md",
+        "docs/bundle_design.md",
+    )
+    for term in required_terms:
+        if term not in text:
+            counter.log_error(f"SKILL.md 缺少渐进加载关键入口：{term}")
+
+    bulky_patterns = {
+        "challenge 字段大表": r"^\| `challenge\.[^`]+` \| 否 \|",
+        "长篇栈模板章节": r"^### (Node|PHP|Python|Java|Tomcat|LAMP|Pwn|Linux-QEMU|AI|RDG|SecOps|BaseUnit)\s*$",
+        "旧 Step 交互长协议": r"^### Step [0-9]",
+    }
+    for label, pattern in bulky_patterns.items():
+        if re.search(pattern, text, flags=re.MULTILINE):
+            counter.log_error(f"SKILL.md 仍包含应迁出的内容：{label}")
+
+
 def has_readme_link(text: str, target: str) -> bool:
     return f"({target})" in text or f'href="{target}"' in text
 
@@ -325,6 +362,7 @@ def main() -> int:
         counter.log_info("README 未启用 Phase 回填模板，跳过 Phase 行检查")
 
     check_additional_consistency(counter, docs)
+    check_skill_progressive_disclosure(counter, root)
 
     print("\n文档检查汇总")
     print(f"- ERROR: {counter.error}")

@@ -123,3 +123,4 @@ Scenario 模式可生成 `docker-compose.yml` 用于本地多服务验证，但�
 - 栈手册：`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
 - 场景 Schema：`src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md`
 - 校验规则：`src/CloverSec-CTF-Build-Dockerizer/data/validate_rules.yaml`
+- 校验与发布门禁：`src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md`

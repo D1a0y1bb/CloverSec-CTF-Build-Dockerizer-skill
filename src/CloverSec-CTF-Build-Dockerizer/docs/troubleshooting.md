@@ -32,6 +32,8 @@ python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirement
 
 ## 2. 校验阶段
 
+完整校验规则、ERROR/WARN 语义、check-service 门禁和发布前检查见 `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md`。
+
 ### 2.1 报错：/start.sh 未复制到根目录
 
 处理：

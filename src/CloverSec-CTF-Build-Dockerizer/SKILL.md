@@ -1,9 +1,9 @@
 ---
 name: cloversec-ctf-build-dockerizer
-description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Linux-QEMU/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。
+description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Bundle/Linux-QEMU/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。用于把题目源码、历史 Dockerfile、compose/Vulhub-like 环境、Linux kernel QEMU 题目或固定 Recipe 老环境整理为可验证的容器交付件。
 metadata:
-  short-description: 四叶草安全题目容器交付、BaseUnit/Linux-QEMU 构建与 Scenario 编排
-argument-hint: "[path/to/challenge.yaml] 或 --stack node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|linux-qemu --profile jeopardy|rdg|awd|awdp|secops --port 80 --start '...'"
+  short-description: 四叶草安全题目容器交付、BaseUnit/Bundle/Linux-QEMU 构建与 Scenario 编排
+argument-hint: "[path/to/challenge.yaml] 或 --project-dir path/to/challenge"
 disable-model-invocation: true
 allowed-tools:
   - Bash
@@ -15,1075 +15,172 @@ allowed-tools:
 
 # CloverSec-CTF-Build-Dockerizer
 
-## 一句话定位
+## 任务定位
 
-四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向题目源码、历史环境、服务基座、Linux kernel QEMU 环境与多服务本地场景的标准化交付：自动识别技术栈与运行时，生成符合平台契约的 `Dockerfile` / `start.sh` / `changeflag.sh` / `flag`（可选）/ `check` 产物，并补齐 BaseUnit 组件渲染、Linux-QEMU VM 启动与 Scenario 本地编排所需的校验链路。
+把 CTF 题目源码、历史交付件、固定服务基座、Bundle 老环境、Linux-QEMU 内核题和 Scenario 本地编排转换为符合四叶草安全-创研中心平台契约的 Docker 交付目录。
 
-当你要把 Jeopardy、RDG、AWD、AWDP、SecOps 题目，或指定版本服务组件、Vulhub-like 本地场景整理为四叶草安全-创研中心统一规范的容器交付件时，使用本技能。
+默认交付件：
 
-## 能力边界
+- `Dockerfile`
+- `start.sh`
+- `changeflag.sh`
+- `flag`，可按受支持 defense profile 的 `include_flag_artifact=false` 放行
+- `check/check.sh`，仅在 RDG/SecOps/check-service 场景生成
 
-- 本技能负责：题目容器交付标准化、技术栈侦测、`profile/defense` 归一化、`Dockerfile/start.sh/changeflag.sh/check` 生成、BaseUnit 组件渲染、Linux-QEMU VM 模板、Scenario 本地编排输出、静态校验与冒烟回归。
-- 本技能不负责：替代人工设计题目业务逻辑、替代真实业务源码修复、替代外部平台注册发布、把 `docker-compose` 直接当成平台最终交付物。
-- 推荐与 `CloverSec-CTF-Writeup-Scaffold` 协同，但不依赖文档 skill 才能完成环境交付。
+本 Skill 不替代题目业务设计、漏洞修复、PoC 编写、外部平台发布，也不把原始 `docker-compose.yml` 直接声明为平台最终交付物。
 
-## 适用场景
+## 首选入口
 
-- 用户提供题目源码，希望自动生成符合内部规范与平台契约的单容器交付件。
-- 用户提供历史 `Dockerfile`、零散脚本、半成品 `challenge.yaml`，希望整理为统一的 V2 配置与可回归渲染目录。
-- 用户需要基于指定版本服务组件快速生成纯基座镜像最小单元，例如 `mysql`、`redis`、`sshd`、`ttyd`、`apache`、`nginx`、`tomcat`、`php-fpm`、`vsftpd`、`weblogic`。
-- 用户需要把 Linux kernel CVE/LPE 题目整理为 Docker 镜像，并在容器内通过 QEMU 引导特定 vulnerable kernel/rootfs。
-- 用户需要用 `scenario.yaml` 描述 AWD、AWDP、Vulhub-like 多服务本地场景，并输出本地编排结果与每个服务的最终交付目录。
-
-## 注意事项
-
-- 硬约束：平台固定使用 `/start.sh` 启动
-
-- 镜像根目录默认必须包含 `/flag` 且可读（在支持的 defense profile 中显式设置 include_flag_artifact=false 时可放行）
-- 镜像中必须存在 `/bin/bash`
-
-- 能力边界：当前支持 Jeopardy/RDG/AWD/AWDP/SecOps，支持 BaseUnit 组件渲染、Linux-QEMU VM 环境与 Scenario 本地编排；平台最终交付仍为单 Dockerfile+start.sh+changeflag.sh。
-
-
-## 快速开始
-
-1. 进入示例目录。
-2. 用 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)`，在 check-service 场景生成 `check/check.sh` 脚手架。
-3. 用 `validate.sh` 做静态校验。
-4. 本地 `docker build`。
-5. 本地 `docker run ... /start.sh`。
-6. 观察日志并修复问题。
-
-最小命令链：
+优先使用 `workflow.py`，让输入审计、Proposal Gate、渲染和校验有状态记录：
 
 ```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/node-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-node-basic:latest .
-docker run -d -p 3001:3000 ctf-node-basic:latest /start.sh
-docker logs -f $(docker ps -q --filter ancestor=ctf-node-basic:latest | head -n 1)
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir <题目目录>
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir <题目目录>
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir <题目目录>
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir <题目目录>
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir <题目目录>
 ```
 
-推荐工作流入口（v2.1.2）：
-
-```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir path/to/challenge
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir path/to/challenge
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir path/to/challenge
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir path/to/challenge
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir path/to/challenge
-```
-
-当输入目录包含旧 Dockerfile、多技术栈线索、compose/Vulhub-like 结构、Linux-QEMU 占位 VM 资产或 derive gates 为 true 时，先走 proposal，再接受后渲染。明确、低风险的 `challenge.yaml` 仍可直接调用 `render.py`。
-
-## 文档导航
-
-- 输入 schema：`src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
-- 栈默认值：`src/CloverSec-CTF-Build-Dockerizer/data/stacks.yaml`
-- 运行时档位：`src/CloverSec-CTF-Build-Dockerizer/data/runtime_profiles.yaml`
-- 推断规则：`src/CloverSec-CTF-Build-Dockerizer/data/patterns.yaml`
-- 可配置校验：`src/CloverSec-CTF-Build-Dockerizer/data/validate_rules.yaml`
-- digest 放行白名单：`src/CloverSec-CTF-Build-Dockerizer/data/base_image_allowlist.yaml`
-- 平台契约：`src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
-- 架构总览：`src/CloverSec-CTF-Build-Dockerizer/docs/architecture_overview.md`
-- 目录指引：`src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md`
-- 栈手册：`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
-- 故障排查：`src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md`
-- 新手指南（安装/触发/场景）：`src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`
-
-## 白皮书章节映射
-
-- 白皮书主文档：`README.md`
-- 本文件与白皮书关键对应：
-  - 本文 `输入契约` <-> 白皮书 `5. 输入契约`
-  - 本文 `AI Orchestrated Mode` <-> 白皮书 `6. AI Orchestrated Wizard`
-  - 本文 `手动模式` <-> 白皮书 `7. 手动模式`
-  - 本文 `12 栈模板索引` <-> 白皮书 `8. 十二栈能力对照`
-  - 本文 `validate 规则速查` <-> 白皮书 `10. 校验系统`
-  - 本文 `命令速查/附录` <-> 白皮书 `12-15`
-
-## 输入契约（challenge.yaml 字段映射）
-
-| 字段 | 必填 | 默认值来源 | 示例 | 映射模板变量/行为 |
-|---|---|---|---|---|
-| `challenge.name` | 是 | 无 | `node-basic` | 用于标识题目，不直接进模板 |
-| `challenge.stack` | 否 | 侦测结果 | `node` | 选择 `templates/<stack>/` |
-| `challenge.profile` | 否 | stack 映射默认 | `awd` | V2 profile 主口径（`jeopardy/rdg/awd/awdp/secops`） |
-| `challenge.base_image` | 否 | `stacks.yaml` | `node:20-alpine` | `{{BASE_IMAGE}}` |
-| `challenge.workdir` | 否 | `stacks.yaml` | `/app` | `{{WORKDIR}}`，并要求 start.sh `cd` |
-| `challenge.app_src` | 否 | `.` | `.` | `{{APP_SRC}}` |
-| `challenge.app_dst` | 否 | `workdir` | `/app` | `{{APP_DST}}` |
-| `challenge.expose_ports` | 否 | patterns -> stacks | `["3000"]` | `{{EXPOSE_PORTS}}` |
-| `challenge.start.mode` | 否 | `cmd` | `cmd` | 影响 exec 校验策略 |
-| `challenge.start.cmd` | 否 | patterns -> stacks | `node server.js` | `{{START_CMD}}` |
-| `challenge.start.service_name` | 否 | 空 | `apache2` | 多服务描述辅助 |
-| `challenge.runtime_deps` | 否 | `[]` | `["curl"]` | `{{RUNTIME_DEPS_INSTALL}}` |
-| `challenge.build_deps` | 否 | `[]` | `[]` | 当前不直接渲染，保留扩展 |
-| `challenge.flag.path` | 否 | `/flag` | `/flag` | 平台契约字段 |
-| `challenge.flag.permission` | 否 | `444` | `444` | 平台契约字段 |
-| `challenge.platform.entrypoint` | 否 | `/start.sh` | `/start.sh` | 平台契约字段 |
-| `challenge.platform.require_bash` | 否 | `true` | `true` | 平台契约字段 |
-| `challenge.platform.allow_loopback_bind` | 否 | `false` | `true` | localhost 监听门禁豁免（SSRF/内网链路） |
-| `challenge.healthcheck.enabled` | 否 | `true` | `false` | 控制是否渲染 `HEALTHCHECK` |
-| `challenge.healthcheck.cmd` | 否 | `stacks.yaml` | `bash -lc 'echo > /dev/tcp/127.0.0.1/80'` | `HEALTHCHECK CMD` |
-| `challenge.healthcheck.interval` | 否 | `30s` | `30s` | `HEALTHCHECK --interval` |
-| `challenge.healthcheck.timeout` | 否 | `5s` | `5s` | `HEALTHCHECK --timeout` |
-| `challenge.healthcheck.retries` | 否 | `3` | `5` | `HEALTHCHECK --retries` |
-| `challenge.healthcheck.start_period` | 否 | `10s` | `20s` | `HEALTHCHECK --start-period` |
-| `challenge.vm.arch` | 否 | `x86_64` | `x86_64` | linux-qemu guest 架构 |
-| `challenge.vm.qemu_binary` | 否 | 架构映射 | `qemu-system-x86_64` | `{{VM_QEMU_BINARY}}` |
-| `challenge.vm.accelerator` | 否 | `tcg` | `tcg` | QEMU 加速器：`tcg/kvm/auto` |
-| `challenge.vm.require_kvm` | 否 | `false` | `false` | true 时校验 `/dev/kvm` |
-| `challenge.vm.memory` | 否 | `768M` | `1024M` | `-m` |
-| `challenge.vm.cpus` | 否 | `2` | `2` | `-smp` |
-| `challenge.vm.kernel` | 否 | `vm/vmlinuz` | `vm/vmlinuz` | `-kernel` |
-| `challenge.vm.initrd` | 否 | `vm/initrd.img` | `vm/initrd.img` | `-initrd` |
-| `challenge.vm.rootfs` | 否 | `vm/rootfs.ext4` | `vm/rootfs.ext4` | `-drive file=...` |
-| `challenge.vm.machine` | 否 | 空 | `q35` | `-machine`，只允许安全 token |
-| `challenge.vm.cpu` | 否 | `max` | `max` | `-cpu`，只允许安全 token |
-| `challenge.vm.drive_format` | 否 | `raw` | `qcow2` | `raw/qcow2` |
-| `challenge.vm.append` | 否 | 模板默认 | `console=ttyS0 ...` | `-append` |
-| `challenge.vm.guest_forwards` | 否 | 首个 `expose_ports` | `tcp 22->22` | QEMU `hostfwd`，当前版本仅支持 `tcp`（自 `v2.1.0` 起） |
-| `challenge.vm.monitor` | 否 | `none` | `none` | QEMU monitor，默认关闭 |
-| `challenge.vm.extra_args` | 否 | 空 | `-no-reboot` | 追加 QEMU 参数，会做 shell 元字符校验 |
-| `challenge.vm.asset_mode` | 否 | `prebuilt` | `build-script` | VM 资产来源 |
-| `challenge.vm.build_script` | 否 | 空 | `build-vm.sh` | `asset_mode=build-script` 时使用题目目录内相对脚本 |
-| `challenge.vm.guest_flag_path` | 否 | `/root/flag` | `/root/flag` | guest 内 flag 路径 |
-| `challenge.vm.flag_injection` | 否 | `debugfs` | `debugfs` | guest flag 写入方式 |
-| `challenge.vm.healthcheck_mode` | 否 | `tcp` | `ssh-banner` | linux-qemu 默认 healthcheck 生成策略 |
-| `challenge.extra.env` | 否 | `{}` | `{NODE_ENV: production}` | `{{ENV_BLOCK}}` |
-| `challenge.extra.copy` | 否 | `[]` | `[{from:a,to:b}]` | `{{COPY_APP}}` |
-| `challenge.extra.user` | 否 | 空 | `www-data` | 当前不直接渲染 |
-| `challenge.extra.npm_install_block` | 否 | 自动生成 | `RUN npm ci ...` | `{{NPM_INSTALL_BLOCK}}` |
-| `challenge.extra.pip_requirements_block` | 否 | 自动生成 | `RUN pip install ...` | `{{PIP_REQUIREMENTS_BLOCK}}` |
-| `challenge.defense.enable_sshd` | 否 | `profiles.yaml` | `true` | V2 defense 主口径（优先于 legacy `rdg`） |
-| `challenge.defense.sshd_port` | 否 | `profiles.yaml` | `22` | defense sshd 端口 |
-| `challenge.defense.enable_ttyd` | 否 | `profiles.yaml` | `true` | defense ttyd 开关 |
-| `challenge.defense.ttyd_port` | 否 | `profiles.yaml` | `8022` | defense ttyd 端口 |
-| `challenge.defense.ctf_user` | 否 | `profiles.yaml` | `ctf` | defense 选手用户 |
-| `challenge.defense.ctf_password` | 否 | `profiles.yaml` | `123456` | defense 选手口令 |
-| `challenge.defense.scoring_mode` | 否 | `profiles.yaml` | `check_service` | 判定模式（`check_service/flag`） |
-| `challenge.defense.include_flag_artifact` | 否 | `profiles.yaml` | `false` | 仅放行 `/flag`，不放行 `/changeflag.sh` |
-| `challenge.defense.check_enabled` | 否 | `profiles.yaml` | `true` | check 门禁开关 |
-| `challenge.defense.check_script_path` | 否 | `profiles.yaml` | `check/check.sh` | check 脚本路径 |
-| `challenge.rdg.enable_sshd` | 否 | `true` | `true` | RDG sshd 登录开关 |
-| `challenge.rdg.sshd_port` | 否 | `22` | `22` | RDG sshd 端口 |
-| `challenge.rdg.sshd_password_auth` | 否 | `true` | `true` | RDG sshd 密码认证 |
-| `challenge.rdg.ttyd_binary_relpath` | 否 | `ttyd` | `ttyd` | RDG ttyd 二进制相对路径 |
-| `challenge.rdg.ttyd_install_fallback` | 否 | `true` | `true` | RDG ttyd 安装回退开关 |
-| `challenge.rdg.ctf_user` | 否 | `ctf` | `ctf` | RDG 默认选手账户 |
-| `challenge.rdg.ctf_password` | 否 | `123456` | `123456` | RDG 默认选手口令 |
-| `challenge.rdg.ctf_in_root_group` | 否 | `false` | `false` | RDG 是否加入 root 组 |
-| `challenge.rdg.scoring_mode` | 否 | `check_service` | `check_service` | RDG 判定模式 |
-| `challenge.rdg.include_flag_artifact` | 否 | `true` | `false` | RDG 是否保留 `/flag` 产物 |
-| `challenge.rdg.check_enabled` | 否 | `true` | `true` | RDG check 门禁开关 |
-| `challenge.rdg.check_script_path` | 否 | `check/check.sh` | `check/check.sh` | RDG check 脚本路径 |
-
-### RDG/Defense check 脚本契约（v2.1.2）
-
-- 推荐入口：`bash check/check.sh [target_ip] [target_port]`
-- 参数回退：`TARGET_IP` / `TARGET_HOST` / `TARGET_PORT`
-- 返回码语义：
-  - `0`：检查通过
-  - `1`：检查失败
-  - `2`：脚本使用或运行错误
-- 门禁规则：`render.py` 自动脚手架为 fail-closed（`CHECK_IMPLEMENT_ME` + `exit 1`）；`validate.sh` 会阻断占位脚本（如 `CHECK_IMPLEMENT_ME/TODO`、短脚本直接 `exit 0`）。
-
-## 统一模板变量清单
-
-- `BASE_IMAGE`
-- `WORKDIR`
-- `APP_SRC`
-- `APP_DST`
-- `EXPOSE_PORTS`
-- `START_CMD`
-- `RUNTIME_DEPS_INSTALL`
-- `COPY_APP`
-- `ENV_BLOCK`
-- `NPM_INSTALL_BLOCK`
-- `PIP_REQUIREMENTS_BLOCK`
-- `HEALTHCHECK_BLOCK`
-- `STACK_FLAG_BLOCK`
-- `VM_QEMU_BINARY`
-- `VM_ACCELERATOR`
-- `VM_KERNEL`
-- `VM_INITRD`
-- `VM_ROOTFS`
-- `VM_NETDEV`
-- `VM_GUEST_FLAG_PATH`
-- `VM_FLAG_INJECTION`
-
-## validate 自动修复与发布门禁（v2.1.2）
-
-- `bash .../validate.sh --fix Dockerfile start.sh challenge.yaml`
-  - 仅预览安全自动修复，不落盘。
-- `bash .../validate.sh --fix-write Dockerfile start.sh challenge.yaml`
-  - 应用安全自动修复后继续校验。
-- `bash .../validate.sh --fix --fix-loopback ...`
-  - 允许把显式 loopback 绑定参数（如 `--host 127.0.0.1`）改写为 `0.0.0.0`。
-- `bash .../validate.sh --json-summary /tmp/result.json Dockerfile start.sh challenge.yaml`
-  - 保留文本日志，同时写入机器可读摘要。
-- 发布链路可设置 `VALIDATE_ENFORCE_DIGEST=1`，触发基础镜像 digest 强门禁（官方白名单 tag-only 放行）。
-- 正式发布建议使用 `bash scripts/release_build.sh --with-smoke`；跳过 Docker smoke 必须记录原因。
-
-## 平台契约解释（执行时必须牢记）
-
-- 平台 run 命令会显式传 `/start.sh`。
-- 因此 `/start.sh` 必须可执行。
-- `/start.sh` 必须能启动真实服务。
-- `/start.sh` 必须保持容器持续运行。
-- `/start.sh` 必须有可观测日志输出。
-- `/flag` 默认必须存在且可读；在当前已支持的 defense profile 中，显式设置 `include_flag_artifact=false` 时可放行。
-- `/bin/bash` 必须存在。
-- 单服务必须 `exec` 主进程。
-- 多服务可后台一个前台一个，但不能空转。
-
-## AI Orchestrated Mode（强制协议）
-
-本技能默认运行在 AI 编排模式，目标是“用户只做 5 项确认，AI 自动完成其余步骤”。
-
-### 总原则
-
-- AI 必须优先执行脚本：`derive_config.py`、`render.py`、`validate.sh`。
-- AI 不得要求用户自己执行任何命令。
-- AI 不得凭经验直接手写 Dockerfile 取代脚本输出。
-- AI 必须把关键默认值的证据（evidence）解释给用户。
-
-### Step 0（AI 自动执行，不询问用户）
-
-白皮书对应：`README.md` -> `6. AI Orchestrated Wizard（5 问确认 + OK 门槛）`
-
-AI 必须先执行：
-
-```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir <题目目录> --format json --pretty
-```
-
-从输出中提取 ProposedConfig，并生成“配置提案摘要”（仅 5 项）：
-
-1. 技术栈猜测
-2. 端口猜测
-3. WORKDIR 猜测
-4. 启动命令候选（最多 3 个）
-5. app_src/app_dst 拷贝路径建议
-
-每项必须附带 evidence（命中文件/规则）。
-若输出包含 `config_proposal` 字段，优先直接用于 Step 1 的 YAML 确认块渲染。
-若输出包含 `gates` 字段，必须优先执行门禁提示：
-
-- `requires_explicit_stack_confirm=true`：禁止直接进入 Step 2，Q1 必须让用户显式确认 stack。
-- `requires_start_cmd_confirm=true`：Q4 必须要求用户给出最终 start 命令，禁止默认回车直过。
-- `requires_port_confirm=true`：Q2 必须要求用户确认端口，不得“默认视为正确”。
-
-### Step 1（仅问 5 个确认问题）
-
-白皮书对应：`README.md` -> `5. 输入契约（challenge.yaml + CONFIG PROPOSAL）`
-
-AI 必须按固定顺序提问，且每题都带默认值：
-
-Q1 技术栈 + 运行时档位（仅 php/node/java 显示档位候选）
-默认：`<stack_guess.id> + <recommended_profile>`
-可选：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/linux-qemu` + runtime profile 候选（若有）
-
-Q2 容器端口
-默认：`<port_guess.ports>`
-格式：单端口或逗号分隔多端口
-
-Q3 工作目录 WORKDIR
-默认：`<workdir_guess.workdir>`
-
-Q4 启动命令
-默认：候选 1
-同时展示候选 2/3
-允许用户直接输入自定义命令
-
-Q5 代码拷贝路径
-默认：`app_src="." -> app_dst=WORKDIR`
-
-固定提问模板（必须按此结构）：
-
-```text
-【配置提案摘要】
-1) 栈: <stack_guess.id>（confidence=<x.xx>，evidence: <...>）
-2) 端口: <ports>（evidence: <...>）
-3) WORKDIR: <workdir>（evidence: <...>）
-4) 启动候选:
-   - #1 <cmd1>（evidence: <...>）
-   - #2 <cmd2>（evidence: <...>）
-   - #3 <cmd3>（evidence: <...>）
-5) 拷贝路径: <app_src> -> <app_dst>（evidence: <...>）
-
-请确认以下 5 项（直接回车使用默认值也可以）：
-Q1 技术栈 + 运行时档位 [默认: <stack_guess.id> + <recommended_profile>]：
-Q2 容器端口 [默认: <ports>]：
-Q3 WORKDIR [默认: <workdir>]：
-Q4 启动命令 [默认: <cmd1>; 备选: <cmd2>/<cmd3>]：
-Q5 代码拷贝 [默认: <app_src> -> <app_dst>]：
-```
-
-Step 1 末尾硬规则（必须执行）：
-
-1. 在提问结束后，AI 必须输出“证据摘要”，最多 5 行，每行只说明 1 条命中依据（例如命中 `package.json`、`app.py`、`ROOT.war`、`requirements.txt` 或 `stacks.yaml` 默认规则）。
-2. 证据摘要后，AI 必须输出一个单独的 YAML 配置块，标题固定为 `CONFIG PROPOSAL`，键名固定如下：
-
-```yaml
-CONFIG PROPOSAL:
-  stack: <node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|linux-qemu>
-  profile: <jeopardy|rdg|awd|awdp|secops>
-  base_image: <string|optional> # 由运行时档位映射或手动指定
-  workdir: <string>
-  app_src: <string>
-  app_dst: <string>
-  expose_ports: [<port>, ...]
-  start:
-    mode: cmd
-    cmd: "<string>"
-  platform:
-    entrypoint: "/start.sh"
-    require_bash: true
-    allow_loopback_bind: false
-  flag:
-    path: "/flag"
-    permission: "444"
-  healthcheck:
-    enabled: true
-    cmd: "bash -lc 'echo > /dev/tcp/127.0.0.1/80'"
-    interval: "30s"
-    timeout: "5s"
-    retries: 3
-    start_period: "10s"
-  defense:
-    enable_ttyd: true
-    ttyd_port: "8022"
-    ttyd_login_cmd: "/bin/bash"
-    enable_sshd: true
-    sshd_port: "22"
-    sshd_password_auth: true
-    ttyd_binary_relpath: "ttyd"
-    ttyd_install_fallback: true
-    ctf_user: "ctf"
-    ctf_password: "123456"
-    ctf_in_root_group: false
-    scoring_mode: "check_service"
-    include_flag_artifact: true
-    check_enabled: true
-    check_script_path: "check/check.sh"
-  rdg: # legacy compatibility input, optional
-    enable_ttyd: true
-    ttyd_port: "8022"
-    enable_sshd: true
-    sshd_port: "22"
-```
-
-3. YAML 块后必须原样输出以下两句话（不得改写）：
-
-“如果以上配置正确，请回复：OK”
-
-“如果需要修改，请直接在上面的 YAML 块里改对应行并发回（不要额外解释），我会按你修改后的配置继续生成与校验。”
-
-交互约束：
-
-- 不允许追加第 6 个问题，除非输入明显冲突且无法继续。
-- 每题都要给“为何默认如此”的证据说明（简短）。
-- 如果用户输入的启动命令可能只监听 `127.0.0.1`，AI 必须提示改为 `0.0.0.0` 并给出示例。
-- 用户若仅回复散乱文本，AI 不得进入生成阶段；必须要求其“回复 OK”或“粘贴修改后的 CONFIG PROPOSAL YAML”。
-
-### Step 2（用户确认后 AI 自动生成）
-
-白皮书对应：`README.md` -> `6. AI Orchestrated Wizard（5 问确认 + OK 门槛）`
-
-AI 自动完成：
-
-进入 Step 2 的门槛（硬规则）：
-
-- 只有当用户回复 `OK`，或返回一段可被解析的 `CONFIG PROPOSAL` YAML 时，才能继续。
-- 若用户输入无法解析为配置块，AI 只能提示重发 `OK` 或 YAML，不得开始 render/validate。
-
-AI 自动完成（按顺序）：
-
-1. 用户回复 `OK`：
-   - 采用 Step 1 中最后一版 `CONFIG PROPOSAL`。
-2. 用户回复 YAML：
-   - 先执行 `parse_config_block.py` 从 stdin 解析为 `challenge.yaml`。
-3. 执行 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)`，在 check-service 场景生成 `check/check.sh` 脚手架。
-4. 执行 `validate.sh` 做静态校验。
-
-推荐命令链：
-
-```bash
-cat <project_dir>/config-proposal.yaml | python3 src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py --output <project_dir>/challenge.yaml
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config <project_dir>/challenge.yaml --output <project_dir>
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <project_dir>/Dockerfile <project_dir>/start.sh <project_dir>/challenge.yaml
-```
-
-修复策略：
-
-- 若 validate 出现 ERROR：AI 必须自动修复并重跑 validate，直到 `ERROR=0` 或确认无法自动修复。
-- 若仅 WARN：允许继续，但必须解释影响与建议。
-
-### Step 3（交付输出）
-
-白皮书对应：`README.md` -> `7. 手动模式与等价命令链` 与 `15. 发布前验收清单`
-
-AI 必须输出：
-
-- 最终工作目录通常会包含：`challenge.yaml`、`Dockerfile`、`start.sh`、`changeflag.sh`、`flag(可选)`、`check/check.sh(按 defense.check_enabled 生成，需替换为真实检查逻辑)`
-- 本地测试命令：`docker build` + `docker run ... /start.sh`
-- 平台导入提醒：端口映射、固定 `/start.sh` 启动、动态 flag 依赖 bash
-
-### 低交互失败保护规则
-
-1. 栈侦测置信度 `<0.6`：
-   - 仍给默认值
-   - 但 Q1 必须强提示“请确认技术栈”
-   - 若 `gates.requires_explicit_stack_confirm=true`，禁止直接进入 Step 2
-
-2. 找不到可用入口文件：
-   - `start_cmd_candidates` 必须包含一个空值候选（`cmd: ""`）并给出错误提示
-   - Q4 强提示“必须确认/填写启动命令”
-   - 若 `gates.requires_start_cmd_confirm=true`，用户未明确确认前不得 render
-
-3. 端口为空：
-   - 回退栈默认端口
-   - Q2 强提示“请确认端口”
-   - 若 `gates.requires_port_confirm=true`，用户必须显式确认端口后才能进入 Step 2
-
-## 手动模式（备用）
-
-当 AI 编排不可用时，允许按传统命令链手动执行：
+低风险且字段明确的 `challenge.yaml` 可直接调用 `render.py`：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t <image>:latest .
-docker run -d -p <host_port>:<container_port> <image>:latest /start.sh
 ```
 
-## 12 栈最小模板库索引
-
-### Node
-
-适用：
-
-- Node 原生 http
-- Express
-- Koa
-- Fastify
-
-默认：
-
-- 端口 `3000`
-- 启动命令 `node server.js`
-
-最小启动命令范式：
-
-- `node server.js`
-
-可选变体：
-
-- `npm run start`
-- `pm2-runtime app.js`（可选，不默认）
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/node/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/node/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/node/README.md`
-
-### PHP (Apache)
-
-适用：
-
-- 传统 PHP 站点
-- 轻量 PHP 框架
-
-默认：
-
-- 端口 `80`
-- 启动命令 `apache2-foreground`
-
-最小启动命令范式：
-
-- `apache2-foreground`
-
-可选变体：
-
-- php-fpm 分支（可扩展，不默认）
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/php/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/php/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/php/README.md`
-
-### Python
-
-适用：
-
-- Flask
-- FastAPI
-- Django
-- 自写 HTTP
-
-默认：
-
-- 端口 `5000`
-- 启动命令 `python app.py`
-
-最小启动命令范式：
-
-- `python app.py`
-
-可选变体：
-
-- `gunicorn -b 0.0.0.0:5000 app:app`
-- `uvicorn app:app --host 0.0.0.0 --port 5000`
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/python/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/python/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/python/README.md`
-
-### Java (JAR)
-
-适用：
-
-- 已有可运行 `app.jar`
-
-默认：
-
-- 端口 `8080`
-- 启动命令 `java -jar app.jar`
-
-最小启动命令范式：
-
-- `java -jar app.jar`
-
-可选变体：
-
-- `java -Xms128m -Xmx256m -jar app.jar`
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/java/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/java/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/java/README.md`
-
-### Tomcat (WAR)
-
-适用：
-
-- 已有 WAR 包部署
-
-默认：
-
-- 端口 `8080`
-- 启动命令 `catalina.sh run`
-
-最小启动命令范式：
-
-- `catalina.sh run`
-
-可选变体：
-
-- 多 WAR 场景可复制整个 webapps 目录
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/tomcat/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/tomcat/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/tomcat/README.md`
-
-### LAMP
-
-适用：
-
-- 同容器内需要 Apache + PHP + MariaDB
-
-默认：
-
-- 端口 `80`
-- 启动命令 `apache2ctl -D FOREGROUND`
-
-最小启动命令范式：
-
-- 后台启动 MariaDB
-- 前台 `exec apache2ctl -D FOREGROUND`
-
-可选变体：
-
-- 使用 `MYSQL_INIT_SQL_B64` 注入初始化 SQL
-- 可扩展 supervisor（不默认）
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/README.md`
-
-### Pwn (xinetd/tcpserver/socat)
-
-适用：
-
-- Jeopardy 模式二进制远程交互题目
-- 以 xinetd、tcpserver 或 socat 托管挑战进程
-
-默认：
-
-- 端口 `10000`
-- 启动命令 `/usr/sbin/xinetd -dontfork`（Alpine 可回退 tcpserver，缺失时回退 socat）
-
-最小启动命令范式：
-
-- `exec /usr/sbin/xinetd -dontfork` / `exec tcpserver ...` / `exec socat ...`
-
-可选变体：
-
-- 在 `start.sh` 启动前将 `/flag` 同步到 `/home/ctf/flag`
-- 根据 `ctf.xinetd` 动态调整端口与 server_args；无 xinetd 时回退 tcpserver，仍不可用时回退 socat
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/README.md`
-
-### Linux-QEMU
-
-适用：
-
-- Linux kernel CVE/LPE 题目
-- 需要指定 vulnerable kernel、initrd/rootfs 或内核模块的环境
-
-默认：
-
-- 端口 `22`
-- QEMU binary `qemu-system-x86_64`
-- 加速器 `tcg`
-- guest flag 路径 `/root/flag`
-
-最小启动命令范式：
-
-- `/start.sh` 前台 `exec "${QEMU_BINARY}" "${QEMU_ARGS[@]}"`
-- QEMU 参数由 `challenge.vm` 结构化生成
-
-可选变体：
-
-- `accelerator=auto`：有 `/dev/kvm` 时用 KVM，否则 TCG
-- `asset_mode=build-script`：构建期执行 `challenge.vm.build_script` 指向的题目内脚本生成 VM 资产
-- `flag_injection=none`：只保留外层 `/flag`，不写入 guest rootfs
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/linux-qemu/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/linux-qemu/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/linux-qemu/README.md`
-
-### AI (CPU)
-
-适用：
-
-- CTF AI Web 题目（Flask/FastAPI 等）
-- 高核心宿主机下需限制线程的 CPU 推理场景
-
-默认：
-
-- 端口 `5000`
-- 启动命令 `gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app`
-
-最小启动命令范式：
-
-- `exec gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app`
-
-可选变体：
-
-- 轻量模式：`ai-basic`（Flask + gunicorn）
-- 增强模式：`ai-transformers-basic`（含 transformers 依赖）
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/ai/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/ai/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/ai/README.md`
-
-### RDG (Docker)
-
-适用：
-
-- 防御修复型 Docker 题目（check-service 判定）
-- 需要 ttyd/sshd 登录通道与可选 flag 兼容路径
-
-默认：
-
-- 端口 `80/22/8022`（业务端口 + sshd + ttyd）
-- 启动命令按业务栈选择（如 `apache2-foreground` 或 `python app.py`）
-
-最小启动命令范式：
-
-- 双通道启用时：后台拉起 `sshd` 和 `ttyd`，前台 `exec` 业务主服务
-- 关闭登录通道时：`enable_ttyd=false` 与 `enable_sshd=false`，仅保留业务主服务前台运行
-
-可选变体：
-
-- `include_flag_artifact=false`：仅 check-service 判定，放行 `/flag` 产物约束
-- `check_enabled=true` + `check_script_path`：启用强门禁 check 脚本契约
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/start.sh.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/README.md`
-
-### SecOps
-
-适用：
-
-- 安全运维类配置加固题（nginx/redis/mysql/ssh/tomcat 等）
-- 需要 profile 与 check_service 协同判定
-
-默认：
-
-- 推荐 `stack=secops` + `profile=secops`
-- 端口包含业务端口及按需运维通道端口
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/secops/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/secops/start.sh.tpl`
-
-### BaseUnit
-
-适用：
-
-- 指定服务包/指定版本的纯基座最小镜像单元
-
-默认：
-
-- 推荐通过 `render_component.py` 按 `component+variant` 生成
-- 首批组件：`mysql/redis/sshd/ttyd/apache/nginx/tomcat/php-fpm/vsftpd/weblogic`
-
-模板路径：
-
-- `src/CloverSec-CTF-Build-Dockerizer/templates/baseunit/Dockerfile.tpl`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/baseunit/start.sh.tpl`
-
-## validate 规则速查
-
-### 常见 ERROR
-
-`Dockerfile 未复制 /start.sh`：
-
-- 去 Dockerfile 增加 `COPY start.sh /start.sh`
-
-`Dockerfile 未复制 /flag`：
-
-- 增加 `COPY flag /flag` 或 `RUN touch /flag`
-
-`/start.sh 权限不对`：
-
-- 增加 `RUN chmod 555 /start.sh`
-
-`/flag 权限不对`：
-
-- 增加 `RUN chmod 444 /flag`
-
-`bash 缺失`：
-
-- Debian/Ubuntu 安装 bash
-- Alpine 安装 bash
-
-`EXPOSE 缺失`：
-
-- 增加 `EXPOSE <port>`
-
-`单服务没有 exec`：
-
-- 把启动命令改成 `exec <主命令>`
-
-`检测到空转循环`：
-
-- 删除空转命令，改为真实服务前台启动
-
-`tail -f /dev/null 且没有服务`：
-
-- 启动真实服务，不允许只靠 `/dev/null` 保活
-
-### 常见 WARN
-
-`pip install 未带 --no-cache-dir`：
-
-- 在 pip 命令加 `--no-cache-dir`
-
-`npm install 未优先 npm ci`：
-
-- 有 lock 时改为 `npm ci`
-
-`npm 未清理 cache`：
-
-- 安装后 `npm cache clean --force`
-
-`多服务未使用 exec`：
-
-- 确保至少有一个前台主进程并可观测日志
-
-## 输出契约清单（生成后必须满足）
-
-- 产物必须包含 `Dockerfile`、`start.sh`，并在默认模式下包含 `flag`。
-- `start.sh` 首行必须是 `#!/bin/bash`。
-- `start.sh` 必须包含 `set -euo pipefail`。
-- `Dockerfile` 必须有 `EXPOSE`。
-- `Dockerfile` 必须把 `start.sh` 放到 `/start.sh`。
-- `Dockerfile` 必须把 `flag` 放到 `/flag`（已启用 `include_flag_artifact=false` 的受支持 defense profile 除外）。
-- `Dockerfile` 必须设置 `/start.sh` 可执行。
-- `Dockerfile` 必须设置 `/flag` 可读（已启用 `include_flag_artifact=false` 的受支持 defense profile 除外）。
-- 镜像必须有 `/bin/bash`。
-- 单服务必须 `exec` 主进程。
-- 不能使用空转保活。
-- 注释必须是中文并解释设计原因。
-
-## 故障排查剧本
-
-### 剧本 A: render 失败
-
-1. 检查 `challenge.yaml` 是否可解析。
-2. 检查 `stack` 是否在 `stacks.yaml` 支持范围内。
-3. 检查模板 include 路径是否存在。
-4. 检查模板变量是否都可替换。
-
-### 剧本 B: validate 失败
-
-1. 先看 ERROR。
-2. 按错误文案改 Dockerfile/start.sh。
-3. 重新 render。
-4. 重新 validate。
-5. 直到 ERROR 为 0。
-
-### 剧本 C: build 失败
-
-1. 看 Docker build 日志中失败层。
-2. 检查基础镜像与包管理器匹配。
-3. 检查依赖命令是否与镜像发行版一致。
-
-### 剧本 D: run 失败
-
-1. `docker logs` 看启动输出。
-2. 检查 `START_CMD` 是否正确。
-3. 检查监听地址是否 `0.0.0.0`。
-4. 检查端口映射。
-
-### 剧本 E: 运行但访问失败
-
-1. 服务是否只监听 localhost。
-2. `EXPOSE` 是否匹配 challenge 端口。
-3. `docker run -p` 是否映射正确。
-
-### 剧本 F: 运行但无日志
-
-1. 服务是否写 stdout/stderr。
-2. 多服务是否 tail 真实日志文件。
-3. 避免仅靠 `/dev/null`。
-
-### 剧本 G: 同步后技能目录不完整
-
-1. 执行 `bash scripts/sync.sh`。
-2. 检查目标目录是否包含 `SKILL.md/README.md/data/scripts/templates/examples/docs`。
-3. 若目标不可写，改用 `--target-dir`。
-
-## 命令速查
-
-### 渲染
+## 必须遵守
+
+- 平台启动入口固定为 `/start.sh`；`start.sh` 必须可执行并启动真实服务。
+- 镜像内必须存在 `/bin/bash`，因为平台动态 flag 调用依赖 Bash。
+- 默认必须提供 `/flag` 且可读；只有受支持 defense profile 显式设置 `include_flag_artifact=false` 时才放行。
+- 单服务必须使用 `exec` 作为主进程；多服务必须有真实前台主进程，不能用空转命令保活。
+- `Dockerfile EXPOSE`、`challenge.expose_ports` 和运行端口必须一致。
+- RDG/SecOps 的 `check/check.sh` 必须是真实检查脚本；`CHECK_IMPLEMENT_ME`、`CHECK_REVIEW_REQUIRED`、短脚本直接 `exit 0` 都会被 `validate.sh` 阻断。
+- Linux-QEMU 的漏洞内核运行在 QEMU guest 内，外层 Docker 仍按 `/start.sh` 启动；默认使用 TCG，不默认要求 `/dev/kvm`、`--privileged` 或开放 QEMU monitor。
+- Scenario 只用于本地多服务编排和逐服务验证，平台最终交付仍以单服务目录为准。
+- Bundle 只支持固定 Recipe 组合；不支持的组合必须返回 `BUNDLE_UNSUPPORTED_COMBINATION`，不能自动改成别的栈。
+
+平台契约细节读取 `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`。
+
+## 输入路由
+
+| 输入状态 | 推荐路径 | 读取资料 |
+|---|---|---|
+| 明确 `challenge.yaml`，低风险 | `render.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/data/schema.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
+| 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | `workflow.py intake/propose/accept/render/validate` | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
+| compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
+| Scenario 正向编排 | `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
+| 固定老环境组合 | `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md`、`src/CloverSec-CTF-Build-Dockerizer/data/bundle_recipes.yaml` |
+| Linux kernel CVE/LPE | `stack=linux-qemu`，release/manual 再跑 `linux_qemu_manual_check.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
+| RDG/SecOps 需要 check 脚本 | `generate_check_stub.py` 生成骨架，人工确认后移除 `CHECK_REVIEW_REQUIRED` | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
+| 发布包检查 | `release_build.py --with-smoke`，跳过 smoke 必须说明原因 | 根目录 `README.md`、`CHANGELOG.md` |
+
+## Proposal Gate
+
+以下情况不能直接渲染，必须先生成 proposal 并接受：
+
+- mixed/dirty/high_risk 输入
+- `audit_input.py` 或 `derive_config.py` 输出 `gates=true`
+- compose/Vulhub-like 结构
+- Linux-QEMU VM 资产缺失或疑似占位
+- cPanel/WHM 控制面板类输入
+- 启动命令、端口、WORKDIR 缺少可靠证据
+
+保留手动模式：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
+  --config challenge.yaml \
+  --output . \
+  --manual \
+  --reason "trusted migration from reviewed delivery"
 ```
 
-### 校验
+使用 `--manual` 时必须写明原因，并在结果中保留 manual override 记录。
+
+## 运行顺序
+
+常规题目：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir <题目目录> --format json --pretty
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config <题目目录>/challenge.yaml --output <题目目录>
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <题目目录>/Dockerfile <题目目录>/start.sh <题目目录>/challenge.yaml
 ```
 
-### 示例回归
+Scenario：
 
 ```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py --config scenario.yaml --output /tmp/scenario
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py --scenario-dir /tmp/scenario --validate-rendered
+```
+
+Bundle：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py --bundle-dir /tmp/bundle
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
+```
+
+Check-service 骨架：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
+```
+
+生成脚本默认带 `CHECK_REVIEW_REQUIRED`，必须人工确认检查逻辑后移除。
+
+## 按需读取索引
+
+| 需要的信息 | 文件 |
+|---|---|
+| 输入字段、`challenge.yaml` 结构 | `src/CloverSec-CTF-Build-Dockerizer/data/schema.md` |
+| 栈选择、运行时档位、Linux-QEMU 配置示例 | `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
+| 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md` |
+| 校验项、错误码、check-service 门禁 | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
+| 脚本入口和常用命令 | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md` |
+| Scenario schema 和 compose import 边界 | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
+| Bundle/Recipe 边界 | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md` |
+| Linux-QEMU release/manual 验证 | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
+| 常见 render/validate/build/run 问题 | `src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
+| 目录职责 | `src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md` |
+
+读取原则：只读当前任务需要的文件，避免把 schema、栈手册和排障手册一次性全部读入上下文。
+
+## 发布前验证
+
+普通开发提交至少执行：
+
+```bash
+python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
+find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+bash scripts/doc_guard.sh
+git diff --check
+python3 scripts/validate_build_test.py
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+python3 scripts/publish_guard.py stage --root .
 ```
 
-### 冒烟
+正式发布默认执行 Docker smoke：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+bash scripts/release_build.sh --with-smoke
 ```
 
-### 清理
+跳过 smoke 必须使用带原因的参数，例如：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/cleanup_test_containers.sh
+python3 scripts/release_build.py --skip-smoke-with-reason "docker unavailable on this host"
 ```
 
-### 同步
+## 输出汇报要求
 
-```bash
-bash scripts/sync.sh
-```
+完成任务时必须说明：
 
-```bash
-bash scripts/sync.sh --codex-dir
-```
+- 修改了哪些功能层面的行为或文档入口。
+- 执行了哪些验证命令。
+- 哪些检查没执行，以及原因。
+- 是否改了版本、是否提交、是否推送、是否发布。
 
-## 对LLM&Agent工具的执行要求
-
-- 优先遵循平台契约。
-- 优先生成可运行结果，再追求优化。
-- 出现 ERROR 必须自动修复并重试。
-- 出现 WARN 必须解释影响。
-- 不跳过校验。
-- 不用空转手段伪造存活。
-
-## 对维护者的执行要求
-
-- 新增栈时同步更新 data/templates/examples/docs。
-- 新增规则时消息必须给修复指引。
-- 变更后必须跑回归。
-- 发布前必须同步到技能目录并检查完整性。
-
-## 自检清单（交付前）
-
-- `render.py` 能渲染目标目录。
-- `validate.sh` 无 ERROR。
-- 示例回归通过。
-- 关键示例可 build/run。
-- docs 链接有效。
-- sync 后目录自包含。
-
-## 变更边界
-
-本技能默认不做：
-
-- 业务代码漏洞修复。
-- 数据库业务逻辑设计。
-- AWD/AWDP 通过 profile 与 scenario 在 v2 落地，compose 仅用于本地编排验证。
-
-本技能只处理：
-
-- Jeopardy 模式 Web/Pwn/AI 与 RDG（Docker）题目环境容器入口标准化。
-- 平台契约合规。
-- 模板化复用与可验证交付。
-
-## 相关文件索引
-
-- `README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/data/schema.md`
-- `src/CloverSec-CTF-Build-Dockerizer/data/stacks.yaml`
-- `src/CloverSec-CTF-Build-Dockerizer/data/validate_rules.yaml`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/node/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/php/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/python/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/java/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/tomcat/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/lamp/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/pwn/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/ai/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/templates/rdg/README.md`
-- `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`
-- `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md`
-- `src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md`
-- `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`
-
-## 附录 A: 单栈最小命令
-
-Node:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/node-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-node-basic:latest .
-docker run -d -p 3001:3000 ctf-node-basic:latest /start.sh
-```
-
-PHP:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/php-apache-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-php-apache-basic:latest .
-docker run -d -p 8081:80 ctf-php-apache-basic:latest /start.sh
-```
-
-Python:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/python-flask-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-python-flask-basic:latest .
-docker run -d -p 5001:5000 ctf-python-flask-basic:latest /start.sh
-```
-
-Java:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/java-jar-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-java-jar-basic:latest .
-docker run -d -p 8082:8080 ctf-java-jar-basic:latest /start.sh
-```
-
-Tomcat:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/tomcat-war-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-tomcat-war-basic:latest .
-docker run -d -p 8083:8080 ctf-tomcat-war-basic:latest /start.sh
-```
-
-LAMP:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/lamp-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-lamp-basic:latest .
-docker run -d -p 8084:80 ctf-lamp-basic:latest /start.sh
-```
-
-Pwn:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/pwn-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-pwn-basic:latest .
-docker run -d -p 10001:10000 ctf-pwn-basic:latest /start.sh
-```
-
-AI:
-
-```bash
-cd src/CloverSec-CTF-Build-Dockerizer/examples/ai-basic
-python3 ../../scripts/render.py --config challenge.yaml --output .
-bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
-docker build -t ctf-ai-basic:latest .
-docker run -d -p 5002:5000 ctf-ai-basic:latest /start.sh
-```
-
-## 附录 B: 回归命令
-
-```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
-```
-
-```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
-```
-
-```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/cleanup_test_containers.sh
-```
+不要把 WARN 当成 ERROR，也不要把未执行的 Docker build/QEMU boot 说成已经验证。

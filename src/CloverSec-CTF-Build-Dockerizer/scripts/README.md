@@ -60,9 +60,16 @@ python3 scripts/validate_build_test.py
 bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
 ```
 
+校验规则详解见 `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md`。
+
 Scenario 回归说明：
 
 - 直接调用 `validate_scenario.py` 时，默认只校验 scenario/compose 结构。
 - 追加 `--validate-rendered` 后，会对每个渲染出的服务目录调用 `validate.sh`。
 - `validate_examples.sh` 和 `smoke_test.sh` 默认启用逐服务校验。
 - 设置 `SCENARIO_VALIDATE_RENDERED=0` 可让批量回归只做 scenario/compose 结构校验。
+
+Skill 入口文档说明：
+
+- `SKILL.md` 只保留入口规则、路由表和按需读取索引。
+- `doc_guard.sh` 会检查 `SKILL.md` 行数和关键入口，避免把 schema、栈手册、排障和命令细节重新塞回入口文件。
