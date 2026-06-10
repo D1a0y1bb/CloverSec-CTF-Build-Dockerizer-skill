@@ -367,6 +367,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd
 ```
 
+The command above validates scenario/compose structure only. Add `--validate-rendered` when each rendered service directory should also pass `validate.sh`.
+
 ### AWDP
 
 Use for attack + fix workflows where teams submit patch bundles instead of live SSH maintenance.
@@ -442,6 +444,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
+
+The command above validates scenario/compose structure only. Add `--validate-rendered` when each rendered service directory should also pass `validate.sh`.
 
 ## Platform Hard Contract and Boundaries
 

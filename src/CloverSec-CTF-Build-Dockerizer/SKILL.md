@@ -47,7 +47,7 @@ allowed-tools:
 ## 快速开始
 
 1. 进入示例目录。
-2. 用 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)+check 脚手架`。
+2. 用 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)`，在 check-service 场景生成 `check/check.sh` 脚手架。
 3. 用 `validate.sh` 做静态校验。
 4. 本地 `docker build`。
 5. 本地 `docker run ... /start.sh`。
@@ -361,7 +361,7 @@ AI 自动完成（按顺序）：
    - 采用 Step 1 中最后一版 `CONFIG PROPOSAL`。
 2. 用户回复 YAML：
    - 先执行 `parse_config_block.py` 从 stdin 解析为 `challenge.yaml`。
-3. 执行 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)+check 脚手架`。
+3. 执行 `render.py` 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)`，在 check-service 场景生成 `check/check.sh` 脚手架。
 4. 执行 `validate.sh` 做静态校验。
 
 推荐命令链：

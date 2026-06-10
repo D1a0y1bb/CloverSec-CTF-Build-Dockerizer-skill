@@ -367,6 +367,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd
 ```
 
+上記は scenario/compose 構造だけを検証します。各 service ディレクトリにも `validate.sh` を実行する場合は `--validate-rendered` を追加します。
+
 ### AWDP
 
 attack + fix 向け。直接 SSH 修正ではなく、パッチバンドル提出方式。
@@ -440,6 +442,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
+
+上記は scenario/compose 構造だけを検証します。各 service ディレクトリにも `validate.sh` を実行する場合は `--validate-rendered` を追加します。
 
 ## プラットフォーム硬契約と境界
 

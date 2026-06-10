@@ -1,4 +1,4 @@
-# Scenario Schema (v2.0.2)
+# Scenario Schema (v2.0.3-r1)
 
 `scenario.yaml` 用于描述**本地多服务编排与验证**，适合 AWD / AWDP / Vulhub-like 迁移场景。
 
@@ -231,3 +231,5 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
+
+上面的命令只校验 scenario/compose 结构；如需同时调用 `validate.sh` 检查每个服务目录，可追加 `--validate-rendered`。

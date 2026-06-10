@@ -2,7 +2,7 @@
 
 最小 PHP + Apache 示例，目标是验证：
 
-- `render.py` 可生成 Dockerfile/start.sh/flag
+- `render.py` 可生成 Dockerfile/start.sh/changeflag.sh/flag
 - `validate.sh` 无 ERROR
 - `docker run ... /start.sh` 可稳定前台运行 Apache
 

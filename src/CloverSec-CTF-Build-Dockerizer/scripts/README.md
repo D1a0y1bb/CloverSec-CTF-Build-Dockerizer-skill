@@ -7,7 +7,7 @@
 
 ## 脚本列表
 
-- `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh/flag
+- `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh/changeflag.sh/flag(可选)
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
 - `parse_config_block.py`：解析 CONFIG PROPOSAL YAML（stdin）并生成标准 challenge.yaml
 - `detect_stack.py`：输出技术栈侦测结果和置信度

@@ -7,8 +7,6 @@
   <span> · </span>
   <a href="README.ja.md"><strong>日本語</strong></a>
 </p>
-
-
 <p align="center">
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
@@ -219,6 +217,14 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd
 ```
 
+上面的命令只校验 scenario/compose 结构；如需同时调用 `validate.sh` 检查每个服务目录，可追加：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+  --output /tmp/scenario-awd \
+  --validate-rendered
+```
+
 ### AWDP
 
 适用：attack + fix双竞赛模式下的题目，选手需要提交补丁包后通过竞赛平台上传后自动执行。
@@ -286,6 +292,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
+
+上面的命令只校验 scenario/compose 结构；如需同时调用 `validate.sh` 检查每个服务目录，可追加 `--validate-rendered`。
 
 ## 平台硬契约与边界
 
