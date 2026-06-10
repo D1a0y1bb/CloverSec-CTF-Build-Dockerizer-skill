@@ -9,6 +9,48 @@ RENDER_PY="${SCRIPT_DIR}/render.py"
 RENDER_SCENARIO_PY="${SCRIPT_DIR}/render_scenario.py"
 VALIDATE_SCENARIO_PY="${SCRIPT_DIR}/validate_scenario.py"
 
+usage() {
+  cat <<'USAGE'
+用法：
+  bash scripts/validate_examples.sh [--output-root DIR] [--in-place]
+
+说明：
+  - 默认只读校验 examples：先复制到临时目录，再在临时目录渲染或校验。
+  - VALIDATE_EXAMPLES_READONLY=0 或 --in-place 可恢复旧行为，在 example 原目录写入缺失产物。
+  - KEEP_VALIDATE_EXAMPLES_ARTIFACTS=1 可保留临时输出目录。
+USAGE
+}
+
+OUTPUT_ROOT="${VALIDATE_EXAMPLES_OUTPUT_ROOT:-}"
+READONLY="${VALIDATE_EXAMPLES_READONLY:-1}"
+KEEP_ARTIFACTS="${KEEP_VALIDATE_EXAMPLES_ARTIFACTS:-0}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --output-root)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "[ERROR] --output-root 需要目录参数" >&2
+        exit 2
+      fi
+      OUTPUT_ROOT="$2"
+      shift 2
+      ;;
+    --in-place)
+      READONLY="0"
+      shift
+      ;;
+    *)
+      echo "[ERROR] 未知参数: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
 if [[ ! -d "$EXAMPLES_DIR" ]]; then
   echo "[ERROR] examples 目录不存在: $EXAMPLES_DIR" >&2
   exit 2
@@ -22,16 +64,45 @@ fi
 PASS_LIST=()
 FAIL_LIST=()
 SKIP_LIST=()
+TEMP_OUTPUT_ROOT=""
+
+if [[ "$READONLY" != "0" ]]; then
+  if [[ -z "$OUTPUT_ROOT" ]]; then
+    TEMP_OUTPUT_ROOT="$(mktemp -d "/tmp/ctf-validate-examples-XXXXXX")"
+    OUTPUT_ROOT="$TEMP_OUTPUT_ROOT"
+  else
+    mkdir -p "$OUTPUT_ROOT"
+  fi
+fi
+
+cleanup() {
+  if [[ -n "$TEMP_OUTPUT_ROOT" && "$KEEP_ARTIFACTS" != "1" ]]; then
+    rm -rf "$TEMP_OUTPUT_ROOT"
+  fi
+}
+trap cleanup EXIT
+
+copy_example_to_workdir() {
+  local src="$1"
+  local name="$2"
+  local dst="${OUTPUT_ROOT}/${name}"
+
+  rm -rf "$dst"
+  mkdir -p "$dst"
+  cp -a "$src/." "$dst/"
+  printf '%s\n' "$dst"
+}
 
 echo "开始回归校验 examples"
+echo "- READONLY: ${READONLY}"
+if [[ "$READONLY" != "0" ]]; then
+  echo "- OUTPUT_ROOT: ${OUTPUT_ROOT}"
+fi
 
 for dir in "$EXAMPLES_DIR"/*; do
   [[ -d "$dir" ]] || continue
 
   name="$(basename "$dir")"
-  dockerfile="${dir}/Dockerfile"
-  start_sh="${dir}/start.sh"
-  challenge_yaml="${dir}/challenge.yaml"
   scenario_yaml="${dir}/scenario.yaml"
 
   echo
@@ -39,23 +110,40 @@ for dir in "$EXAMPLES_DIR"/*; do
 
   if [[ -f "$scenario_yaml" ]]; then
     echo "[INFO] 检测到 scenario.yaml，执行 scenario 渲染与校验"
-    scenario_out="$(mktemp -d "/tmp/ctf-validate-scenario-${name}-XXXXXX")"
+    if [[ "$READONLY" != "0" && -n "$OUTPUT_ROOT" ]]; then
+      scenario_out="${OUTPUT_ROOT}/${name}-scenario"
+      rm -rf "$scenario_out"
+      mkdir -p "$scenario_out"
+    else
+      scenario_out="$(mktemp -d "/tmp/ctf-validate-scenario-${name}-XXXXXX")"
+    fi
     if python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out" && \
        python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out"; then
       PASS_LIST+=("$name:scenario")
     else
       FAIL_LIST+=("$name:scenario")
     fi
-    rm -rf "$scenario_out"
+    if [[ "$KEEP_ARTIFACTS" != "1" ]]; then
+      rm -rf "$scenario_out"
+    fi
     continue
   fi
+
+  workdir="$dir"
+  if [[ "$READONLY" != "0" ]]; then
+    workdir="$(copy_example_to_workdir "$dir" "$name")"
+  fi
+
+  dockerfile="${workdir}/Dockerfile"
+  start_sh="${workdir}/start.sh"
+  challenge_yaml="${workdir}/challenge.yaml"
 
   if [[ ! -f "$dockerfile" || ! -f "$start_sh" ]]; then
     if [[ -f "$challenge_yaml" && -f "$RENDER_PY" ]]; then
       echo "[INFO] 未检测到 Dockerfile/start.sh，尝试先渲染"
       log_file="/tmp/ctf_web_render_${name}_$$_${RANDOM}.log"
       : >"$log_file"
-      if python3 "$RENDER_PY" --config "$challenge_yaml" --output "$dir" --manual --reason "trusted examples regression" >"$log_file" 2>&1; then
+      if python3 "$RENDER_PY" --config "$challenge_yaml" --output "$workdir" --manual --reason "trusted examples regression" >"$log_file" 2>&1; then
         echo "[INFO] 渲染成功"
         rm -f "$log_file"
       else
