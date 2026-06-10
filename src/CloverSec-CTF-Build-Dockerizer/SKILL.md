@@ -131,7 +131,7 @@ Scenario：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py --config scenario.yaml --output /tmp/scenario
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py --scenario-dir /tmp/scenario --validate-rendered
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py --output /tmp/scenario --validate-rendered
 ```
 
 Bundle：

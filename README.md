@@ -11,79 +11,41 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.1.2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
 如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
 
-## V2.1.2 工作流门槛与发布检查
+## V2.2.0 重大更新
 
-v2.1.2 面向高风险输入治理、结构化错误和正式发布检查做增强，不改变既有 `challenge.yaml` 渲染契约。明确、低风险的配置仍可直接使用 `render.py`；混合输入、脏目录、高风险输入或 derive gates 为 true 时，默认进入 proposal 确认流程。
+v2.2.0 是 v2 系列能力整合版本，面向真实题目交付把 v2.0.3、v2.1.0、v2.1.1、v2.1.2 与 P1 迭代的主要成果合并到一个可验证入口。明确、低风险的 `challenge.yaml` 仍可直接渲染；混合输入、脏目录、高风险输入、compose/Vulhub-like、Linux-QEMU 缺资产和 cPanel/WHM 类输入会进入 proposal 确认流程。
 
-本次更新覆盖以下内容：
+本次重大更新覆盖：
 
-1、推荐入口：新增 `workflow.py intake/propose/accept/render/validate/status`，在题目目录维护 `.ctfbuild/session.json`、proposal 与 accepted proposal 状态文件，便于跟踪当前阶段和人工确认记录。
+1、交付场景：覆盖 Jeopardy/Web/Pwn/AI、RDG/AWD/AWDP/SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU。平台最终交付仍是单服务 `Dockerfile + start.sh + changeflag.sh`，Scenario/compose 只用于本地编排。
 
-2、输入审计：新增 `audit_input.py`，`derive_config.py` 输出同步包含 `input_audit`，会标记风险等级、建议路径、支持等级、验证等级和需要人工确认的发现项。
+2、Linux-QEMU：Docker 外层保持 `/start.sh` 平台入口，容器内启动 QEMU guest，引导 vulnerable kernel、initrd/rootfs 和 guest 服务。默认使用 TCG，KVM 只作为显式可选加速；动态 flag 可通过 `debugfs` 写入 guest rootfs。完整 boot、flag 注入、PoC 复现归入 release/manual 验证。
 
-3、Proposal Gate：`render.py` 对 mixed/dirty/high_risk 或 `gates=true` 的输入要求 accepted proposal。确有人工确认时可使用 `--manual --reason "..."`，原因会进入文本或 JSON 输出。
+3、工作流门槛：新增 `workflow.py` 和 `audit_input.py`，`derive_config.py` 输出 `input_audit`，mixed/dirty/high_risk 或 `gates=true` 默认要求 accepted proposal。确有人工确认时可用 `--manual --reason "..."`，原因会写入文本或 JSON 输出。
 
-4、结构化错误：`render.py --format json`、`validate_scenario.py --format json`、`validate.sh --json-summary <path>` 可输出机器可读结果，错误码覆盖 `CONFIG_*`、`RENDER_*`、`SCENARIO_*`、`LINUX_QEMU_*`、`RELEASE_*` 等命名空间。
+4、真实样例与回归：`validate_examples.sh` 默认只读，不再写回 `examples/`；Scenario 默认执行逐服务 `validate.sh`；`Build_test/` 升级为真实样例池，支持预期通过/预期失败匹配；Linux-QEMU release/manual 套件提供 preflight/static/build/boot/flag/full 分级检查。
 
-5、发布检查：`release_build.py --with-smoke` 会生成 `dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json`，记录 smoke、SkillHub metadata、CHANGELOG 当前版本标题、SBOM 来源和是否可发布。`publish_release.sh` 正式发布默认执行 smoke，跳过时必须提供原因。
+5、Bundle、Compose 与 check-service：新增固定 Bundle Recipe 原型、compose/Vulhub-like 导入草案、HTTP/TCP/Redis/MySQL/SSH check-service 骨架生成。带 `CHECK_REVIEW_REQUIRED` 的检查脚本会被 `validate.sh` 阻断，直到人工确认检查逻辑。
 
-## V2.1.1 发布修复
+6、结构化错误与发布检查：`render.py`、`validate_scenario.py`、`validate.sh` 支持 JSON/summary 输出；`release_build.py` 生成 release-status、SBOM 和依赖清单；`publish_release.sh` 正式发布默认执行 Docker smoke，跳过必须写原因。
 
-v2.1.1 是面向 SkillHub 发布与内部 Git 同步的修复版本，不改变 `linux-qemu` 渲染行为和题目配置契约。
+7、Skill 使用体验：`SKILL.md` 改为短入口和按需读取索引，长说明迁入 `orchestrated_workflow.md`、`stack_cookbook.md`、`validation_guide.md`、`schema.md`、`troubleshooting.md` 等操作文档；迁移审计资料不进入发布包。
 
-本次修复覆盖以下内容：
+8、Golden snapshot 衡量：P1.8 前基线 `29d470e`，P1.8 后基线 `108977d`。`SKILL.md` 从 1089 行降到 206 行，入口减少约 81.1%；字节数从 39254 降到 10204，减少约 74.0%。OK 门槛、5 项确认、低风险 Node proposal/render/validate、Linux-QEMU 缺资产审计均无退化；Bundle partial 严格 digest 和 Scenario Vulhub-like 严格 digest 从失败变为通过。报告与原始输出保存在 `开发文档（不同步）/golden_snapshot_p18/REPORT.md` 和 `开发文档（不同步）/golden_snapshot_p18/summary.json`，该目录不进入发布包。
 
-1、SkillHub slug：`SKILL.md` frontmatter `name` 统一为 `cloversec-ctf-build-dockerizer`，满足 SkillHub slug 校验规则。
-
-2、Git 同步质量检查：移除 `SKILL.md` 中会触发 `git diff --check` 失败的行尾空格，避免审核通过后在内部 Git 导出阶段失败。
-
-3、发布构建门禁：`scripts/release_build.sh` 增加 SkillHub slug 与行尾空格检查，发布包生成前即可发现同类问题。
-
-4、文档同步：三语 README、CHANGELOG、当前版本号和发布命令统一为 `v2.1.1`；`v2.1.0` 仍作为 `linux-qemu` 功能引入版本保留在历史说明中。
-
-## V2.1.0 linux-qemu 功能更新
-
-v2.1.0 面向 Linux kernel CVE / LPE 题目增加 `linux-qemu` 交付模型说明：外层仍是平台可导入的单 Docker 镜像，容器内由 `/start.sh` 拉起 QEMU，QEMU 再引导指定的 vulnerable kernel、initrd/rootfs 与 guest 服务。这样可以处理 Docker 共享宿主机内核导致的 Linux kernel 漏洞题无法直接复现的问题。
-
-本次版本说明覆盖以下内容：
-
-1、用途：`linux-qemu` 适用于 Copy Fail、Fragnesia 这类依赖特定 Linux kernel、内核模块、initramfs/rootfs 的 CVE 内核提权题。普通 Web 仿真、cPanel/WHM 仿真、业务服务漏洞仍使用 `python/node/php/java` 等常规栈。
-
-2、运行边界：平台启动入口不变，仍是 `docker run ... /start.sh`。漏洞内核只在 QEMU guest 内运行，Docker 容器本身不会替换宿主机内核。
-
-3、KVM/TCG：默认文档建议使用 TCG 作为可移植模式；如平台允许 `/dev/kvm`，可把 KVM 作为可选加速。不能默认依赖 `--privileged` 或自动暴露宿主设备。
-
-4、flag 注入：外层 `/flag` 仍按平台契约保留；内层 VM 如需读取 flag，`changeflag.sh` 必须把动态 flag 写入 guest rootfs，例如使用 `debugfs` 更新 `/root/flag`。只写容器 `/flag` 不等于 guest 内可读。
-
-5、实现范围：新增 `linux-qemu` 栈、`challenge.vm` schema、模板、轻量示例、渲染支持、CONFIG 解析、derive 提案、QEMU 专项校验与 smoke 可选策略。
-
-6、验证策略：默认验证只检查渲染目录、Docker 契约、QEMU 启动脚本、端口映射和 VM 资产存在；完整 QEMU boot、动态 flag 注入、PoC 复现应作为 release/manual 级验证，不放入轻量 CI 的默认路径。
-
-## V2.0.3 有哪些重大更新？
-
-1、重大更新：当前版本已经覆盖本仓库已实现并持续回归的主要交付场景，包括 Jeopardy、RDG、AWD、AWDP、SecOps、BaseUnit 以及 Vulhub-like 风格的本地场景编排，适合大多数实际竞赛与漏洞环境交付需求。
-
-2、优化适配内容：v2.0.3 是真正意义上的能力跃迁版本，把之前多个长期存在的痛点问题进行了系统性补全和扩展，核心配置模型全面升级为以 challenge.profile + challenge.defense 为主口径，同时保留了 challenge.rdg 的兼容输入方式，便于老用户平滑过渡。平台交付契约也做了标准化优化，现在每次构建都会稳定输出 Dockerfile + start.sh + changeflag.sh 这三个核心文件，确保下游使用一致性。新增加了 stack=secops 和 stack=baseunit 两种模式，其中 secops 专门支持安全运维类题目（本质上是类 RDG 的变种），baseunit 则针对只需要快速起一个带指定服务包的最小服务镜像的场景，特别适合部分岗位的轻量交付需求。
-
-3、渲染和校验流程优化：新增了 render_component.py、render_scenario.py、validate_scenario.py 这三个实用脚本，进一步完善了渲染和校验流程。针对 AWDP 模式，补丁契约也做了固定优化，现在统一采用 patch/src/（补丁源文件）+ patch/patch.sh（执行脚本）+ patch_bundle.tar.gz（最终补丁包）的结构，并且补丁包实现了确定性打包（相同输入永远产生相同输出，便于分发和校验）。在 scenario 层面，彻底补齐了 scenario-vulhub-like-basic，同时新增了从旧版 Vulhub 题目迁移到本项目的完整示例，迁移成本大幅降低。
-
-4、重要修复与改进包括：解决了 stacks.yaml 中容易出现的重复定义问题，load_stack_defs 遇到重复 id 时会直接抛出报错并附带 Warning，强制要求修正而不是默默容忍；整体代码进行了精简和优化，逻辑更清晰、体积更小；文档体验全面升级，默认 README.md 改为中文完整手册，全部重新润色表述，不再依赖 AI 自动生成；同时补充了英文和日文版本的 README，项目显得更加国际化；新增了针对每种模式的独立构建手册（分别覆盖 Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like），方便按需查阅；还增加了文件级目录索引、常见问题 FAQ、排障指南以及发布验收清单等实用内容，让新手和老手都能更快上手。
-
-5、维护说明：V2 之后会继续以兼容优先的方式迭代；如发现问题或契约错位，请及时提交 [Issues](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/issues)，也欢迎按现有模型继续做二次开发与适配。
-
-6、展示层更新：`v2.0.3-r1` 不调整渲染、校验、BaseUnit、Scenario 等运行时行为，主要完善 Skill 在 Codex UI 中的展示信息。当前 `SKILL.md` 顶部说明已经改为“`一句话定位 / 能力边界 / 适用场景 / 注意事项`”结构，同时新增 `src/CloverSec-CTF-Build-Dockerizer/agents/openai.yaml`，用于 Skill 卡片展示、短描述与默认提示词配置。
+9、发布同步修复：SkillHub slug、行尾空格、README/CHANGELOG/版本号、Git 导出质量检查纳入发布前门禁，减少审核通过后同步失败的情况。
 
 ## 核心能力矩阵
 
@@ -643,7 +605,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.1.2
+bash scripts/publish_release.sh --version v2.2.0
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

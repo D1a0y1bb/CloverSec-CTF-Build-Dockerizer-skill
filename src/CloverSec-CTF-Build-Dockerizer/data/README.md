@@ -1,4 +1,4 @@
-# data 目录（v2.1.2）
+# data 目录（v2.2.0）
 
 - `schema.md`：`challenge.yaml` v2 输入契约
 - `stacks.yaml`：12 栈默认值与探测规则（含 `linux-qemu`）

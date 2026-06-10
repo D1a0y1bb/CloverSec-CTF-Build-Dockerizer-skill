@@ -14,90 +14,32 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.1.2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.1.2 ワークフロー制御とリリース検査
+## v2.2.0 主な更新
 
-`v2.1.2` は、高リスク入力の扱い、構造化エラー、正式リリース前検査を強化する版です。既存の `challenge.yaml` レンダリング契約は変更しません。明確な低リスク設定は直接 render できますが、mixed/dirty/high_risk または `gates=true` の入力は既定で accepted proposal を要求します。
-
-この版の内容：
-
-- 推奨入口として `workflow.py intake/propose/accept/render/validate/status` を追加し、`.ctfbuild/session.json`、proposal、accepted proposal を管理。
-- `audit_input.py` と `derive_config.py` が `input_audit` を出力し、risk level、recommended path、support level、verification level、manual requirement、findings を確認可能。
-- `render.py` が Proposal Gate を実装し、必要な場合は proposal acceptance まで render を拒否。人工確認済みの場合は `--manual --reason "..."` を使用可能。
-- `render.py --format json`、`validate_scenario.py --format json`、`validate.sh --json-summary <path>` が機械可読の結果を出力。
-- `release_build.py --with-smoke` が release status を生成し、`publish_release.sh` は既定で smoke を実行。省略する場合は `--skip-smoke-with-reason "..."` が必要。
-
-## v2.1.1 修正版
-
-`v2.1.1` は SkillHub 公開と内部 Git export のための修正版です。`linux-qemu` のレンダリング動作や challenge 設定契約は変更しません。
+`v2.2.0` は V2 系列の配布機能を 1 つの検証可能なワークフローへ統合します。明確な低リスク `challenge.yaml` は従来通り直接 render できます。mixed、dirty、high_risk、compose/Vulhub-like、Linux-QEMU のアセット不足、cPanel/WHM 系入力は proposal confirmation を要求します。
 
 この版の内容：
 
-- SkillHub slug 対応：`SKILL.md` frontmatter の `name` を `cloversec-ctf-build-dockerizer` に統一。
-- Git export 品質検査対応：`git diff --check` で失敗する `SKILL.md` の行末空白を削除。
-- リリース検査強化：`scripts/release_build.sh` が packaging 前に SkillHub slug と行末空白を検査。
-- ドキュメント同期：README、CHANGELOG、現在バージョン表示、公開コマンドを `v2.1.1` に統一。`v2.1.0` は `linux-qemu` 導入版として履歴に残します。
-
-## v2.1.0 更新ハイライト
-
-### v2.1.0：Docker 内 QEMU による Linux kernel CVE 配布
-
-`v2.1.0` では、特定の脆弱な Linux kernel を必要とする問題向けに `linux-qemu` スタックを追加しました。
-
-- プラットフォームに渡す成果物は引き続き Docker イメージで、`/start.sh` がコンテナ内で QEMU を起動します。
-- QEMU が指定された kernel、initrd、rootfs を起動するため、Linux kernel LPE 問題はホスト kernel に依存しません。
-- `challenge.vm` で VM アセット、アクセラレータ、guest 内 flag パス、guest port forwarding を定義できます。
-- レンダリングでは QEMU 用の `Dockerfile`、`start.sh`、`changeflag.sh` を生成します。
-- 検証では QEMU 起動方式、VM アセット、hostfwd/EXPOSE 整合、KVM 要件、guest flag 注入の前提を確認します。
-- `smoke_test.sh` は `linux-qemu` を既定で `validate-only` として扱います。サンプル VM ファイルは placeholder なので、完全 boot と exploit 検証は実アセットを使った release/manual 検証で実施します。
-
-### v1.5.0：ガバナンス基線とランタイム互換
-
-`v1.5.0` では保守性を重視した基盤を整備しました。
-
-- Python 主導のガバナンススクリプト群を整備：`doc_guard.py`、`release_build.py`、`generate_sbom.py`、`sync.py`、`publish_guard.py`。
-- `runtime_profiles.yaml` を導入し、`derive_config.py` が runtime 候補と根拠を出力。
-- プラットフォーム契約ドキュメントと実装挙動を整合。
-
-### v2.0.0：能力面の本格拡張
-
-`v2.0.0` は V2 アーキテクチャへの移行点です。
-
-- 主入力を `challenge.profile + challenge.defense` に統一し、`challenge.rdg` は互換入力として維持。
-- ハード契約を強化し、常に `Dockerfile + start.sh + changeflag.sh` を出力。
-- 新スタック `stack=secops`、`stack=baseunit` を追加。
-- `render_component.py`、`render_scenario.py`、`validate_scenario.py` を追加。
-- AWDP 固定パッチ契約 `patch/src/ + patch/patch.sh + patch_bundle.tar.gz` を実装。
-
-### v2.0.1：収束パッチと再現性向上
-
-`v2.0.1` は最終収束を目的に実施しました。
-
-- `scenario-vulhub-like-basic` を追加し、Vulhub-like 移行例を補完。
-- `stacks.yaml` 重複定義を解消し、重複 ID を即時エラー化。
-- AWDP パッチバンドルを決定的生成に変更し、不要な差分を削減。
-
-### v2.0.3：中国語デフォルト化とドキュメント全面強化
-
-`v2.0.3` は実行時挙動を変えず、運用文書の品質を大幅に強化します。
-
-- `README.md` を中国語デフォルト完全版に変更。
-- `README.en.md` と `README.ja.md` を完全等価の実運用マニュアルへ拡張。
-- AI Coding 実践章を追加（Codex、Cursor、Trae、Claude Code、Copilot Chat、Aider）。
-- モード別構築手順（Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like）を追加。
-- ファイル単位ディレクトリ索引、FAQ、トラブルシュート、リリースチェックリストを追加。
-- 外部「参考資料」章を廃止し、リポジトリ内ナビゲーションを中心化。
+- Jeopardy/Web/Pwn/AI、RDG/AWD/AWDP/SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU を対象化。プラットフォーム配布物は引き続き単一サービスの `Dockerfile + start.sh + changeflag.sh` で、Scenario/compose はローカル編成用途です。
+- Linux-QEMU は Docker を外側の成果物、QEMU を guest runtime として扱います。TCG が可搬既定、KVM は明示指定、guest flag 注入は `debugfs` で検証できます。
+- `workflow.py`、`audit_input.py`、`derive_config.py` の `input_audit`、accepted proposal、`--reason` 必須の manual override により、高リスク入力の判断を記録します。
+- `validate_examples.sh` は既定で read-only、Scenario は既定で各サービスの `validate.sh` を実行。`Build_test/` は実例ベースのサンプルプールになり、Linux-QEMU release/manual 検証は preflight/static/build/boot/flag/full を提供します。
+- Bundle Recipe prototype、compose/Vulhub-like import draft、HTTP/TCP/Redis/MySQL/SSH check-service stub generator を追加。`CHECK_REVIEW_REQUIRED` が残る check は公開前検証で失敗します。
+- render/validate 系スクリプトの JSON/summary 出力、release-status、SBOM/deps assets、smoke 既定の publish を追加。
+- `SKILL.md` は短い入口と progressive disclosure index に変更。旧長文入口の内容は `orchestrated_workflow.md`、`stack_cookbook.md`、`validation_guide.md`、`schema.md`、`troubleshooting.md` などの運用文書へ移動し、移行監査ファイルは公開パッケージに含めません。
+- Golden snapshot：P1.8 前 `29d470e`、P1.8 後 `108977d`。`SKILL.md` は 1089 行から 206 行、39254 bytes から 10204 bytes へ削減。OK confirmation、5 required confirmation items、low-risk Node proposal/render/validate、Linux-QEMU missing-asset audit は変化なし。Bundle partial と Scenario Vulhub-like の strict digest は失敗から成功へ改善。レポートは `开发文档（不同步）/golden_snapshot_p18/` に保管し、公開 release package には含めません。
 
 ## コア機能マトリクス
 
@@ -721,7 +663,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.1.2
+bash scripts/publish_release.sh --version v2.2.0
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

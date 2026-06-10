@@ -15,25 +15,21 @@ ALL_READMES = FULL_READMES
 
 README_REQUIRED_SECTIONS = {
     "README.md": (
-        r"^## V2\.1\.2 工作流门槛与发布检查\s*$",
-        r"^## V2\.1\.0 linux-qemu 功能更新\s*$",
-        r"^## V2\.0\.3 有哪些重大更新？\s*$",
+        r"^## V2\.2\.0 重大更新\s*$",
         r"^## 竞赛模式构建分类\s*$",
         r"^## 文件目录索引\s*$",
         r"^## FAQ 与常见排障\s*$",
         r"^## 维护、贡献与发布\s*$",
     ),
     "README.en.md": (
-        r"^## v2\.1\.2 Workflow Gates and Release Checks\s*$",
-        r"^## v2\.1\.0 Highlights\s*$",
+        r"^## v2\.2\.0 Major Updates\s*$",
         r"^## AI Coding Playbook\s*$",
         r"^## Competition Mode Build Guide\s*$",
         r"^## File-Level Directory Index\s*$",
         r"^## FAQ and Troubleshooting\s*$",
     ),
     "README.ja.md": (
-        r"^## v2\.1\.2 ワークフロー制御とリリース検査\s*$",
-        r"^## v2\.1\.0 更新ハイライト\s*$",
+        r"^## v2\.2\.0 主な更新\s*$",
         r"^## AI コーディング実践ガイド\s*$",
         r"^## 競技モード構築ガイド\s*$",
         r"^## ファイル単位ディレクトリ索引\s*$",

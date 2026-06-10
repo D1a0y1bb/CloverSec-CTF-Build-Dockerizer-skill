@@ -1,4 +1,4 @@
-# 校验与发布门禁指南（v2.1.2）
+# 校验与发布门禁指南（v2.2.0）
 
 本文档承接 `SKILL.md` 中迁出的校验细节。入口文件只保留门槛，具体规则按需读取本文档。
 
@@ -34,7 +34,7 @@ Scenario：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
-  --scenario-dir /tmp/scenario \
+  --output /tmp/scenario \
   --validate-rendered
 ```
 

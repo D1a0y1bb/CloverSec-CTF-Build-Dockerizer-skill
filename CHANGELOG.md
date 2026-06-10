@@ -2,7 +2,7 @@
 
 本项目的重要变更都会记录在本文件中。
 
-## Unreleased
+## v2.2.0 - 2026-06-10
 
 ### 新增
 
@@ -27,6 +27,14 @@
 - `validate_examples.sh` 识别 `bundle.yaml`，在临时目录渲染并校验 Bundle 示例，保持 examples 只读。
 - `validate_examples.sh` 识别 compose 示例，默认校验导入后的可渲染 Scenario 子集。
 - `validate.sh` 将 `CHECK_REVIEW_REQUIRED` 视为未确认 check-service 标记，继续阻断发布。
+
+### 验证
+
+- Golden snapshot 对比基线：P1.8 前 `29d470e`，P1.8 后 `108977d`。
+- `SKILL.md` 从 1089 行降到 206 行，入口减少约 81.1%；字节数从 39254 降到 10204，减少约 74.0%。
+- OK 门槛、5 项确认、低风险 Node proposal/render/validate、Linux-QEMU 缺资产审计均保持一致。
+- Bundle partial 严格 digest 和 Scenario Vulhub-like 严格 digest 从失败变为通过。
+- 报告保存在 `开发文档（不同步）/golden_snapshot_p18/REPORT.md` 与 `开发文档（不同步）/golden_snapshot_p18/summary.json`；该目录不进入发布包。
 
 ## v2.1.2 - 2026-06-10
 

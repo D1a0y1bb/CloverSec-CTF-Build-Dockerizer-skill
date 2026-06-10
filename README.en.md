@@ -14,90 +14,32 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.1.2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.1.2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.1.2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.1.2 Workflow Gates and Release Checks
+## v2.2.0 Major Updates
 
-`v2.1.2` adds guardrails for high-risk input handling, structured errors, and formal release checks. It does not change the existing `challenge.yaml` render contract. Clear low-risk configurations can still render directly; mixed, dirty, high-risk, or `gates=true` inputs require an accepted proposal by default.
-
-This release covers:
-
-- Recommended workflow entrypoint: `workflow.py intake/propose/accept/render/validate/status`, with `.ctfbuild/session.json`, proposal, and accepted proposal state files.
-- Input audit: `audit_input.py` and `derive_config.py` now expose `input_audit` with risk level, recommended path, support level, verification level, manual requirement, and findings.
-- Proposal Gate: `render.py` blocks risky inputs until proposal acceptance. Manual override is still available with `--manual --reason "..."`.
-- Structured results: `render.py --format json`, `validate_scenario.py --format json`, and `validate.sh --json-summary <path>` provide stable machine-readable outputs.
-- Release checks: `release_build.py --with-smoke` writes `dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json`; `publish_release.sh` runs smoke by default and requires `--skip-smoke-with-reason "..."` to skip it.
-
-## v2.1.1 Release Fixes
-
-`v2.1.1` is a SkillHub publishing and internal Git export fix release. It does not change `linux-qemu` rendering behavior or the challenge configuration contract.
+`v2.2.0` consolidates the V2 delivery line into one verifiable workflow. It keeps direct rendering for clear low-risk `challenge.yaml` files, while mixed, dirty, high-risk, compose/Vulhub-like, Linux-QEMU missing-asset, and cPanel/WHM-style inputs go through proposal confirmation.
 
 This release covers:
 
-- SkillHub slug compliance: `SKILL.md` frontmatter `name` is now `cloversec-ctf-build-dockerizer`.
-- Git export quality checks: trailing whitespace was removed from `SKILL.md` to satisfy `git diff --check`.
-- Release guardrails: `scripts/release_build.sh` now checks the SkillHub slug and trailing whitespace before packaging.
-- Documentation alignment: README files, CHANGELOG, current version markers, and publish commands now point to `v2.1.1`; `v2.1.0` remains documented as the version that introduced `linux-qemu`.
-
-## v2.1.0 Highlights
-
-### v2.1.0: Linux kernel CVE delivery through QEMU inside Docker
-
-`v2.1.0` adds the `linux-qemu` stack for challenges that need a specific vulnerable Linux kernel:
-
-- Docker remains the platform artifact; `/start.sh` launches QEMU inside the container.
-- QEMU boots the provided kernel, initrd, and rootfs, so Linux kernel LPE challenges no longer depend on the host kernel.
-- `challenge.vm` now describes VM assets, accelerator mode, guest flag path, and guest port forwarding.
-- Rendering emits a QEMU-oriented `Dockerfile`, `start.sh`, and `changeflag.sh`.
-- Validation checks QEMU startup behavior, VM assets, hostfwd/EXPOSE alignment, KVM requirements, and guest flag injection prerequisites.
-- `smoke_test.sh` keeps `linux-qemu` in `validate-only` mode by default, because the sample VM files are placeholders. Full boot and exploit verification stay as release/manual checks for real challenge assets.
-
-### v1.5.0: Governance baseline and runtime compatibility
-
-`v1.5.0` moved the project from "works on my machine" to maintainable release engineering:
-
-- Python-first governance scripts: `doc_guard.py`, `release_build.py`, `generate_sbom.py`, `sync.py`, `publish_guard.py`.
-- Runtime profile source `runtime_profiles.yaml`, plus runtime evidence from `derive_config.py`.
-- Better alignment between platform contract docs and implementation behavior.
-
-### v2.0.0: Major capability expansion
-
-`v2.0.0` introduced the V2 architecture:
-
-- Primary config model `challenge.profile + challenge.defense`, with legacy `challenge.rdg` compatibility.
-- Hard contract upgrade: every render emits `Dockerfile + start.sh + changeflag.sh`.
-- New stacks: `stack=secops`, `stack=baseunit`.
-- New orchestration entrypoints: `render_component.py`, `render_scenario.py`, `validate_scenario.py`.
-- AWDP fixed patch contract: `patch/src/ + patch/patch.sh + patch_bundle.tar.gz`.
-
-### v2.0.1: Closing gaps and reproducibility
-
-`v2.0.1` focused on final-mile robustness:
-
-- Added `scenario-vulhub-like-basic` migration example.
-- Removed duplicate stack definitions and made duplicate IDs fail fast.
-- AWDP patch bundle switched to deterministic packaging.
-
-### v2.0.3: Chinese default and full documentation expansion
-
-`v2.0.3` is documentation-first, without runtime behavior changes:
-
-- `README.md` is now the full Chinese default manual.
-- `README.en.md` and `README.ja.md` are now full equivalent manuals.
-- Added AI coding playbooks (Codex, Cursor, Trae, Claude Code, Copilot Chat, Aider).
-- Added mode-by-mode build guide (Jeopardy / RDG / AWD / AWDP / SecOps / BaseUnit / Vulhub-like).
-- Added file-level directory index, FAQ, troubleshooting, and release checklist.
-- Removed external "References" section and kept navigation fully repository-driven.
+- Delivery coverage for Jeopardy/Web/Pwn/AI, RDG/AWD/AWDP/SecOps, BaseUnit, Scenario/Vulhub-like, Bundle/Recipe, and Linux-QEMU. Platform delivery remains a single-service `Dockerfile + start.sh + changeflag.sh` directory; Scenario/compose stays local orchestration.
+- Linux-QEMU delivery with Docker as the outer artifact and QEMU as the guest runtime. TCG is the portable default, KVM is explicit opt-in, and guest flag injection can be validated through `debugfs`.
+- Workflow gates through `workflow.py`, `audit_input.py`, `derive_config.py` `input_audit`, accepted proposals, and manual overrides that require `--reason`.
+- Read-only example regression, default per-service Scenario validation, a real `Build_test/` sample pool, and Linux-QEMU release/manual checks with preflight/static/build/boot/flag/full modes.
+- Bundle Recipe prototypes, compose/Vulhub-like import drafts, and HTTP/TCP/Redis/MySQL/SSH check-service stub generation. `CHECK_REVIEW_REQUIRED` blocks release until the check logic is reviewed.
+- Structured JSON/summary output from render and validation scripts, release status files, SBOM/dependency assets, and smoke-by-default publishing.
+- Short `SKILL.md` entrypoint plus progressive disclosure docs. The previous long entry content now lives in operational docs such as `orchestrated_workflow.md`, `stack_cookbook.md`, `validation_guide.md`, `schema.md`, and `troubleshooting.md`; migration audit files are excluded from release packages.
+- Golden snapshot evidence: baseline `29d470e` before P1.8 and `108977d` after P1.8. `SKILL.md` dropped from 1089 to 206 lines and from 39254 to 10204 bytes, while OK confirmation, the five required confirmation items, low-risk Node proposal/render/validate, and Linux-QEMU missing-asset audit stayed unchanged. Strict digest checks improved for Bundle partial and Scenario Vulhub-like cases. Reports are kept under `开发文档（不同步）/golden_snapshot_p18/` and are not shipped in the public release package.
 
 ## Core Capability Matrix
 
@@ -722,7 +664,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.1.2
+bash scripts/publish_release.sh --version v2.2.0
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

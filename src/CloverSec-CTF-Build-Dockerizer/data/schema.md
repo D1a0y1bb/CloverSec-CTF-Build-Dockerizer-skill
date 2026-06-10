@@ -1,4 +1,4 @@
-# challenge.yaml Schema (v2.1.2)
+# challenge.yaml Schema (v2.2.0)
 
 本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入契约。
 
