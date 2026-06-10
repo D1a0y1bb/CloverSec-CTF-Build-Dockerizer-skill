@@ -14,11 +14,14 @@
 - 新增 compose import draft：`import_compose.py` 输出 `scenario.draft.yaml`、`scenario.renderable.yaml` 与 `import-report.json`，并提供导入示例。
 - 新增 `generate_check_stub.py`，支持 HTTP/TCP/Redis/MySQL/SSH check-service 可编辑骨架。
 - 新增 `validation_guide.md`，承接 `SKILL.md` 中迁出的 validate、check-service、Linux-QEMU 静态校验和发布前检查细节。
+- 新增 `orchestrated_workflow.md`，承接旧版 `SKILL.md` 的 CONFIG PROPOSAL、OK 门槛和 5 项确认协议。
+- 新增 `skill_content_migration_map.md`，逐段记录旧版长 `SKILL.md` 内容迁移位置。
 
 ### 变更
 
 - `SKILL.md` 改为渐进加载入口，只保留任务定位、首选工作流、门槛规则、输入路由和按需读取索引。
 - `doc_guard.py` 增加 `SKILL.md` 行数、关键入口和大段迁出内容检查，防止入口文件再次膨胀。
+- `stack_cookbook.md` 补充旧版 `SKILL.md` 的 12 栈最小模板库索引，`validation_guide.md` 补充模板变量速查。
 - `validate.sh` 的 Linux-QEMU debugfs 检测支持 `sif` 别名，避免真实 `changeflag.sh` 被误判为没有写入 guest rootfs。
 - `validate_examples.sh` 识别 `bundle.yaml`，在临时目录渲染并校验 Bundle 示例，保持 examples 只读。
 - `validate_examples.sh` 识别 compose 示例，默认校验导入后的可渲染 Scenario 子集。

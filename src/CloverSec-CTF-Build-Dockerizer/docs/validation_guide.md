@@ -176,3 +176,34 @@ dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json
 ```
 
 该文件记录 smoke、SkillHub metadata、CHANGELOG 当前版本标题、SBOM 来源和是否可发布。
+
+## 9. 模板变量速查
+
+本节承接旧版 `SKILL.md` 的统一模板变量清单。实际渲染逻辑以 `render.py`、`utils.py` 和 `templates/` 为准。
+
+通用变量：
+
+- `BASE_IMAGE`
+- `WORKDIR`
+- `APP_SRC`
+- `APP_DST`
+- `EXPOSE_PORTS`
+- `START_CMD`
+- `RUNTIME_DEPS_INSTALL`
+- `COPY_APP`
+- `ENV_BLOCK`
+- `NPM_INSTALL_BLOCK`
+- `PIP_REQUIREMENTS_BLOCK`
+- `HEALTHCHECK_BLOCK`
+- `STACK_FLAG_BLOCK`
+
+Linux-QEMU 变量：
+
+- `VM_QEMU_BINARY`
+- `VM_ACCELERATOR`
+- `VM_KERNEL`
+- `VM_INITRD`
+- `VM_ROOTFS`
+- `VM_NETDEV`
+- `VM_GUEST_FLAG_PATH`
+- `VM_FLAG_INJECTION`

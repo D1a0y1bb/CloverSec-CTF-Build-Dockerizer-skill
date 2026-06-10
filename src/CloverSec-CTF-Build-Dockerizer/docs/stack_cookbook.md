@@ -24,6 +24,111 @@
 - `linux-qemu`
 - `baseunit`
 
+## 12 栈最小模板库索引
+
+本节承接旧版 `SKILL.md` 中的栈模板索引。更详细的模板实现以 `templates/<stack>/` 和 `data/stacks.yaml` 为准。
+
+### Node
+
+- 适用：Node 原生 HTTP、Express、Koa、Fastify。
+- 默认端口：`3000`。
+- 默认启动命令：`node server.js`。
+- 可选启动：`npm run start`、`pm2-runtime app.js`。
+- 模板：`templates/node/Dockerfile.tpl`、`templates/node/start.sh.tpl`。
+
+### PHP (Apache)
+
+- 适用：传统 PHP 站点和轻量 PHP 框架。
+- 默认端口：`80`。
+- 默认启动命令：`apache2-foreground`。
+- php-fpm 分支不作为默认渲染路径。
+- 模板：`templates/php/Dockerfile.tpl`、`templates/php/start.sh.tpl`。
+
+### Python
+
+- 适用：Flask、FastAPI、Django、自写 HTTP。
+- 默认端口：`5000`。
+- 默认启动命令：`python app.py`。
+- 可选启动：`gunicorn -b 0.0.0.0:5000 app:app`、`uvicorn app:app --host 0.0.0.0 --port 5000`。
+- 模板：`templates/python/Dockerfile.tpl`、`templates/python/start.sh.tpl`。
+
+### Java (JAR)
+
+- 适用：已有可运行 `app.jar`。
+- 默认端口：`8080`。
+- 默认启动命令：`java -jar app.jar`。
+- 可选启动：`java -Xms128m -Xmx256m -jar app.jar`。
+- 模板：`templates/java/Dockerfile.tpl`、`templates/java/start.sh.tpl`。
+
+### Tomcat (WAR)
+
+- 适用：已有 WAR 包部署。
+- 默认端口：`8080`。
+- 默认启动命令：`catalina.sh run`。
+- 多 WAR 场景可复制整个 `webapps` 目录。
+- 模板：`templates/tomcat/Dockerfile.tpl`、`templates/tomcat/start.sh.tpl`。
+
+### LAMP
+
+- 适用：同容器内需要 Apache + PHP + MariaDB。
+- 默认端口：`80`。
+- 默认启动命令：`apache2ctl -D FOREGROUND`。
+- 最小启动范式：后台启动 MariaDB，前台 `exec apache2ctl -D FOREGROUND`。
+- 可用 `MYSQL_INIT_SQL_B64` 注入初始化 SQL。
+- 模板：`templates/lamp/Dockerfile.tpl`、`templates/lamp/start.sh.tpl`。
+
+### Pwn (xinetd/tcpserver/socat)
+
+- 适用：Jeopardy 二进制远程交互题。
+- 默认端口：`10000`。
+- 默认启动命令：`/usr/sbin/xinetd -dontfork`。
+- Alpine 可回退 `tcpserver`，缺失时回退 `socat`。
+- 可在 `start.sh` 启动前将 `/flag` 同步到 `/home/ctf/flag`。
+- 模板：`templates/pwn/Dockerfile.tpl`、`templates/pwn/start.sh.tpl`。
+
+### Linux-QEMU
+
+- 适用：Linux kernel CVE/LPE 题目。
+- 默认端口：`22`。
+- 默认 QEMU binary：`qemu-system-x86_64`。
+- 默认加速器：`tcg`。
+- 默认 guest flag 路径：`/root/flag`。
+- QEMU 参数由 `challenge.vm` 结构化生成。
+- 可选：`accelerator=auto`、`asset_mode=build-script`、`flag_injection=none`。
+- 模板：`templates/linux-qemu/Dockerfile.tpl`、`templates/linux-qemu/start.sh.tpl`。
+
+### AI (CPU)
+
+- 适用：CTF AI Web 题目和 CPU 推理场景。
+- 默认端口：`5000`。
+- 默认启动命令：`gunicorn -w 1 --threads 1 -b 0.0.0.0:5000 app:app`。
+- 需要限制 `OPENBLAS/OMP/MKL` 等线程数。
+- 示例：`ai-basic`、`ai-transformers-basic`。
+- 模板：`templates/ai/Dockerfile.tpl`、`templates/ai/start.sh.tpl`。
+
+### RDG (Docker)
+
+- 适用：防御修复型 Docker 题目，通常使用 check-service 判定。
+- 默认端口：业务端口 + `22` + `8022`。
+- 双通道启用时，后台拉起 `sshd` 和 `ttyd`，前台 `exec` 业务主服务。
+- `include_flag_artifact=false` 可用于仅 check-service 判定。
+- `check_enabled=true` + `check_script_path` 会启用 check 脚本门禁。
+- 模板：`templates/rdg/Dockerfile.tpl`、`templates/rdg/start.sh.tpl`。
+
+### SecOps
+
+- 适用：安全运维类配置加固题，例如 nginx、redis、mysql、ssh、tomcat。
+- 推荐：`stack=secops` + `profile=secops`。
+- 判定方式：`scoring_mode=check_service` + `check/check.sh`。
+- 模板：`templates/secops/Dockerfile.tpl`、`templates/secops/start.sh.tpl`。
+
+### BaseUnit
+
+- 适用：指定服务包/指定版本的纯基座最小镜像单元。
+- 推荐通过 `render_component.py` 按 `component+variant` 生成。
+- 首批组件：`mysql/redis/sshd/ttyd/apache/nginx/tomcat/php-fpm/vsftpd/weblogic`。
+- 模板：`templates/baseunit/Dockerfile.tpl`、`templates/baseunit/start.sh.tpl`。
+
 ## 通用最小片段
 
 ```yaml

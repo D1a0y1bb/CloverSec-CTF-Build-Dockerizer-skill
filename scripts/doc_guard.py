@@ -214,7 +214,9 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
         "CONFIG PROPOSAL",
         "回复 `OK`",
         "默认确认项固定为 5 个",
+        "docs/orchestrated_workflow.md",
         "docs/beginner_guide.md",
+        "docs/skill_content_migration_map.md",
         "parse_config_block.py",
     )
     for term in required_terms:

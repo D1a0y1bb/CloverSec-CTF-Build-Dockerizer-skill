@@ -120,6 +120,8 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 4. 启动命令
 5. `app_src -> app_dst`
 
+完整 `CONFIG PROPOSAL` 模板、OK 门槛、gates 处理和失败保护规则见 `src/CloverSec-CTF-Build-Dockerizer/docs/orchestrated_workflow.md`。
+
 ## 6. 真实业务场景怎么触发
 
 | 场景 | 触发语句（可直接发给 AI） | 期望输出 |

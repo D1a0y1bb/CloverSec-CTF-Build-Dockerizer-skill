@@ -595,8 +595,10 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 |---|---|
 | `architecture_overview.md` | 架构总览 |
 | `platform_contract.md` | 平台硬契约说明 |
+| `orchestrated_workflow.md` | CONFIG PROPOSAL、OK 门槛和 5 项确认协议 |
 | `stack_cookbook.md` | 各栈构建建议 |
 | `validation_guide.md` | 校验规则、check-service 门禁与发布前检查 |
+| `skill_content_migration_map.md` | P1.8 后旧版长 `SKILL.md` 内容迁移映射 |
 | `directory_guide.md` | 目录设计说明 |
 | `troubleshooting.md` | 常见故障排查 |
 | `beginner_guide.md` | 新手入门流程 |

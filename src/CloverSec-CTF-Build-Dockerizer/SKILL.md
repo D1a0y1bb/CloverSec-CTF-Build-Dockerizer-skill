@@ -115,7 +115,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 4. 启动命令
 5. `app_src` -> `app_dst`
 
-详细提案格式读取 `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`，解析使用 `parse_config_block.py`。
+详细提案格式读取 `src/CloverSec-CTF-Build-Dockerizer/docs/orchestrated_workflow.md`，新手说明读取 `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`，解析使用 `parse_config_block.py`。
 
 ## 运行顺序
 
@@ -158,13 +158,14 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type
 | 栈选择、运行时档位、Linux-QEMU 配置示例 | `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
 | 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md` |
 | 校验项、错误码、check-service 门禁 | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
-| 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md` |
+| 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `src/CloverSec-CTF-Build-Dockerizer/docs/orchestrated_workflow.md` |
 | 脚本入口和常用命令 | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md` |
 | Scenario schema 和 compose import 边界 | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
 | Bundle/Recipe 边界 | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md` |
 | Linux-QEMU release/manual 验证 | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
 | 常见 render/validate/build/run 问题 | `src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
 | 目录职责 | `src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md` |
+| 旧版长入口内容迁移位置 | `src/CloverSec-CTF-Build-Dockerizer/docs/skill_content_migration_map.md` |
 
 读取原则：只读当前任务需要的文件，避免把 schema、栈手册和排障手册一次性全部读入上下文。
 
