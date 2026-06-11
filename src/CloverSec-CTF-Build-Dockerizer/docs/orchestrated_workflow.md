@@ -156,6 +156,15 @@ bash scripts/validate.sh <project_dir>/Dockerfile <project_dir>/start.sh <projec
 
 如果 validate 出现 ERROR，Agent 必须自动修复并重跑 validate，直到 `ERROR=0` 或明确说明无法自动修复。只有 WARN 时可以继续，但必须说明影响。
 
+如果确认后又手工修改了 `challenge.yaml`，不要直接改用 `render.py --manual`。应先登记当前配置：
+
+```bash
+python3 scripts/workflow.py accept --project-dir <project_dir> --refresh --notes "reviewed manual edits"
+python3 scripts/workflow.py render --project-dir <project_dir>
+```
+
+这样会更新 accepted hash，不会重新生成 `challenge.yaml`，也能保留 proposal gate 记录。
+
 ## 6. Step 3：交付说明
 
 交付时必须说明：

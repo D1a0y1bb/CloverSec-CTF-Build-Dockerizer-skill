@@ -98,7 +98,8 @@
 - 默认端口：`10000`。
 - 默认启动命令：`/usr/sbin/xinetd -dontfork`。
 - Alpine 可回退 `tcpserver`，缺失时回退 `socat`。
-- 可在 `start.sh` 启动前将 `/flag` 同步到 `/home/ctf/flag`。
+- 默认建议设置 `platform.docker_platform: linux/amd64`，避免在 arm64 主机上生成架构不符合原题的镜像。
+- 可通过 `flag.sync_paths` 把平台动态 flag 同步到题目业务路径，例如 `/home/ctf/flag`、`/home/ctf/flag0`、`/home/ctf/flag1`。
 - 模板：`templates/pwn/Dockerfile.tpl`、`templates/pwn/start.sh.tpl`。
 
 ### Linux-QEMU
@@ -258,4 +259,4 @@ profile 为 `awdp` 的服务必须包含：
 
 - 推断：`derive_config.py`
 - 显式选择：`render.py --runtime-profile <id>`
-- 优先级：`--base-image > --runtime-profile > challenge.base_image > 推断`
+- 优先级：`--base-image > CLI --runtime-profile > challenge.base_image > challenge.runtime_profile > 推断`

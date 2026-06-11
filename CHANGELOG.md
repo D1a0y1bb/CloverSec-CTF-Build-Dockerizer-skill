@@ -4,16 +4,35 @@
 
 ## Unreleased
 
+## v2.2.0-r3 - 2026-06-11
+
 ### 变更
 
 - Compose/Vulhub-like 导入增强：draft 保留 ports、environment、depends_on、volumes、networks、healthcheck、command/entrypoint 等线索；renderable subset 支持 image tag/digest 别名匹配、host/container 端口带入、environment 带入和 `depends_on` 写回。
 - check-service 生成器增强：HTTP 支持状态码、正向/反向文本和 header 断言；Redis 支持 key/value 检查；MySQL 支持 query 结果断言；SSH 支持 banner 断言。
 - `smoke_test.sh` 增加可选 `smoke_assert.yaml` 业务断言，支持 HTTP、TCP 和容器内命令；已有 `smoke_assert.sh` 保持兼容。
 - Linux-QEMU 样例维护规则细化：Fragnesia 继续作为外部真实资产样例；Copy Fail 记录为候选负例，缺资产 manifest、boot、flag readback 与 PoC 证据前不升级为真实样例。
-- Pwn 自动探测增强：增加 ELF、C 源码、Makefile、xinetd/socat/tcpserver/chroot 等强证据，减少 BOF/Pwn 题被 `package.json`、`node_modules` 干扰而误判成 Node 的概率。
-- `workflow.py --pretty` 与 `workflow.py <command> --pretty` 都兼容，等价于 `--format json`。
 - 新增 `scripts/check_fast.sh`，日常维护只执行 Python/Bash 语法、文档治理和 `git diff --check`。
 - `smoke_test.sh` 增加 `--case <name>` 与 `SMOKE_CASES=a,b`，可只跑受影响的示例，避免每次都执行全量 Docker smoke。
+
+### 修复
+
+- 真实历史题复刻路径增强：Pwn/BOF 输入会优先识别 ELF、C 源码、Makefile、xinetd/socat/tcpserver/chroot 等强证据，减少被遗留 `package.json` 或前端说明页误判为 Node 的情况。
+- 历史运行时保留更明确：渲染基础镜像优先级调整为 `--base-image > CLI --runtime-profile > challenge.base_image > challenge.runtime_profile > infer/default`，避免 `challenge.yaml` 中明确写出的 PHP 7.4、Node 14、JDK 8 等老环境被自动推断覆盖。
+- `parse_config_block.py` 保留更多已确认字段，包括 `runtime_deps`、`build_deps`、`extra.*`、`flag.sync_paths`、`verification.solve_probe`、`platform.docker_platform` 和 `support_level`。
+- `workflow.py accept --refresh` 可在用户确认后重新记录当前 `challenge.yaml` hash，适配人工修正配置后继续走 gate 的场景。
+- `workflow.py --pretty` 与子命令 `--pretty` 兼容，等价于 `--format json`，避免真实使用中因参数不支持中断。
+- 动态 flag 同步能力增强：`changeflag.sh` 可把动态 flag 同步到题目业务实际读取路径，避免题目读 `/home/ctf/flag` 等路径时只更新 `/flag`。
+- `validate.sh` 明确说明自身只验证平台交付契约，不证明题目已经可解；如果配置 `verification.solve_probe`，会提示业务入口断言应在 smoke 阶段执行。
+- `smoke_test.sh` 支持 `challenge.verification.solve_probe`，可直接从 `challenge.yaml` 生成业务断言并执行 HTTP/TCP/容器命令类检查。
+- 发布包路径继续校验，安装版 Skill 文档不再引用 `src/CloverSec-CTF-Build-Dockerizer/` 这类安装后不存在的源码路径。
+
+### 验证
+
+- 真实 LLM A/B：修复前 HEAD 为 3/6，当前 r3 候选为 6/6；Pwn BOF 混合输入、PHP 7.4 保留、业务 flag 路径 + solve_probe 均从失败变为通过。
+- 本地完整验证通过：`check_fast.sh`、`golden_snapshot.py`、`platform_matrix.py --profile release`、`validate_build_test.py`、`validate_examples.sh`、Linux-QEMU Fragnesia preflight、`release_build.sh --with-smoke` 均通过。
+- Docker smoke：35 通过 / 0 失败 / 4 按策略跳过。
+- 定向反馈验证通过：真实 Pwn ELF + 遗留 `package.json` 识别为 `pwn`；PHP Dockerfile 保持 `FROM php:7.4-cli`；动态 flag 精确写入 `flag{abc}`；`verification.solve_probe` smoke 通过。
 
 ## v2.2.0-r2 - 2026-06-11
 

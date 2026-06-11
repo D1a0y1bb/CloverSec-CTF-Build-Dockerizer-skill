@@ -11,13 +11,13 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r3-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r3</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario/Vulhub-like / Bundle/Recipe / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
@@ -25,18 +25,19 @@
 
 如果用一句话概括现在这个 Skill 的工作形态，那就是：从“让模型阅读一份巨大的操作手册并自己决定怎么做”，变成了“由 Workflow 控制执行阶段，模型只在当前阶段获取需要的信息并完成对应任务”。旧版本本质上是把 Docker 构建规范、题目规范、交付标准、验收规则、交互要求等全部塞进 SKILL.md，每次执行任务都让模型重新阅读和理解一遍，所以输入 Token 很大，而且很多规则实际上是在不断重复发送。新版本则把这些内容拆解成状态化流程，用户提交任务后先进入 Intake 阶段识别题目类型和基本信息，然后进入 Proposal 阶段生成构建方案，用户确认后再进入 Render 阶段生成 Dockerfile、start.sh、challenge.yaml 等交付物，最后进入 Validate 阶段执行验收检查。每个阶段只读取当前需要的文档和规则，而不是加载整个知识体系，因此模型不再承担“记住所有规则”的职责，而是通过 Workflow 决定当前应该执行什么、读取什么、输出什么。这样做带来的收益并不只是 Token 下降，而是将原本依赖 Prompt 和记忆维持的流程约束转移到了 Workflow 本身，复杂能力仍然保留，但只在需要的时候展开。模型负责理解和生成，Workflow 负责阶段控制和行为约束，Knowledge 负责提供对应阶段所需的规范和模板。最终形成的是一种按需加载、状态驱动、渐进式披露的 Skill 运行模式，在保持原有构建能力和交付标准的前提下，大幅降低上下文负担和无效推理开销，这也是为什么在真实 API 调用记录中能够看到输入 Token 降低 96.2%、总 Token 降低 72.3%、费用降低 47.5% 和耗时降低 27.9% 的根本原因。
 
-## V2.2.0-R2 发布修复
+## V2.2.0-R3 发布修复
 
-`v2.2.0-r2` 是 `v2.2.0` 的第二个发布修复版本，不改变 `challenge.yaml` 配置契约和核心单题渲染行为。重点补齐真实使用中发现的两类能力：显式 custom Bundle 组合，以及 Linux-QEMU 的完整 release/manual 验证链路。
+`v2.2.0-r3` 是 `v2.2.0` 的第三个发布修复版本，不改变 `challenge.yaml` 配置契约和核心单题渲染行为。重点修复真实历史题复刻里的误判和验收问题：Pwn/BOF 被遗留 `package.json` 干扰、PHP 7.4 等老运行时被自动覆盖、业务 flag 路径不等于 `/flag`、以及需要通过 `solve_probe` 证明题目入口可用的场景。
 
-本次 r2 修复覆盖：
+本次 r3 修复覆盖：
 
-- Bundle/Recipe 支持显式 custom 组合：用户明确提供 base image、安装命令、启动命令、端口和服务清单后，可以生成单容器多服务交付目录；信息不完整时仍返回 `BUNDLE_UNSUPPORTED_COMBINATION`。
-- Linux-QEMU full check 覆盖 Docker build、QEMU TCG boot、guest SSH、动态 flag 写入和 PoC 复现；Fragnesia 真实资产已完成 full 验证。
-- 修复 Linux-QEMU 动态 flag 写入顺序，避免 guest 启动后再改 rootfs 导致 `/root/flag` 不生效。
-- 运行时 Skill 文档继续聚焦题目构建，源码发布治理说明不再进入安装包文档。
+- Pwn/BOF 输入识别更可靠：ELF、C 源码、Makefile、xinetd/socat/tcpserver/chroot 等强证据优先于遗留前端文件，减少误判为 Node。
+- 历史运行时更受尊重：`challenge.base_image` 不再被自动推断出的 runtime profile 覆盖，PHP 7.4、Node 14、JDK 8 这类老题环境可以按原始约束保留。
+- `workflow.py accept --refresh` 支持人工修正 `challenge.yaml` 后继续走确认状态；`workflow.py --pretty` 兼容为 JSON 输出。
+- `flag.sync_paths` 和 `verification.solve_probe` 进入主链路，动态 flag 可同步到题目业务路径，smoke 可执行入口断言。
+- 发布包继续检查安装版路径，不再让 Agent 读取 `src/CloverSec-CTF-Build-Dockerizer/...` 这类安装后不存在的源码路径。
 
-真实 LLM A/B 结果：已安装 `v2.2.0` 入口为 3/4，当前 r2 候选为 4/4；custom Bundle 用例从“不支持”变为正确进入显式 custom proposal。
+真实 LLM A/B 结果：修复前 HEAD 为 3/6，当前 r3 候选为 6/6；Pwn BOF 混合输入、PHP 7.4 保留、业务 flag 路径 + `solve_probe` 均从失败变为通过。完整发布构建和 Docker smoke 已通过，smoke 结果为 35 通过 / 0 失败 / 4 按策略跳过。
 
 ## V2.2.0 重大更新
 
@@ -226,7 +227,13 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
   --output .
 ```
 
-镜像优先级规则：`--base-image > --runtime-profile > challenge.base_image > infer/default`。
+镜像优先级规则：`--base-image > CLI --runtime-profile > challenge.base_image > challenge.runtime_profile > infer/default`。也就是说，`challenge.yaml` 里明确写的 `base_image` 不会再被自动推断出的 runtime profile 覆盖。
+
+历史题迁移建议同时确认三件事：
+
+- 原题基础镜像或运行时版本，例如 PHP 7.4、Node 14、JDK 8。
+- Pwn 题镜像架构，必要时设置 `platform.docker_platform: linux/amd64`。
+- 题目业务实际读取的 flag 路径，必要时设置 `flag.sync_paths`。
 
 ## AI Coding Playbook
 
@@ -516,6 +523,10 @@ SMOKE_CASES=node-basic,pwn-basic \
 
 `flag` 规则：默认需要交付 `flag`。显式 `include_flag_artifact=false` 时，只能放行 `flag` 缺失，不能放行 `changeflag.sh` 缺失。
 
+业务 flag 路径：平台只认识 `/flag`，题目程序可能读取 `/home/ctf/flag0`、`/home/ctf/flag1`、`/challenge/flag.php` 等路径。此时在 `challenge.flag.sync_paths` 写入这些路径，生成的 `changeflag.sh` 会同步动态 flag。
+
+题目入口验证：`validate.sh` 只验证平台交付契约和动态 flag 写入入口，不证明题目已经可解。需要证明“通过题目入口能拿到动态 flag”时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写业务断言，再跑 `smoke_test.sh`。
+
 Scenario 边界：允许输出 `docker-compose.yml` 做本地编排。平台最终交付仍是单服务目录（`Dockerfile + start.sh + changeflag.sh`）。
 
 ## Workflow 演示案例
@@ -742,7 +753,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r2
+bash scripts/publish_release.sh --version v2.2.0-r3
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

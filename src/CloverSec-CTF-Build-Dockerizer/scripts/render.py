@@ -30,6 +30,7 @@ _ALLOWED_VM_DRIVE_FORMATS = {"raw", "qcow2"}
 _SAFE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.+-]+$")
 _SAFE_QEMU_VALUE_RE = re.compile(r"^[A-Za-z0-9_.:/,=+-]+$")
 _SAFE_REL_PATH_RE = re.compile(r"^[A-Za-z0-9_./@+=-]+$")
+_SAFE_DOCKER_PLATFORM_RE = re.compile(r"^linux/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$")
 _SAFE_GUEST_ABS_PATH_RE = re.compile(r"^/[A-Za-z0-9_./@+=-]+$")
 _SHELL_META_RE = re.compile(r"[$`\"'\\\n\r;&|<>]")
 _DEFAULT_QEMU_BY_ARCH = {
@@ -310,6 +311,30 @@ def _clean_guest_abs_path(value: Any, field_name: str, default: str) -> str:
     return raw
 
 
+def _clean_docker_platform(value: Any, field_name: str) -> str:
+    raw = str(first_non_empty(value, "") or "").strip()
+    if not raw:
+        return ""
+    if not _SAFE_DOCKER_PLATFORM_RE.match(raw) or _SHELL_META_RE.search(raw):
+        raise ConfigError(f"{field_name} 格式非法，示例：linux/amd64 或 linux/arm64")
+    return raw
+
+
+def _normalize_flag_sync_paths(value: Any) -> List[str]:
+    if value is None:
+        return []
+    items = ensure_list(value, "challenge.flag.sync_paths")
+    paths: List[str] = []
+    for idx, item in enumerate(items, start=1):
+        raw = str(item).strip()
+        if not raw:
+            raise ConfigError(f"challenge.flag.sync_paths 第 {idx} 项不能为空")
+        _clean_guest_abs_path(raw, f"challenge.flag.sync_paths[{idx}]", raw)
+        if raw not in paths:
+            paths.append(raw)
+    return paths
+
+
 def _normalize_vm_guest_forwards(value: Any, expose_ports: List[str]) -> List[Dict[str, str]]:
     if value is None:
         default_port = expose_ports[0] if expose_ports else "22"
@@ -353,6 +378,27 @@ def _format_vm_forwards(forwards: List[Dict[str, str]]) -> str:
 
 def _quote_shell(value: str) -> str:
     return shlex.quote(str(value))
+
+
+def _render_flag_sync_block(sync_paths: List[str]) -> str:
+    if not sync_paths:
+        return ""
+    quoted = " ".join(shlex.quote(path) for path in sync_paths)
+    return (
+        "\n"
+        "if [[ \"${CTFBUILD_SKIP_SYNC_PATHS:-0}\" != \"1\" ]]; then\n"
+        f"  FLAG_SYNC_PATHS=({quoted})\n"
+        "  for sync_path in \"${FLAG_SYNC_PATHS[@]}\"; do\n"
+        "    if [[ -z \"${sync_path}\" ]]; then\n"
+        "      continue\n"
+        "    fi\n"
+        "    mkdir -p \"$(dirname \"${sync_path}\")\"\n"
+        "    printf '%s\\n' \"${TARGET_FLAG}\" > \"${sync_path}\"\n"
+        "    chmod 444 \"${sync_path}\" || true\n"
+        "    echo \"[INFO] flag synced to ${sync_path}\"\n"
+        "  done\n"
+        "fi\n"
+    )
 
 
 def _vm_default_healthcheck_cmd(mode: str, host_port: str) -> str:
@@ -661,6 +707,8 @@ def build_render_context(
     start_cfg = ensure_dict(challenge.get("start"), "challenge.start")
     platform_cfg = ensure_dict(challenge.get("platform"), "challenge.platform")
     healthcheck_cfg = ensure_dict(challenge.get("healthcheck"), "challenge.healthcheck")
+    flag_cfg = ensure_dict(challenge.get("flag"), "challenge.flag")
+    verification_cfg = ensure_dict(challenge.get("verification"), "challenge.verification")
     extra_cfg = ensure_dict(challenge.get("extra"), "challenge.extra")
     defense_cfg = ensure_dict(challenge.get("defense"), "challenge.defense")
     rdg_cfg = ensure_dict(challenge.get("rdg"), "challenge.rdg")
@@ -698,6 +746,9 @@ def build_render_context(
     allow_loopback_bind = _to_bool(
         platform_cfg.get("allow_loopback_bind"), "challenge.platform.allow_loopback_bind", False
     )
+    docker_platform = _clean_docker_platform(
+        platform_cfg.get("docker_platform"), "challenge.platform.docker_platform"
+    )
 
     default_healthcheck_cmd = str(defaults.get("healthcheck_cmd") or "").strip()
     healthcheck_enabled = _to_bool(
@@ -723,20 +774,36 @@ def build_render_context(
 
     runtime_profile_selected = ""
     runtime_base_image = ""
+    runtime_profile_source = ""
     if args.runtime_profile:
         runtime_profile_selected = str(args.runtime_profile).strip()
         if runtime_profile_selected:
             runtime_base_image = resolve_runtime_profile_base_image(
                 runtime_profiles_data, stack_id, runtime_profile_selected
             )
+            runtime_profile_source = "cli"
+    elif _has_value(challenge.get("runtime_profile")):
+        runtime_profile_selected = str(challenge.get("runtime_profile")).strip()
+        runtime_base_image = resolve_runtime_profile_base_image(
+            runtime_profiles_data, stack_id, runtime_profile_selected
+        )
+        runtime_profile_source = "challenge"
     elif runtime_info.get("supported"):
         runtime_profile_selected = str(runtime_info.get("recommended_profile", "")).strip()
         runtime_base_image = str(runtime_info.get("recommended_base_image", "")).strip()
+        runtime_profile_source = "inference"
+
+    cfg_base_image = str(challenge.get("base_image") or "").strip()
+    cli_runtime_base = runtime_base_image if runtime_profile_source == "cli" else ""
+    cfg_runtime_base = runtime_base_image if runtime_profile_source == "challenge" else ""
+    inferred_runtime_base = runtime_base_image if runtime_profile_source == "inference" else ""
 
     base_image = first_non_empty(
         args.base_image,
-        runtime_base_image,
-        challenge.get("base_image"),
+        cli_runtime_base,
+        cfg_base_image,
+        cfg_runtime_base,
+        inferred_runtime_base,
         inferred_base_image,
         defaults.get("base_image"),
     )
@@ -836,16 +903,18 @@ def build_render_context(
             {
                 "field": "runtime_profile",
                 "value": runtime_profile_selected,
-                "source": "cli" if args.runtime_profile else "inference",
-                "reason": "运行时版本档位映射到基础镜像",
-                "override": "--runtime-profile 或 --base-image 或 challenge.base_image",
+                "source": runtime_profile_source or "inference",
+                "reason": "运行时档位映射到基础镜像；若同时配置 challenge.base_image，以 challenge.base_image 为准",
+                "override": "--runtime-profile / --base-image / challenge.base_image",
             }
         )
 
     if (
         not args.base_image
-        and not runtime_base_image
-        and not _has_value(challenge.get("base_image"))
+        and not cfg_base_image
+        and not cli_runtime_base
+        and not cfg_runtime_base
+        and not inferred_runtime_base
     ):
         if inferred_base_image:
             inference_notes.append(
@@ -900,6 +969,8 @@ def build_render_context(
     copy_items = ensure_list(extra_cfg.get("copy"), "challenge.extra.copy")
     npm_install_block = str(first_non_empty(extra_cfg.get("npm_install_block"), "") or "")
     pip_requirements_block = str(first_non_empty(extra_cfg.get("pip_requirements_block"), "") or "")
+    flag_sync_paths = _normalize_flag_sync_paths(flag_cfg.get("sync_paths"))
+    solve_probe = ensure_dict(verification_cfg.get("solve_probe"), "challenge.verification.solve_probe")
 
     return {
         "stack_id": stack_id,
@@ -920,6 +991,8 @@ def build_render_context(
         "copy_items": copy_items,
         "npm_install_block": npm_install_block,
         "pip_requirements_block": pip_requirements_block,
+        "flag_sync_paths": flag_sync_paths,
+        "solve_probe": solve_probe,
         "rdg_enable_ttyd": rdg_enable_ttyd,
         "rdg_ttyd_port": rdg_ttyd_port,
         "rdg_ttyd_login_cmd": rdg_ttyd_login_cmd,
@@ -938,6 +1011,7 @@ def build_render_context(
         "defense_enabled": profile != "jeopardy" and (rdg_enable_ttyd or rdg_enable_sshd),
         "flag_optional": profile in {"rdg", "awdp", "secops"} and not rdg_include_flag_artifact,
         "allow_loopback_bind": allow_loopback_bind,
+        "docker_platform": docker_platform,
         "healthcheck_enabled": healthcheck_enabled,
         "healthcheck_cmd": healthcheck_cmd,
         "healthcheck_interval": healthcheck_interval,
@@ -950,6 +1024,7 @@ def build_render_context(
         "entry_file": infer_info.get("entry_file"),
         "runtime_supported": bool(runtime_info.get("supported", False)),
         "runtime_profile_selected": runtime_profile_selected,
+        "runtime_profile_source": runtime_profile_source,
         "runtime_profile_candidates": runtime_info.get("candidates", []),
     }
 
@@ -1010,6 +1085,7 @@ def render_files(context: Dict[str, Any]) -> None:
         )
         defense_docker_block = render_template(defense_docker_tpl, common_vars := {
             "BASE_IMAGE": context["base_image"],
+            "DOCKER_FROM_PLATFORM": f"--platform={context.get('docker_platform')} " if context.get("docker_platform") else "",
             "WORKDIR": context["workdir"],
             "APP_SRC": context["app_src"],
             "APP_DST": context["app_dst"],
@@ -1053,6 +1129,7 @@ def render_files(context: Dict[str, Any]) -> None:
     vm = context.get("vm", {}) if isinstance(context.get("vm"), dict) else {}
     common_vars = {
         "BASE_IMAGE": context["base_image"],
+        "DOCKER_FROM_PLATFORM": f"--platform={context.get('docker_platform')} " if context.get("docker_platform") else "",
         "WORKDIR": context["workdir"],
         "APP_SRC": context["app_src"],
         "APP_DST": context["app_dst"],
@@ -1154,6 +1231,7 @@ def render_files(context: Dict[str, Any]) -> None:
 
     if changeflag_out.exists():
         os.chmod(changeflag_out, 0o644)
+    flag_sync_block = _render_flag_sync_block(context.get("flag_sync_paths", []))
 
     docker_out.write_text(rendered_docker.rstrip() + "\n", encoding="utf-8")
     start_out.write_text(rendered_start.rstrip() + "\n", encoding="utf-8")
@@ -1187,6 +1265,8 @@ def render_files(context: Dict[str, Any]) -> None:
             "mkdir -p \"$(dirname \"${TARGET_PATH}\")\"\n"
             "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
             "chmod 444 \"${TARGET_PATH}\" || true\n\n"
+            f"{flag_sync_block}"
+            "\n"
             "if [[ \"${FLAG_INJECTION}\" == \"none\" ]]; then\n"
             "  echo \"[INFO] flag updated at ${TARGET_PATH}; guest flag injection disabled\"\n"
             "  exit 0\n"
@@ -1238,6 +1318,7 @@ def render_files(context: Dict[str, Any]) -> None:
             "mkdir -p \"$(dirname \"${TARGET_PATH}\")\"\n"
             "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
             "chmod 444 \"${TARGET_PATH}\" || true\n"
+            f"{flag_sync_block}"
             "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n",
             encoding="utf-8",
         )

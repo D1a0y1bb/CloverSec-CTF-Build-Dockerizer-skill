@@ -47,7 +47,10 @@ bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
 |---|---|---|
 | 静态契约检查 | `validate.sh --static-only` | 快速判断 Dockerfile/start.sh/challenge.yaml 是否满足平台基本契约 |
 | 动态 flag 写入检查 | `validate.sh` 默认启用，或显式 `--with-dynamic-flag` | 检查 `changeflag.sh` 是否能按平台动态 flag 机制写入 |
+| 题目入口验证 | 业务断言验证入口 + `smoke_assert.yaml` 或 `challenge.verification.solve_probe` | 容器启动后检查 HTTP/TCP/container_exec 断言，确认题目服务真的可用 |
 | 手动增强验证 | `linux_qemu_manual_check.sh`、Docker smoke、PoC 复现 | Linux-QEMU boot、guest flag、真实服务运行和漏洞复现 |
+
+`validate.sh` 的通过结果只代表平台交付契约成立，不代表题目可解。历史题复刻、Pwn flag 路径、业务登录流、漏洞触发路径，需要通过 smoke 业务断言或 PoC 记录补充证明。
 
 `--json-summary` 会写入 `verification.level`，Agent 应根据该字段判断本次验证覆盖范围。
 

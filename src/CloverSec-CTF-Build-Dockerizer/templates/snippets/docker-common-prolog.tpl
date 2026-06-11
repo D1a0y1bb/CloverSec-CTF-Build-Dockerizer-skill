@@ -1,2 +1,2 @@
 # syntax=docker/dockerfile:1
-FROM {{BASE_IMAGE}}
+FROM {{DOCKER_FROM_PLATFORM}}{{BASE_IMAGE}}

@@ -434,6 +434,34 @@ print(f"[ASSERT] smoke_assert.yaml passed: {yaml_path}")
 PY
 }
 
+write_solve_probe_assert_yaml() {
+  local challenge_file="$1"
+  local output_file="$2"
+  python3 - "$challenge_file" "$output_file" <<'PY'
+import sys
+from pathlib import Path
+
+import yaml
+
+challenge_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+raw = yaml.safe_load(challenge_path.read_text(encoding="utf-8")) or {}
+challenge = raw.get("challenge", {}) if isinstance(raw, dict) else {}
+verification = challenge.get("verification", {}) if isinstance(challenge, dict) else {}
+probe = verification.get("solve_probe", {}) if isinstance(verification, dict) else {}
+if not isinstance(probe, dict) or not probe:
+    raise SystemExit(3)
+
+if isinstance(probe.get("assertions"), list):
+    assertions = probe["assertions"]
+else:
+    assertions = [probe]
+
+output_path.write_text(yaml.safe_dump({"assertions": assertions}, sort_keys=False, allow_unicode=True), encoding="utf-8")
+print(str(output_path))
+PY
+}
+
 should_run_container() {
   local example_name="$1"
 
@@ -652,6 +680,19 @@ while IFS= read -r dir; do
       continue
     fi
   fi
+
+  solve_probe_yaml="$(mktemp "/tmp/ctf-solve-probe-${name}-XXXXXX.yaml")"
+  if write_solve_probe_assert_yaml "$challenge_yaml" "$solve_probe_yaml" >/dev/null 2>&1; then
+    echo "[INFO] 执行 challenge.verification.solve_probe"
+    if ! run_smoke_assert_yaml "${solve_probe_yaml}" "${cid}" "${host_port}" "${container_port}"; then
+      echo "[ERROR] verification.solve_probe 失败: ${name}"
+      rm -f "${solve_probe_yaml}"
+      FAIL_LIST+=("${name}:solve-probe")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
+  fi
+  rm -f "${solve_probe_yaml}"
 
   assert_script="${dir}/smoke_assert.sh"
   if [[ -f "${assert_script}" ]]; then

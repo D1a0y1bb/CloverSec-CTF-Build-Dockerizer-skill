@@ -52,6 +52,12 @@ docker run -d -p <host>:<container> <image>:latest /start.sh
 - Dockerfile 把 `flag` 复制到 `/flag`
 - `/flag` 具备可读权限（通常 `444`）
 
+业务同步：
+
+- 平台只保证动态 flag 写入 `/flag`。
+- 如果题目程序读取其他路径，例如 `/home/ctf/flag0`、`/home/ctf/flag1` 或 `/challenge/flag.php`，应配置 `challenge.flag.sync_paths`。
+- `changeflag.sh` 会把动态 flag 同步到这些路径；`validate.sh` 只做隔离动态写入检查，不会在宿主机写这些绝对路径。
+
 可选放行：
 
 - 当当前 profile 使用 defense 语义，且显式设置 `include_flag_artifact=false` 时，可放行 `/flag`

@@ -7,7 +7,7 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 SKILL_ROOT = SCRIPT_DIR.parent
@@ -36,6 +36,7 @@ ALLOWED_STACKS = {
     "rdg",
     "secops",
     "baseunit",
+    "bundle",
     "linux-qemu",
 }
 ALLOWED_PROFILES = {"jeopardy", "rdg", "awd", "awdp", "secops"}
@@ -147,6 +148,91 @@ def _parse_positive_int(value: Any, field_name: str, default: int) -> int:
     if number < 1:
         raise ConfigError(f"{field_name} 必须是正整数")
     return number
+
+
+def _string_list(value: Any, field_name: str) -> List[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError(f"{field_name} 必须是数组")
+    out: List[str] = []
+    for idx, item in enumerate(value, start=1):
+        text = str(item).strip()
+        if not text:
+            raise ConfigError(f"{field_name} 第 {idx} 项不能为空")
+        out.append(text)
+    return out
+
+
+def _normalize_copy_items(value: Any, field_name: str) -> List[Dict[str, str]]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError(f"{field_name} 必须是数组")
+    out: List[Dict[str, str]] = []
+    for idx, item in enumerate(value, start=1):
+        if not isinstance(item, dict):
+            raise ConfigError(f"{field_name} 第 {idx} 项必须是对象")
+        src = str(_first_non_empty(item.get("from"), item.get("src"), "") or "").strip()
+        dst = str(_first_non_empty(item.get("to"), item.get("dst"), "") or "").strip()
+        if not src or not dst:
+            raise ConfigError(f"{field_name} 第 {idx} 项必须包含 from/to")
+        out.append({"from": src, "to": dst})
+    return out
+
+
+def _normalize_env_map(value: Any, field_name: str) -> Dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ConfigError(f"{field_name} 必须是对象")
+    out: Dict[str, str] = {}
+    for key, item in value.items():
+        key_text = str(key).strip()
+        if not key_text:
+            raise ConfigError(f"{field_name} 包含空环境变量名")
+        out[key_text] = str(item)
+    return out
+
+
+def _normalize_extra(proposal: Dict[str, Any]) -> Dict[str, Any]:
+    extra = ensure_dict(proposal.get("extra"), "extra")
+    env = _normalize_env_map(_first_non_empty(extra.get("env"), proposal.get("env")), "extra.env")
+    copy_items = _normalize_copy_items(
+        _first_non_empty(extra.get("copy"), proposal.get("copy")), "extra.copy"
+    )
+    return {
+        "env": env,
+        "copy": copy_items,
+        "user": str(_first_non_empty(extra.get("user"), proposal.get("user"), "") or "").strip(),
+        "npm_install_block": str(
+            _first_non_empty(
+                extra.get("npm_install_block"),
+                proposal.get("npm_install_block"),
+                "",
+            )
+            or ""
+        ),
+        "pip_requirements_block": str(
+            _first_non_empty(
+                extra.get("pip_requirements_block"),
+                proposal.get("pip_requirements_block"),
+                "",
+            )
+            or ""
+        ),
+    }
+
+
+def _normalize_verification(value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {}
+    verification = ensure_dict(value, "verification")
+    out: Dict[str, Any] = {}
+    if "solve_probe" in verification:
+        solve_probe = ensure_dict(verification.get("solve_probe"), "verification.solve_probe")
+        out["solve_probe"] = dict(solve_probe)
+    return out
 
 
 def _default_profile_for_stack(stack_id: str) -> str:
@@ -285,6 +371,7 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     entrypoint = str(_first_non_empty(platform.get("entrypoint"), "/start.sh") or "/start.sh").strip()
     require_bash = _to_bool(platform.get("require_bash"), True)
     allow_loopback_bind = _to_bool(platform.get("allow_loopback_bind"), False)
+    docker_platform = str(_first_non_empty(platform.get("docker_platform"), "") or "").strip()
 
     healthcheck = ensure_dict(proposal.get("healthcheck"), "healthcheck")
     healthcheck_enabled = _to_bool(healthcheck.get("enabled"), True)
@@ -300,11 +387,18 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
     flag = ensure_dict(proposal.get("flag"), "flag")
     flag_path = str(_first_non_empty(flag.get("path"), "/flag") or "/flag").strip()
     flag_perm = str(_first_non_empty(flag.get("permission"), "444") or "444").strip()
+    flag_sync_paths = _string_list(flag.get("sync_paths"), "flag.sync_paths")
 
     profile = _normalize_profile(proposal.get("profile"), stack_raw)
     defense = ensure_dict(proposal.get("defense"), "defense")
     rdg = ensure_dict(proposal.get("rdg"), "rdg")
     normalized_defense = _normalize_defense(profile_defs, profile, defense, rdg)
+    runtime_deps = _string_list(proposal.get("runtime_deps"), "runtime_deps")
+    build_deps = _string_list(proposal.get("build_deps"), "build_deps")
+    extra = _normalize_extra(proposal)
+    verification = _normalize_verification(proposal.get("verification"))
+    runtime_profile = str(_first_non_empty(proposal.get("runtime_profile"), "") or "").strip()
+    support_level = str(_first_non_empty(proposal.get("support_level"), "") or "").strip()
 
     challenge_name = args.name.strip() if args.name.strip() else f"{stack_raw}-challenge"
 
@@ -322,16 +416,18 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
                 "mode": start_mode,
                 "cmd": start_cmd,
             },
-            "runtime_deps": [],
-            "build_deps": [],
+            "runtime_deps": runtime_deps,
+            "build_deps": build_deps,
             "flag": {
                 "path": flag_path,
                 "permission": flag_perm,
+                "sync_paths": flag_sync_paths,
             },
             "platform": {
                 "entrypoint": entrypoint,
                 "require_bash": require_bash,
                 "allow_loopback_bind": allow_loopback_bind,
+                "docker_platform": docker_platform,
             },
             "healthcheck": {
                 "enabled": healthcheck_enabled,
@@ -341,17 +437,26 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
                 "retries": healthcheck_retries,
                 "start_period": healthcheck_start_period,
             },
-            "extra": {
-                "env": {},
-                "copy": [],
-                "user": "",
-            },
+            "extra": extra,
         }
     }
+
+    if runtime_profile:
+        challenge["challenge"]["runtime_profile"] = runtime_profile
+
+    if support_level:
+        challenge["challenge"]["support_level"] = support_level
+
+    if verification:
+        challenge["challenge"]["verification"] = verification
 
     if stack_raw == "linux-qemu" or "vm" in proposal:
         vm = ensure_dict(proposal.get("vm"), "vm")
         challenge["challenge"]["vm"] = dict(vm)
+
+    if stack_raw == "bundle" or "bundle" in proposal:
+        bundle = ensure_dict(proposal.get("bundle"), "bundle")
+        challenge["challenge"]["bundle"] = dict(bundle)
 
     if profile != "jeopardy" or defense or rdg or stack_raw in {"rdg", "secops"}:
         challenge["challenge"]["defense"] = {

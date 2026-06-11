@@ -607,13 +607,133 @@ def _any_file_contains(scan_dir: Path, checks: List[Any]) -> Optional[str]:
     return None
 
 
+_ELF_MACHINE_NAMES = {
+    0x03: "x86",
+    0x08: "mips",
+    0x14: "powerpc",
+    0x28: "arm",
+    0x3E: "x86_64",
+    0xB7: "aarch64",
+    0xF3: "riscv",
+}
+
+
 def _looks_like_elf(path: Path) -> bool:
     if not path.is_file():
         return False
     try:
-        return path.read_bytes()[:4] == b"\x7fELF"
+        with path.open("rb") as fh:
+            return fh.read(4) == b"\x7fELF"
     except Exception:
         return False
+
+
+def _elf_arch(path: Path) -> Optional[str]:
+    try:
+        with path.open("rb") as fh:
+            header = fh.read(20)
+    except Exception:
+        return None
+    if len(header) < 20 or header[:4] != b"\x7fELF":
+        return None
+    endian = "little" if header[5] == 1 else "big" if header[5] == 2 else "little"
+    machine = int.from_bytes(header[18:20], endian)
+    return _ELF_MACHINE_NAMES.get(machine, f"machine-0x{machine:x}")
+
+
+def detect_elf_architectures(scan_dir: Path) -> List[Dict[str, str]]:
+    hits: List[Dict[str, str]] = []
+    seen: Set[Path] = set()
+    for pattern in ("*", "bin/*", "dist/*", "deploy/*", "src/*", "challenge/*"):
+        for candidate in sorted(scan_dir.glob(pattern)):
+            if not candidate.is_file() or candidate in seen:
+                continue
+            seen.add(candidate)
+            arch = _elf_arch(candidate)
+            if not arch:
+                continue
+            try:
+                rel = str(candidate.relative_to(scan_dir))
+            except ValueError:
+                rel = str(candidate)
+            hits.append({"path": rel, "arch": arch})
+            if len(hits) >= 8:
+                return hits
+    return hits
+
+
+def _python_web_signal_score(scan_dir: Path) -> Tuple[int, int, List[str]]:
+    score = 0
+    max_score = 0
+    evidence: List[str] = []
+
+    def add(points: int, label: str) -> None:
+        nonlocal score, max_score
+        score += points
+        max_score += points
+        evidence.append(label)
+
+    web_dep_re = re.compile(r"\b(flask|django|fastapi|jinja2|werkzeug|uvicorn|gunicorn)\b", re.IGNORECASE)
+    for rel in ("requirements.txt", "pyproject.toml", "Pipfile", "setup.py"):
+        text = _read_text_file(scan_dir / rel)
+        if text and web_dep_re.search(text):
+            add(22, f"{rel} 命中 Python Web 依赖")
+            break
+
+    web_source_re = re.compile(
+        r"(from\s+flask\s+import|Flask\s*\(|render_template_string|render_template\s*\(|FastAPI\s*\(|from\s+django|jinja2)",
+        re.IGNORECASE,
+    )
+    for pattern in ("*.py", "app/*.py", "src/*.py", "challenge/*.py"):
+        for candidate in sorted(scan_dir.glob(pattern)):
+            text = _read_text_file(candidate)
+            if text and web_source_re.search(text):
+                try:
+                    rel = str(candidate.relative_to(scan_dir))
+                except ValueError:
+                    rel = str(candidate)
+                add(22, f"{rel} 命中 Python Web/SSTI 入口")
+                return score, max_score, evidence
+
+    return score, max_score, evidence
+
+
+def _ai_signal_score(scan_dir: Path) -> Tuple[int, int, List[str]]:
+    score = 0
+    max_score = 0
+    evidence: List[str] = []
+    if re.search(r"(^|[-_])(ai|ml|llm|model|inference)([-_]|$)", scan_dir.name, flags=re.IGNORECASE):
+        score += 55
+        max_score += 55
+        evidence.append(f"目录名包含 AI/ML 线索: {scan_dir.name}")
+    if (scan_dir / "model").is_dir() or (scan_dir / "models").is_dir():
+        score += 45
+        max_score += 45
+        evidence.append("命中 model/models 目录")
+
+    text = "\n".join(
+        _read_text_file(scan_dir / rel)
+        for rel in ("requirements.txt", "pyproject.toml", "Pipfile", "setup.py")
+    ).lower()
+    source = "\n".join(_read_text_file(path).lower() for path in sorted(scan_dir.glob("*.py"))[:8])
+    ai_tokens = (
+        "transformers",
+        "torch",
+        "tensorflow",
+        "sklearn",
+        "onnx",
+        "langchain",
+        "sentence_transformers",
+        "openai",
+        "gradio",
+        "diffusers",
+    )
+    hits = sorted(token for token in ai_tokens if token in text or token in source)
+    if hits:
+        score += 45
+        max_score += 45
+        evidence.append("命中 AI/ML 依赖或源码关键字: " + ", ".join(hits[:5]))
+    return score, max_score, evidence
 
 
 def _pwn_signal_score(scan_dir: Path) -> Tuple[int, int, List[str]]:
@@ -637,18 +757,8 @@ def _pwn_signal_score(scan_dir: Path) -> Tuple[int, int, List[str]]:
     if re.search(r"\b(pwn|bof|overflow|heap|rop)\b", scan_dir.name, flags=re.IGNORECASE):
         add(10, f"目录名包含 Pwn/BOF 线索: {scan_dir.name}")
 
-    elf_candidates: List[Path] = []
-    for pattern in ("*", "bin/*", "dist/*", "deploy/*", "src/*"):
-        elf_candidates.extend(path for path in scan_dir.glob(pattern) if path.is_file())
-    elf_hits = []
-    for candidate in sorted(set(elf_candidates)):
-        if _looks_like_elf(candidate):
-            try:
-                elf_hits.append(str(candidate.relative_to(scan_dir)))
-            except ValueError:
-                elf_hits.append(str(candidate))
-        if len(elf_hits) >= 3:
-            break
+    elf_info = detect_elf_architectures(scan_dir)
+    elf_hits = [f"{item['path']}({item['arch']})" for item in elf_info[:3]]
     if elf_hits:
         add(50, "命中 ELF 二进制: " + ", ".join(elf_hits))
 
@@ -856,16 +966,19 @@ def detect_stack(
         max_score = max(1, len(files) * 10 + len(dirs) * 3)
 
         # 额外内容信号：减少 python/ai、web/pwn 等相似目录的误判。
+        if stack_id == "python":
+            python_extra, python_extra_max, python_evidence = _python_web_signal_score(scan_dir)
+            if python_extra:
+                score += python_extra
+                max_score += python_extra_max
+                file_hits.extend(python_evidence)
+
         if stack_id == "ai":
-            req = scan_dir / "requirements.txt"
-            if req.is_file():
-                try:
-                    req_content = req.read_text(encoding="utf-8", errors="ignore").lower()
-                except Exception:
-                    req_content = ""
-                if "transformers" in req_content or "torch" in req_content:
-                    score += 8
-                    max_score += 8
+            ai_extra, ai_extra_max, ai_evidence = _ai_signal_score(scan_dir)
+            if ai_extra:
+                score += ai_extra
+                max_score += ai_extra_max
+                file_hits.extend(ai_evidence)
 
         if stack_id == "pwn":
             for cfg_name in ("ctf.xinetd", "xinetd.conf"):

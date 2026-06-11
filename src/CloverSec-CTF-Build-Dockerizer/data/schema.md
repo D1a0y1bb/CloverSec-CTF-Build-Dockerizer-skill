@@ -39,6 +39,7 @@ challenge:
     entrypoint: "/start.sh"
     require_bash: true
     allow_loopback_bind: false
+    docker_platform: ""   # 可选，例如 linux/amd64
 
   healthcheck:
     enabled: true
@@ -51,6 +52,14 @@ challenge:
   flag:
     path: "/flag"
     permission: "444"
+    sync_paths: []        # 可选，题目业务会读取的动态 flag 路径
+
+  verification:
+    solve_probe:
+      type: "http|tcp|container_exec"
+      path: "/"
+      expect_status: 200
+      expect_text: ""
 
   vm:   # stack=linux-qemu
     arch: "x86_64"
@@ -141,6 +150,19 @@ challenge:
   - 默认 `true`。
   - 设为 `false` 时仅放行 `/flag` 产物，不放行 `/changeflag.sh`。
 
+- `challenge.platform.docker_platform`
+  - 可选字段，用于渲染 `FROM --platform=<value> ...`。
+  - 常见于 Pwn 历史题迁移，例如在 macOS arm64 上固定 `linux/amd64`，避免镜像架构无提示变化。
+
+- `challenge.flag.sync_paths`
+  - 可选数组，表示除 `/flag` 之外，题目业务实际会读取的 flag 文件路径。
+  - 生成的 `changeflag.sh` 会把动态 flag 同步到这些路径，适合 Pwn 的 `/home/ctf/flag0`、`/home/ctf/flag1` 或 Web 题自己的 flag 文件。
+
+- `challenge.verification.solve_probe`
+  - 可选字段，由业务断言验证入口在容器启动后执行。
+  - 支持与 `smoke_assert.yaml` 相同的断言形态：`http`、`tcp`、`container_exec`。
+  - 该字段用于证明“题目入口可用”，不属于 `validate.sh` 的平台契约范围。
+
 - `challenge.vm`
   - 仅用于 `stack=linux-qemu`。
   - `expose_ports` 表示 Docker 容器对外端口；`vm.guest_forwards[*].host_port` 必须出现在 `expose_ports` 中。
@@ -209,7 +231,7 @@ challenge:
   - `recommended_base_image`
   - `runtime_profile_evidence`
 - `render.py` 支持 `--runtime-profile <id>`。
-- 镜像优先级：`--base-image > --runtime-profile > challenge.base_image > infer/default`
+- 镜像优先级：`--base-image > CLI --runtime-profile > challenge.base_image > challenge.runtime_profile > infer/default`
 
 ## 参考文件
 

@@ -19,6 +19,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from utils import (  # noqa: E402
     ConfigError,
+    detect_elf_architectures,
     detect_stack,
     ensure_dict,
     infer_runtime_profile_candidates,
@@ -30,6 +31,9 @@ from utils import (  # noqa: E402
     normalize_ports,
 )
 from audit_input import audit_project  # noqa: E402
+
+
+_DOCKER_FROM_RE = re.compile(r"^[ \t]*FROM[ \t]+(?:--platform=[^ \t\r\n]+[ \t]+)?([^ \t\r\n]+)", re.IGNORECASE | re.MULTILINE)
 
 
 def parse_args() -> argparse.Namespace:
@@ -97,6 +101,41 @@ def _file_contains(scan_dir: Path, rel_path: str, pattern: str) -> bool:
         return re.search(pattern, content, flags=re.IGNORECASE | re.MULTILINE) is not None
     except re.error:
         return False
+
+
+def _file_text(path: Path) -> str:
+    if not path.is_file():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _historical_runtime_notes(scan_dir: Path) -> List[str]:
+    notes: List[str] = []
+    dockerfile = scan_dir / "Dockerfile"
+    if dockerfile.is_file():
+        content = dockerfile.read_text(encoding="utf-8", errors="ignore")
+        matches = _DOCKER_FROM_RE.findall(content)
+        if matches:
+            notes.append("检测到历史 Dockerfile 基础镜像：{}；复刻题目时应优先确认是否必须沿用。".format(", ".join(matches[:3])))
+
+    runtime_files = [
+        ("composer.json", r'"php"\s*:\s*"([^"]+)"'),
+        ("package.json", r'"node"\s*:\s*"([^"]+)"'),
+        ("pom.xml", r"<java\.version>\s*([^<]+)\s*</java\.version>"),
+        ("build.gradle", r"sourceCompatibility\s*=\s*['\"]?([^'\"\n]+)"),
+    ]
+    for rel, pattern in runtime_files:
+        text = _file_text(scan_dir / rel)
+        if not text:
+            continue
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            notes.append(f"检测到 {rel} 运行时约束：{match.group(1).strip()}；不要只按默认现代镜像生成。")
+            break
+    return notes
 
 
 def _extract_xinetd_port(scan_dir: Path) -> Optional[Tuple[str, str]]:
@@ -677,9 +716,19 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     ]
     notes.extend(candidate_notes)
     notes.extend(profile_evidence)
+    notes.extend(_historical_runtime_notes(project_dir))
 
     if best_conf < 0.6:
         notes.append(f"栈侦测置信度较低（{best_conf:.2f}），Q1 请重点确认技术栈。")
+
+    elf_arches: List[Dict[str, str]] = []
+    if stack_id == "pwn":
+        elf_arches = detect_elf_architectures(project_dir)
+        if elf_arches:
+            arch_summary = ", ".join(f"{item['path']}={item['arch']}" for item in elf_arches[:5])
+            notes.append(f"Pwn ELF 架构：{arch_summary}。macOS arm64 或非 x86 制品需确认 qemu-user-static/binfmt、基础镜像与 Docker 平台。")
+        else:
+            notes.append("Pwn 未检测到 ELF 制品，Q5 请确认 app_src/app_dst 与最终二进制路径。")
 
     if not candidates:
         notes.append("未找到启动命令候选，Q4 必须手动输入 start_cmd。")
@@ -775,14 +824,18 @@ def derive(project_dir: Path) -> Dict[str, Any]:
                 "mode": "cmd",
                 "cmd": candidates[0]["cmd"] if candidates else "",
             },
+            "runtime_deps": [],
+            "build_deps": [],
             "platform": {
                 "entrypoint": "/start.sh",
                 "require_bash": True,
                 "allow_loopback_bind": False,
+                "docker_platform": "linux/amd64" if stack_id == "pwn" else "",
             },
             "flag": {
                 "path": "/flag",
                 "permission": "444",
+                "sync_paths": ["/home/ctf/flag"] if stack_id == "pwn" else [],
             },
             "healthcheck": {
                 "enabled": True,
@@ -792,8 +845,26 @@ def derive(project_dir: Path) -> Dict[str, Any]:
                 "retries": 3,
                 "start_period": "10s",
             },
+            "verification": {},
+            "extra": {
+                "env": {},
+                "copy": [],
+                "user": "",
+                "npm_install_block": "",
+                "pip_requirements_block": "",
+            },
         },
     }
+
+    if elf_arches:
+        proposal["pwn_architecture"] = {
+            "elf_arches": elf_arches,
+            "requires_manual_runtime_review": any(
+                item.get("arch") not in {"x86", "x86_64"} for item in elf_arches
+            ),
+        }
+        if proposal["pwn_architecture"]["requires_manual_runtime_review"]:
+            proposal["config_proposal"]["runtime_deps"] = ["qemu-user-static"]
 
     if profile_guess != "jeopardy":
         proposal["config_proposal"]["defense"] = defense_proposal

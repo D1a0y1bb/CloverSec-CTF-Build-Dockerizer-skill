@@ -125,6 +125,8 @@ VM_ASSET_MODE_CFG="prebuilt"
 VM_FLAG_INJECTION_CFG="debugfs"
 VM_GUEST_FLAG_PATH_CFG="/root/flag"
 VM_HOSTFWD_PORTS_CFG=""
+FLAG_SYNC_PATHS_CFG=""
+HAS_SOLVE_PROBE_CFG="false"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
   echo "[ERROR] Dockerfile 不存在: $DOCKERFILE" >&2
@@ -267,11 +269,15 @@ extract_base_image() {
 
   # shellcheck disable=SC2206
   local parts=($from_line)
-  if [[ ${#parts[@]} -ge 2 ]]; then
-    echo "${parts[1]}"
-  else
-    echo ""
-  fi
+  local idx
+  for ((idx = 1; idx < ${#parts[@]}; idx++)); do
+    if [[ "${parts[$idx]}" == --* ]]; then
+      continue
+    fi
+    echo "${parts[$idx]}"
+    return
+  done
+  echo ""
 }
 
 is_digest_pinned_image() {
@@ -433,7 +439,7 @@ validate_changeflag_dynamic_write() {
   local stdout_file="${tmp_dir}/stdout.txt"
   local stderr_file="${tmp_dir}/stderr.txt"
 
-  if FLAG_PATH="$target" FLAG_INJECTION=none bash "$changeflag_host" "$expected" >"$stdout_file" 2>"$stderr_file"; then
+  if FLAG_PATH="$target" FLAG_INJECTION=none CTFBUILD_SKIP_SYNC_PATHS=1 bash "$changeflag_host" "$expected" >"$stdout_file" 2>"$stderr_file"; then
     if [[ ! -f "$target" ]]; then
       log_result ERROR "changeflag.sh 执行成功但没有写入 FLAG_PATH 指定文件。"
     else
@@ -1034,6 +1040,16 @@ run_dynamic_checks() {
   stack_hint="$(infer_stack_hint)"
   if [[ -n "$stack_hint" ]]; then
     log_result INFO "检测到栈提示: ${stack_hint}"
+  fi
+  if [[ -n "$FLAG_SYNC_PATHS_CFG" ]]; then
+    log_result INFO "业务 flag 同步路径已配置: ${FLAG_SYNC_PATHS_CFG}"
+  elif [[ "$stack_hint" == "pwn" ]]; then
+    log_result WARN "Pwn 题未配置 challenge.flag.sync_paths。validate.sh 只能确认 /flag 与平台契约，不能确认题目程序会读到动态 flag。"
+  fi
+  if [[ "$HAS_SOLVE_PROBE_CFG" == "true" ]]; then
+    log_result INFO "检测到 verification.solve_probe；题目入口验证应在容器业务断言阶段执行。"
+  else
+    log_result INFO "validate.sh 只验证平台交付契约，不证明题目业务可解；需要 build/run 或 verification.solve_probe 证明题目入口可用。"
   fi
 
   local base_image

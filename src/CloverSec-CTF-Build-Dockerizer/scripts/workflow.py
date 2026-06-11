@@ -143,22 +143,31 @@ def command_accept(args: argparse.Namespace) -> int:
     proposal_path = Path(args.proposal).resolve() if args.proposal else proposal_yaml_path(project_dir)
     challenge_path = Path(args.output).resolve() if args.output else default_challenge_path(project_dir)
     challenge_existed = challenge_path.exists()
-    proposal_root = load_yaml_object(proposal_path)
-    proposal = _extract_proposal(proposal_root)
-    challenge_doc = build_challenge(proposal, SimpleNamespace(name=args.name or "", output=str(challenge_path)))
-    write_yaml(challenge_doc, challenge_path)
+    if args.refresh:
+        if not challenge_path.exists():
+            raise ConfigError(f"--refresh 需要已存在的 challenge.yaml: {challenge_path}")
+        if args.format == "text":
+            print(f"[INFO] file plan: {challenge_path} -> keep")
+    else:
+        proposal_root = load_yaml_object(proposal_path)
+        proposal = _extract_proposal(proposal_root)
+        challenge_doc = build_challenge(proposal, SimpleNamespace(name=args.name or "", output=str(challenge_path)))
+        write_yaml(challenge_doc, challenge_path)
+
+    proposal_hash = sha256_file(proposal_path) if proposal_path.exists() else ""
     accepted = {
         "schema_version": SCHEMA_VERSION,
         "accepted": True,
-        "proposal_sha256": sha256_file(proposal_path),
+        "proposal_sha256": proposal_hash,
         "challenge_sha256": sha256_file(challenge_path),
-        "source": str(proposal_path),
+        "source": str(proposal_path) if proposal_hash else "current-challenge",
         "manual_notes": args.notes or "",
+        "refresh": bool(args.refresh),
     }
     write_json(accepted_path(project_dir), accepted)
     audit = audit_project(project_dir, challenge_path=challenge_path)
     write_session(project_dir, stage="proposal_accepted", audit=audit, challenge_path=challenge_path)
-    if args.format == "text":
+    if args.format == "text" and not args.refresh:
         action = "overwrite" if challenge_existed else "create"
         print(f"[INFO] file plan: {challenge_path} -> {action}")
     emit(
@@ -171,7 +180,7 @@ def command_accept(args: argparse.Namespace) -> int:
             file_plan=[
                 {
                     "path": str(challenge_path),
-                    "action": "overwrite" if challenge_existed else "create",
+                    "action": "keep" if args.refresh else ("overwrite" if challenge_existed else "create"),
                     "exists_before": challenge_existed,
                 }
             ],
@@ -328,6 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", help="challenge.yaml 输出路径")
     p.add_argument("--name", default="", help="challenge.name 覆盖值")
     p.add_argument("--notes", default="", help="人工备注")
+    p.add_argument("--refresh", action="store_true", help="登记当前 challenge.yaml 为已确认，不重新生成")
     p.set_defaults(func=command_accept)
 
     p = sub.add_parser("render", help="执行 gate 检查后渲染")

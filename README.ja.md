@@ -14,30 +14,31 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r3-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r3"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r3</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.2.0-r2 リリース修正
+## v2.2.0-r3 リリース修正
 
-`v2.2.0-r2` は `v2.2.0` の 2 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。主な対象は、explicit custom Bundle と Linux-QEMU の full release/manual validation です。
+`v2.2.0-r3` は `v2.2.0` の 3 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。主な対象は、実際の歴史問題復刻で見つかった Pwn/BOF が古い `package.json` に引っ張られる問題、PHP 7.4 などの古い runtime が推論で上書きされる問題、問題本体が `/flag` 以外を読む問題、そして `solve_probe` で入口を確認したいケースです。
 
-この r2 release の主な修正点：
+この r3 release の主な修正点：
 
-- ユーザーが base image、install commands、start commands、ports、service list を明示した場合、custom Bundle を生成できます。不完全な custom input は引き続き `BUNDLE_UNSUPPORTED_COMBINATION` を返します。
-- Linux-QEMU full check で Docker build、QEMU TCG boot、guest SSH、dynamic guest flag、PoC reproduction を確認できます。Fragnesia の実アセットで full path を検証済みです。
-- Linux-QEMU dynamic flag は QEMU boot 前に guest rootfs へ書き込むようになり、guest `/root/flag` が古いままになる問題を避けます。
-- runtime Skill docs は問題構築に必要な内容へ絞り、source release governance の説明は配布パッケージ文書から外しました。
+- Pwn/BOF routing を改善しました。ELF、C source、Makefile、xinetd/socat/tcpserver/chroot の証拠を優先し、古い frontend file による Node 誤判定を減らします。
+- legacy runtime をより確実に保持します。`challenge.base_image` は推論された runtime profile に上書きされないため、PHP 7.4、Node 14、JDK 8 などの古い制約を明示できます。
+- `workflow.py accept --refresh` により、人工修正した `challenge.yaml` で確認状態を更新できます。`workflow.py --pretty` は JSON output として扱います。
+- `flag.sync_paths` と `verification.solve_probe` を主経路に入れ、dynamic flag を問題本体の読み取り先へ同期し、smoke で入口断言を実行できます。
+- 配布パッケージ文書は runtime relative path を維持し、インストール後に存在しない `src/CloverSec-CTF-Build-Dockerizer/...` を参照しません。
 
-Real LLM A/B の結果：インストール済み `v2.2.0` は 3/4、r2 candidate は 4/4 でした。custom Bundle は unsupported ではなく explicit custom proposal path に入るようになりました。
+Real LLM A/B の結果：修正前 HEAD は 3/6、r3 candidate は 6/6 でした。Pwn BOF mixed input、PHP 7.4 preservation、business flag path + `solve_probe` は失敗から成功に変わりました。full release build と Docker smoke も通過し、smoke は 35 pass / 0 fail / 4 policy skip でした。
 
 ## v2.2.0 主な更新
 
@@ -816,7 +817,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r2
+bash scripts/publish_release.sh --version v2.2.0-r3
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

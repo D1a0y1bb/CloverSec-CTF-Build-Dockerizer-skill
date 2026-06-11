@@ -14,30 +14,31 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r3-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r3"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r2</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r3</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.2.0-r2 Release Fix
+## v2.2.0-r3 Release Fix
 
-`v2.2.0-r2` is the second release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It focuses on two real-use gaps: explicit custom Bundle combinations and full Linux-QEMU release/manual validation.
+`v2.2.0-r3` is the third release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It focuses on real historical challenge reproduction issues: Pwn/BOF inputs polluted by stale `package.json`, legacy runtimes such as PHP 7.4 being overridden by inference, challenge business flag paths that are not `/flag`, and cases that need `solve_probe` to prove the challenge entry works.
 
-This r2 release includes:
+This r3 release includes:
 
-- Explicit custom Bundle support when the user supplies the base image, install commands, start commands, ports, and service list. Incomplete custom inputs still return `BUNDLE_UNSUPPORTED_COMBINATION`.
-- Linux-QEMU full check for Docker build, QEMU TCG boot, guest SSH, dynamic guest flag, and PoC reproduction. The real Fragnesia asset case passed the full path.
-- A Linux-QEMU dynamic flag fix that writes the guest rootfs before QEMU boot, avoiding stale guest `/root/flag` contents.
-- Runtime Skill docs stay focused on challenge building; source release governance notes are kept out of packaged docs.
+- More reliable Pwn/BOF routing: ELF, C source, Makefile, xinetd/socat/tcpserver/chroot signals now outweigh stale frontend files, reducing false Node routing.
+- Stronger legacy runtime preservation: `challenge.base_image` is no longer overridden by inferred runtime profiles, so PHP 7.4, Node 14, JDK 8, and similar historical constraints can stay explicit.
+- `workflow.py accept --refresh` supports continuing after manual `challenge.yaml` edits, and `workflow.py --pretty` now maps to JSON output.
+- `flag.sync_paths` and `verification.solve_probe` are part of the main path, so dynamic flags can sync to business paths and smoke can run entry assertions.
+- Packaged docs keep runtime-relative paths and avoid `src/CloverSec-CTF-Build-Dockerizer/...` references that do not exist after installation.
 
-Real LLM A/B result: installed `v2.2.0` scored 3/4 and the r2 candidate scored 4/4. The custom Bundle case now enters the explicit custom proposal path instead of being rejected as unsupported.
+Real LLM A/B result: pre-fix HEAD scored 3/6 and the r3 candidate scored 6/6. Pwn BOF mixed input, PHP 7.4 preservation, and business flag path plus `solve_probe` all changed from failing to passing. Full release build and Docker smoke passed with 35 pass, 0 fail, and 4 policy skips.
 
 ## v2.2.0 Major Updates
 
@@ -817,7 +818,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r2
+bash scripts/publish_release.sh --version v2.2.0-r3
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

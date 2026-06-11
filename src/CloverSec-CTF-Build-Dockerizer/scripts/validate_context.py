@@ -57,6 +57,10 @@ def main() -> int:
     legacy = challenge.get("rdg") if isinstance(challenge.get("rdg"), dict) else {}
     source = {**legacy, **defense}
     vm = challenge.get("vm") if isinstance(challenge.get("vm"), dict) else {}
+    flag_cfg = challenge.get("flag") if isinstance(challenge.get("flag"), dict) else {}
+    verification = challenge.get("verification") if isinstance(challenge.get("verification"), dict) else {}
+    solve_probe = verification.get("solve_probe") if isinstance(verification.get("solve_probe"), dict) else {}
+    sync_paths = flag_cfg.get("sync_paths") if isinstance(flag_cfg.get("sync_paths"), list) else []
     guest_forwards = vm.get("guest_forwards") if isinstance(vm.get("guest_forwards"), list) else []
     forward_host_ports = []
     for item in guest_forwards:
@@ -98,6 +102,8 @@ def main() -> int:
         ),
         "FLAG_OPTIONAL_CFG": flag_optional,
         "START_CMD_CFG": str(((challenge.get("start") or {}).get("cmd")) or "").strip(),
+        "FLAG_SYNC_PATHS_CFG": ",".join(str(item).strip() for item in sync_paths if str(item).strip()),
+        "HAS_SOLVE_PROBE_CFG": "true" if bool(solve_probe) else "false",
         "VM_ACCELERATOR_CFG": str(vm.get("accelerator") or "tcg").strip().lower(),
         "VM_REQUIRE_KVM_CFG": pick_bool(vm, "require_kvm", False),
         "VM_KERNEL_CFG": str(vm.get("kernel") or "vm/vmlinuz").strip(),
