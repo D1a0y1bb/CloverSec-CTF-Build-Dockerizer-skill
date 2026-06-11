@@ -1,0 +1,29 @@
+schema_version: "1.0"
+id: linux-qemu-copy-fail-missing-assets
+title: "Copy Fail Linux-QEMU candidate case"
+external_case_dir: "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-31431 Copy Fail Linux Kernel LPE/code"
+asset_policy:
+  store_in_repo: false
+  reason: "The real VM assets and PoC evidence are not available in this repository. Keep this case as a negative/candidate record."
+expected:
+  accelerator: tcg
+  require_kvm: false
+  host_port: "22"
+  guest_port: "22"
+  guest_flag_path: "/root/flag"
+current_status:
+  support_level: unsupported
+  verification_level: manual
+  contract_expectation: fail
+missing_evidence:
+  - "asset_manifest.yaml with kernel/initrd/rootfs file sizes and SHA256 values"
+  - "challenge.vm schema aligned with the rendered Linux-QEMU contract"
+  - "QEMU boot summary JSON"
+  - "dynamic flag guest readback summary JSON"
+  - "PoC command or poc_check.sh with a clear success condition"
+manual_commands:
+  preflight_when_assets_exist: >-
+    bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir
+    "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-31431 Copy Fail Linux Kernel LPE/code"
+    --asset-manifest Build_test/linux-qemu-copy-fail-missing-assets/asset_manifest.yaml
+    --json-summary /tmp/linux-qemu-copy-fail-preflight.json

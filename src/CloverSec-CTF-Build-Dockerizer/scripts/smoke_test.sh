@@ -240,14 +240,16 @@ resolve_host_port() {
   local cid="$1"
   local container_port="$2"
   local host_port=""
+  local attempt
 
-  host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
-  if [[ -n "${host_port}" ]]; then
-    printf '%s\n' "$host_port"
-    return 0
-  fi
+  for attempt in {1..10}; do
+    host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
+    if [[ -n "${host_port}" ]]; then
+      printf '%s\n' "$host_port"
+      return 0
+    fi
 
-  docker inspect "$cid" 2>/dev/null | python3 -c '
+    host_port="$(docker inspect "$cid" 2>/dev/null | python3 -c '
 import json
 import sys
 
@@ -264,7 +266,14 @@ for item in ports.get(container_port) or []:
     if host_port:
         print(host_port)
         raise SystemExit(0)
-' "$container_port" || true
+' "$container_port" || true)"
+    if [[ -n "${host_port}" ]]; then
+      printf '%s\n' "$host_port"
+      return 0
+    fi
+
+    sleep 0.5
+  done
 }
 
 cleanup_case() {
@@ -277,6 +286,122 @@ cleanup_case() {
 
   docker rm -f "$cname" >/dev/null 2>&1 || true
   docker rmi "$image_tag" >/dev/null 2>&1 || true
+}
+
+run_smoke_assert_yaml() {
+  local yaml_path="$1"
+  local cid="$2"
+  local host_port="$3"
+  local container_port="$4"
+  python3 - "$yaml_path" "$cid" "$host_port" "$container_port" <<'PY'
+import socket
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+import yaml
+
+yaml_path, cid, host_port, _container_port = sys.argv[1:5]
+with open(yaml_path, "r", encoding="utf-8") as handle:
+    raw = yaml.safe_load(handle) or {}
+
+assertions = raw.get("assertions")
+if not isinstance(assertions, list):
+    print("[ASSERT] smoke_assert.yaml requires assertions[]", file=sys.stderr)
+    sys.exit(2)
+
+
+def fail(message: str) -> None:
+    print(f"[ASSERT] {message}", file=sys.stderr)
+    sys.exit(1)
+
+
+def assert_http(item: dict) -> None:
+    if not host_port:
+        fail("http assertion requires resolved host port")
+    path = str(item.get("path") or "/")
+    method = str(item.get("method") or "GET").upper()
+    timeout = float(item.get("timeout_seconds") or 5)
+    request = urllib.request.Request(f"http://127.0.0.1:{host_port}{path}", method=method)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            status = response.getcode()
+            headers = "\n".join(f"{key}: {value}" for key, value in response.headers.items())
+            body = response.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        headers = "\n".join(f"{key}: {value}" for key, value in exc.headers.items())
+        body = exc.read().decode("utf-8", errors="replace")
+
+    expected_status = item.get("expect_status")
+    if expected_status is not None and status != int(expected_status):
+        fail(f"http status mismatch: got {status}, want {expected_status}")
+    if expected_status is None and status >= 400:
+        fail(f"http status indicates failure: {status}")
+
+    expect_text = item.get("expect_text")
+    if expect_text and str(expect_text) not in body:
+        fail("expected body text not found")
+    forbid_text = item.get("forbid_text")
+    if forbid_text and str(forbid_text) in body:
+        fail("forbidden body text observed")
+    expect_header = item.get("expect_header")
+    if expect_header and str(expect_header).lower() not in headers.lower():
+        fail("expected header text not found")
+    forbid_header = item.get("forbid_header")
+    if forbid_header and str(forbid_header).lower() in headers.lower():
+        fail("forbidden header text observed")
+
+
+def assert_tcp(item: dict) -> None:
+    if not host_port:
+        fail("tcp assertion requires resolved host port")
+    timeout = float(item.get("timeout_seconds") or 5)
+    with socket.create_connection(("127.0.0.1", int(host_port)), timeout=timeout):
+        return
+
+
+def assert_container_exec(item: dict) -> None:
+    cmd = item.get("cmd")
+    if not cmd:
+        fail("container_exec assertion requires cmd")
+    result = subprocess.run(
+        ["docker", "exec", cid, "bash", "-lc", str(cmd)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    expected_exit = int(item.get("expect_exit", 0))
+    if result.returncode != expected_exit:
+        fail(f"container_exec exit mismatch: got {result.returncode}, want {expected_exit}\n{result.stdout}")
+    expect_text = item.get("expect_text")
+    if expect_text and str(expect_text) not in result.stdout:
+        fail("container_exec expected text not found")
+    forbid_text = item.get("forbid_text")
+    if forbid_text and str(forbid_text) in result.stdout:
+        fail("container_exec forbidden text observed")
+
+
+handlers = {
+    "http": assert_http,
+    "tcp": assert_tcp,
+    "container_exec": assert_container_exec,
+}
+
+for index, assertion in enumerate(assertions, start=1):
+    if not isinstance(assertion, dict):
+        fail(f"assertion {index} must be an object")
+    assertion_type = str(assertion.get("type") or "").strip()
+    handler = handlers.get(assertion_type)
+    if handler is None:
+        fail(f"unsupported assertion type: {assertion_type}")
+    handler(assertion)
+    print(f"[ASSERT] {assertion_type} assertion {index} passed")
+
+print(f"[ASSERT] smoke_assert.yaml passed: {yaml_path}")
+PY
 }
 
 should_run_container() {
@@ -472,6 +597,20 @@ while IFS= read -r dir; do
   host_port="$(resolve_host_port "$cid" "$container_port")"
   if [[ -z "${host_port}" ]]; then
     echo "[WARN] 无法解析宿主端口映射: ${name} ${container_port}/tcp"
+  fi
+
+  assert_yaml="${dir}/smoke_assert.yaml"
+  if [[ ! -f "${assert_yaml}" && -f "${dir}/smoke_assert.yml" ]]; then
+    assert_yaml="${dir}/smoke_assert.yml"
+  fi
+  if [[ -f "${assert_yaml}" ]]; then
+    echo "[INFO] 执行业务断言 YAML: ${assert_yaml}"
+    if ! run_smoke_assert_yaml "${assert_yaml}" "${cid}" "${host_port}" "${container_port}"; then
+      echo "[ERROR] smoke_assert.yaml 失败: ${name}"
+      FAIL_LIST+=("${name}:smoke-assert-yaml")
+      cleanup_case "$container_name" "$image_tag"
+      continue
+    fi
   fi
 
   assert_script="${dir}/smoke_assert.sh"

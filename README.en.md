@@ -64,8 +64,8 @@ This release covers:
 | Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` / JSON summary |
 | Component render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Generate component+variant base units | build-ready service directory |
 | Bundle/Recipe render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | Generate and validate fixed recipes or explicit custom single-container multi-service bundles | platform delivery directory |
-| Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | Produce draft, renderable subset, and import report | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
-| Check-service stub | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | Generate HTTP/TCP/Redis/MySQL/SSH check skeletons | review-required `check/check.sh` |
+| Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | Produce draft, renderable subset, and import report while preserving ports, environment, dependencies, networks, and healthcheck clues | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
+| Check-service stub | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | Generate HTTP/TCP/Redis/MySQL/SSH check skeletons with status, text, Redis key, and MySQL query assertions | review-required `check/check.sh` |
 | Linux-QEMU render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate Docker-hosted QEMU guest delivery | single-image delivery directory |
 | Linux-QEMU manual validation | `scripts/linux_qemu_manual_check.sh` | Run preflight/static/build/boot/flag/full checks | JSON summary / evidence notes |
 | Scenario render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | Render local multi-service orchestration | service dirs + `docker-compose.yml` |
@@ -399,10 +399,12 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
   --type http \
   --output /tmp/rdg-python/check/check.sh \
   --target-port 8080 \
-  --path /
+  --path / \
+  --expect-status 200 \
+  --expect-text "login"
 ```
 
-Generated scripts contain `CHECK_REVIEW_REQUIRED`; remove it only after reviewing the actual check logic.
+Generated scripts contain `CHECK_REVIEW_REQUIRED`; remove it only after reviewing the actual check logic. HTTP also supports `--forbid-text`, `--expect-header`, and `--forbid-header`; Redis supports `--redis-key` / `--redis-expect-value`; MySQL supports `--mysql-query` / `--mysql-expect-text`.
 
 ### AWD
 
@@ -533,6 +535,24 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
   --scenario-name imported-lab \
   --output /tmp/imported-lab
 ```
+
+The draft keeps ports, environment, depends_on, volumes, networks, healthcheck, command/entrypoint, and findings. Only the renderable subset should be passed to `render_scenario.py`.
+
+Build-level smoke supports an optional `smoke_assert.yaml`:
+
+```yaml
+assertions:
+  - type: http
+    path: /
+    expect_status: 200
+    expect_text: "login"
+  - type: tcp
+    timeout_seconds: 5
+  - type: container_exec
+    cmd: "test -f /flag"
+```
+
+Existing `smoke_assert.sh` files are still supported. When both files exist, YAML assertions run first.
 
 ## Platform Hard Contract and Boundaries
 

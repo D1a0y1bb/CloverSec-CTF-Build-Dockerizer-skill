@@ -10,6 +10,7 @@ The pool intentionally contains both passing and failing cases. A failing Docker
 - Each case directory has `case_note.md` with source, expected route, verification level, and current limits.
 - Large VM assets, archives, `.git`, `node_modules`, caches, and files over 20 MB must not be copied into this directory.
 - Linux-QEMU real asset cases may use a `manual_case.yaml` record that points to an external local path. Add `asset_manifest.yaml` with file sizes and SHA256 values, but do not copy large rootfs/kernel archives into Git.
+- Linux-QEMU candidate cases must stay marked as `unsupported` until they have asset manifest, boot evidence, dynamic flag readback, and PoC evidence. A CVE name alone is not enough to promote a case to real-asset status.
 
 ## Regression Commands
 

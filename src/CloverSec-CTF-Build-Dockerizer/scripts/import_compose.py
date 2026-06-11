@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -48,6 +49,24 @@ def load_compose(path: Path) -> Dict[str, Any]:
     return compose
 
 
+def image_aliases(image: str) -> List[str]:
+    text = str(image or "").strip()
+    if not text:
+        return []
+    no_digest = text.split("@", 1)[0]
+    aliases = {text, no_digest}
+    if no_digest.startswith("docker.io/library/"):
+        aliases.add(no_digest.removeprefix("docker.io/library/"))
+        aliases.add(no_digest.removeprefix("docker.io/"))
+    elif no_digest.startswith("library/"):
+        aliases.add(no_digest.removeprefix("library/"))
+        aliases.add(f"docker.io/{no_digest}")
+    elif "/" not in no_digest:
+        aliases.add(f"library/{no_digest}")
+        aliases.add(f"docker.io/library/{no_digest}")
+    return sorted(item for item in aliases if item)
+
+
 def component_image_map() -> Dict[str, Tuple[str, str]]:
     raw = load_yaml_file(COMPONENTS_FILE) or {}
     components = ensure_dict(raw.get("components"), "components")
@@ -59,8 +78,20 @@ def component_image_map() -> Dict[str, Tuple[str, str]]:
             image = str(variant.get("base_image") or "").strip()
             variant_id = str(variant.get("id") or "").strip()
             if image and variant_id:
-                result[image] = (str(component_id), variant_id)
+                for alias in image_aliases(image):
+                    result[alias] = (str(component_id), variant_id)
     return result
+
+
+def resolve_component_image(image: str, image_map: Dict[str, Tuple[str, str]]) -> Tuple[str, str] | None:
+    matches: List[Tuple[str, str]] = []
+    for alias in image_aliases(image):
+        if alias in image_map:
+            matches.append(image_map[alias])
+    unique = sorted(set(matches))
+    if len(unique) == 1:
+        return unique[0]
+    return None
 
 
 def normalize_environment(value: Any) -> Any:
@@ -91,27 +122,54 @@ def normalize_depends_on(value: Any) -> List[str]:
     return [str(value)]
 
 
-def normalize_ports(value: Any) -> Tuple[List[Any], List[str]]:
+def normalize_ports(value: Any) -> Tuple[List[Any], List[str], List[Dict[str, str]]]:
     raw_ports = value if isinstance(value, list) else ([] if value is None else [value])
     host_ports: List[str] = []
+    bindings: List[Dict[str, str]] = []
     for item in raw_ports:
         if isinstance(item, dict):
+            target = item.get("target") or item.get("container_port")
             published = item.get("published") or item.get("host_port")
+            protocol = str(item.get("protocol") or "tcp")
+            host_ip = str(item.get("host_ip") or item.get("host_ip_address") or "")
+            if target:
+                binding = {"container": str(target), "protocol": protocol}
+                if published:
+                    binding["host"] = str(published)
+                if host_ip:
+                    binding["host_ip"] = host_ip
+                bindings.append(binding)
             if published:
                 host_ports.append(str(published))
             continue
         text = str(item).strip()
         if not text:
             continue
-        text = text.split("/", 1)[0]
+        protocol = "tcp"
+        if "/" in text:
+            text, protocol = text.split("/", 1)
         parts = text.split(":")
         if len(parts) == 1:
-            host_ports.append(parts[0])
+            bindings.append({"container": parts[0], "protocol": protocol})
         elif len(parts) == 2:
             host_ports.append(parts[0])
+            bindings.append({"host": parts[0], "container": parts[1], "protocol": protocol})
         else:
             host_ports.append(parts[-2])
-    return raw_ports, host_ports
+            bindings.append({"host_ip": ":".join(parts[:-2]), "host": parts[-2], "container": parts[-1], "protocol": protocol})
+    return raw_ports, host_ports, bindings
+
+
+def container_ports_from_bindings(bindings: List[Dict[str, str]]) -> List[str]:
+    ports: List[str] = []
+    for binding in bindings:
+        protocol = str(binding.get("protocol") or "tcp")
+        container = str(binding.get("container") or "").strip()
+        if protocol != "tcp" or not container:
+            continue
+        if container.isdigit() and container not in ports:
+            ports.append(container)
+    return ports
 
 
 def normalize_build(value: Any, compose_dir: Path) -> Tuple[Any, Path | None]:
@@ -138,6 +196,52 @@ def role_for(name: str, image: str) -> str:
     return "support"
 
 
+def preserve_service_fields(service: Dict[str, Any]) -> Dict[str, Any]:
+    fields = (
+        "container_name",
+        "command",
+        "entrypoint",
+        "working_dir",
+        "user",
+        "restart",
+        "healthcheck",
+        "env_file",
+        "labels",
+        "extra_hosts",
+        "dns",
+        "privileged",
+        "cap_add",
+        "security_opt",
+    )
+    return {key: service[key] for key in fields if key in service}
+
+
+def finding(code: str, summary: str, level: str = "warning", hint: str = "") -> Dict[str, str]:
+    item = {"code": code, "level": level, "summary": summary}
+    if hint:
+        item["hint"] = hint
+    return item
+
+
+SENSITIVE_ENV_RE = re.compile(r"(FLAG|SECRET|TOKEN|KEY|PASSWORD|PASSWD)", re.IGNORECASE)
+
+
+def sensitive_env_warnings(environment: Any) -> List[Dict[str, str]]:
+    if not isinstance(environment, dict):
+        return []
+    warnings: List[Dict[str, str]] = []
+    for key in sorted(str(item) for item in environment.keys()):
+        if SENSITIVE_ENV_RE.search(key):
+            warnings.append(
+                finding(
+                    "SCENARIO_IMPORT_SENSITIVE_ENV",
+                    f"environment includes sensitive-looking key: {key}",
+                    hint="确认这不是动态 flag 或平台密钥后再进入最终交付。",
+                )
+            )
+    return warnings
+
+
 def service_entry(
     name: str,
     service: Dict[str, Any],
@@ -146,12 +250,14 @@ def service_entry(
 ) -> Tuple[Dict[str, Any], Dict[str, Any] | None]:
     image = str(service.get("image") or "").strip()
     build_raw, build_context = normalize_build(service.get("build"), compose_dir)
-    raw_ports, host_ports = normalize_ports(service.get("ports"))
+    raw_ports, host_ports, port_bindings = normalize_ports(service.get("ports"))
     volumes = service.get("volumes") if isinstance(service.get("volumes"), list) else []
     networks = service.get("networks") if service.get("networks") is not None else []
     depends_on = normalize_depends_on(service.get("depends_on"))
     environment = normalize_environment(service.get("environment"))
-    unsupported: List[str] = []
+    preserved = preserve_service_fields(service)
+    findings: List[Dict[str, str]] = []
+    findings.extend(sensitive_env_warnings(environment))
     renderable: Dict[str, Any] | None = None
 
     if build_context is not None:
@@ -160,22 +266,53 @@ def service_entry(
             renderable = {"name": name, "project_dir": str(build_context)}
         else:
             if not challenge_path.is_file():
-                unsupported.append("build context has no challenge.yaml")
+                findings.append(
+                    finding(
+                        "SCENARIO_IMPORT_MISSING_CHALLENGE",
+                        "build context has no challenge.yaml",
+                        "error",
+                        "先为该服务整理 challenge.yaml，或只保留在 scenario.draft.yaml 中人工迁移。",
+                    )
+                )
             if volumes:
-                unsupported.append("compose volumes require manual migration")
-    elif image in image_map:
+                findings.append(finding("SCENARIO_IMPORT_VOLUMES_MANUAL", "compose volumes require manual migration", "error"))
+    elif resolve_component_image(image, image_map):
         if volumes:
-            unsupported.append("compose volumes require manual migration")
+            findings.append(finding("SCENARIO_IMPORT_VOLUMES_MANUAL", "compose volumes require manual migration", "error"))
+        elif preserved.get("command") is not None or preserved.get("entrypoint") is not None:
+            findings.append(
+                finding(
+                    "SCENARIO_IMPORT_COMMAND_MANUAL",
+                    "compose command/entrypoint override requires manual migration",
+                    "error",
+                    "官方镜像被覆盖启动命令时，不能直接按 BaseUnit 变体渲染。",
+                )
+            )
         else:
-            component, variant = image_map[image]
+            component, variant = resolve_component_image(image, image_map) or ("", "")
             renderable = {"name": name, "component": component, "variant": variant}
     else:
-        unsupported.append("image is not mapped to a BaseUnit component")
+        findings.append(
+            finding(
+                "SCENARIO_IMPORT_IMAGE_UNMAPPED",
+                "image is not mapped to a BaseUnit component",
+                "error",
+                "只把官方 component 镜像或已有 challenge.yaml 的 build context 放入 renderable subset。",
+            )
+        )
 
     if renderable and host_ports:
         renderable["host_ports"] = host_ports
     if renderable:
-        renderable["challenge"] = {"name": name}
+        challenge_overrides: Dict[str, Any] = {"name": name}
+        expose_ports = container_ports_from_bindings(port_bindings)
+        if expose_ports:
+            challenge_overrides["expose_ports"] = expose_ports
+        if isinstance(environment, dict) and environment:
+            challenge_overrides["extra"] = {"env": environment}
+        if depends_on:
+            renderable["depends_on"] = depends_on
+        renderable["challenge"] = challenge_overrides
 
     draft = {
         "name": name,
@@ -183,13 +320,16 @@ def service_entry(
         "image": image,
         "build": build_raw,
         "ports": raw_ports,
+        "port_bindings": port_bindings,
         "host_ports": host_ports,
         "environment": environment,
         "volumes": volumes,
         "depends_on": depends_on,
         "networks": networks,
+        "preserved": preserved,
         "renderable": renderable is not None,
-        "unsupported_reasons": unsupported,
+        "findings": findings,
+        "unsupported_reasons": [item["summary"] for item in findings if item.get("level") == "error"],
     }
     if renderable:
         draft.update({key: value for key, value in renderable.items() if key not in {"challenge"}})
@@ -220,6 +360,7 @@ def import_compose(compose_path: Path, output: Path, scenario_name: str, mode: s
                 "role": draft["role"],
                 "renderable": bool(renderable),
                 "unsupported_reasons": draft["unsupported_reasons"],
+                "findings": draft["findings"],
             }
         )
 
@@ -229,6 +370,13 @@ def import_compose(compose_path: Path, output: Path, scenario_name: str, mode: s
             "mode": mode,
             "draft": True,
             "imported_from": str(compose_path),
+            "compose": {
+                "version": compose.get("version"),
+                "networks": compose.get("networks") or {},
+                "volumes": compose.get("volumes") or {},
+                "configs": compose.get("configs") or {},
+                "secrets": compose.get("secrets") or {},
+            },
             "services": draft_services,
         }
     }
@@ -255,6 +403,13 @@ def import_compose(compose_path: Path, output: Path, scenario_name: str, mode: s
             "report": str(output / "import-report.json"),
         },
         "services": report_services,
+        "compose": {
+            "version": compose.get("version"),
+            "networks": compose.get("networks") or {},
+            "volumes": compose.get("volumes") or {},
+            "configs": compose.get("configs") or {},
+            "secrets": compose.get("secrets") or {},
+        },
     }
 
     dump_yaml(draft_doc, output / "scenario.draft.yaml")

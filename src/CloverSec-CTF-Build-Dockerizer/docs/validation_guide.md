@@ -134,8 +134,17 @@ python3 scripts/generate_check_stub.py \
   --type http \
   --output check/check.sh \
   --target-port 80 \
-  --path /
+  --path / \
+  --expect-status 200 \
+  --expect-text "login"
 ```
+
+可选业务断言：
+
+- HTTP：`--expect-status`、`--expect-text`、`--forbid-text`、`--expect-header`、`--forbid-header`。
+- Redis：`--redis-key`、`--redis-expect-value`。
+- MySQL：`--mysql-query`、`--mysql-expect-text`。
+- SSH：`--ssh-expect-banner`。
 
 生成脚本默认带 `CHECK_REVIEW_REQUIRED`。只有人工确认健康检查和漏洞负向检查后，才能移除该标记。
 

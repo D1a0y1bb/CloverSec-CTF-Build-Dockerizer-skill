@@ -300,11 +300,18 @@ def command_status(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CloverSec CTF Dockerizer workflow entrypoint.")
+    parser.add_argument("--pretty", action="store_true", help="兼容旧习惯；等价于 --format json")
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p: argparse.ArgumentParser) -> None:
         p.add_argument("--project-dir", default=".", help="题目目录")
         p.add_argument("--format", choices=("text", "json"), default="text")
+        p.add_argument(
+            "--pretty",
+            action="store_true",
+            default=argparse.SUPPRESS,
+            help="兼容旧习惯；等价于 --format json",
+        )
 
     p = sub.add_parser("intake", help="审计输入并写入 session")
     common(p)
@@ -348,6 +355,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if getattr(args, "pretty", False):
+        args.format = "json"
     try:
         return int(args.func(args))
     except ConfigError as exc:

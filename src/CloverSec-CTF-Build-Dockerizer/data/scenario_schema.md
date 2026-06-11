@@ -250,9 +250,11 @@ python3 scripts/import_compose.py \
 
 输出包含：
 
-- `scenario.draft.yaml`：完整导入草案，保留 volumes、networks、environment、unsupported 原因。
+- `scenario.draft.yaml`：完整导入草案，保留 ports、environment、depends_on、volumes、networks、healthcheck、command/entrypoint 等原始线索和 findings。
 - `scenario.renderable.yaml`：只包含可继续交给 `render_scenario.py` 的服务。
-- `import-report.json`：机器可读摘要。
+- `import-report.json`：机器可读摘要，记录 renderable 状态、unsupported 原因和需要人工处理的字段。
+
+可渲染子集只接收两类服务：build context 下已有 `challenge.yaml` 的服务，或 image 能匹配 BaseUnit component/variant 的官方镜像服务。`depends_on`、host/container 端口和 environment 会尽量带入；volumes、特权参数、复杂网络和自定义 command/entrypoint 仍保留在 draft/report 中，需要人工处理。
 
 `scenario.draft.yaml` 不是最终交付输入；只有 `scenario.renderable.yaml` 适合进入渲染链路。
 

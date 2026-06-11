@@ -166,6 +166,34 @@ def validate_host_ports(compose: Dict[str, Any], messages: Dict[str, str], error
             seen_host_ports.add(host_port)
 
 
+def normalize_depends_on(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, dict):
+        return [str(key).strip() for key in value.keys() if str(key).strip()]
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def validate_depends_on_targets(
+    scenario_services: Dict[str, Dict[str, Any]],
+    compose_services: Dict[str, Any],
+    errors: List[str],
+) -> None:
+    names = set(scenario_services.keys())
+    for service_name, service_cfg in scenario_services.items():
+        for dep in normalize_depends_on(service_cfg.get("depends_on")):
+            if dep not in names:
+                errors.append(f"service {service_name}: scenario depends_on 指向不存在的服务: {dep}")
+    for service_name, raw_compose in compose_services.items():
+        service = ensure_dict(raw_compose, f"compose.services.{service_name}")
+        for dep in normalize_depends_on(service.get("depends_on")):
+            if dep not in compose_services:
+                errors.append(f"service {service_name}: compose depends_on 指向不存在的服务: {dep}")
+
+
 def validate_profile_alignment(
     scenario_mode: str,
     service_name: str,
@@ -281,6 +309,7 @@ def main() -> int:
     validate_host_ports(compose, messages, errors)
 
     compose_services = ensure_dict(compose.get("services"), "compose.services")
+    validate_depends_on_targets(service_map, compose_services, errors)
     for service_name, raw in compose_services.items():
         if service_name not in service_map:
             errors.append(f"compose 中存在未在 scenario.yaml 定义的服务: {service_name}")

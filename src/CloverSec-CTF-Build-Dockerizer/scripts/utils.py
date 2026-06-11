@@ -607,6 +607,85 @@ def _any_file_contains(scan_dir: Path, checks: List[Any]) -> Optional[str]:
     return None
 
 
+def _looks_like_elf(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    try:
+        return path.read_bytes()[:4] == b"\x7fELF"
+    except Exception:
+        return False
+
+
+def _pwn_signal_score(scan_dir: Path) -> Tuple[int, int, List[str]]:
+    """Collect strong Pwn signals beyond simple file names.
+
+    Real Pwn BOF packages often include a compiled ELF, Makefile, C source,
+    xinetd/socat wrapper, or exploit notes. They may also contain web helper
+    files such as package.json. These signals should beat incidental Node hits
+    while still keeping low-confidence cases behind proposal confirmation.
+    """
+    score = 0
+    max_score = 0
+    evidence: List[str] = []
+
+    def add(points: int, label: str) -> None:
+        nonlocal score, max_score
+        score += points
+        max_score += points
+        evidence.append(label)
+
+    if re.search(r"\b(pwn|bof|overflow|heap|rop)\b", scan_dir.name, flags=re.IGNORECASE):
+        add(10, f"目录名包含 Pwn/BOF 线索: {scan_dir.name}")
+
+    elf_candidates: List[Path] = []
+    for pattern in ("*", "bin/*", "dist/*", "deploy/*", "src/*"):
+        elf_candidates.extend(path for path in scan_dir.glob(pattern) if path.is_file())
+    elf_hits = []
+    for candidate in sorted(set(elf_candidates)):
+        if _looks_like_elf(candidate):
+            try:
+                elf_hits.append(str(candidate.relative_to(scan_dir)))
+            except ValueError:
+                elf_hits.append(str(candidate))
+        if len(elf_hits) >= 3:
+            break
+    if elf_hits:
+        add(50, "命中 ELF 二进制: " + ", ".join(elf_hits))
+
+    dockerfile = _read_text_file(scan_dir / "Dockerfile").lower()
+    if any(token in dockerfile for token in ("xinetd", "socat", "tcpserver", "chroot", "pwntools", "pwn")):
+        add(18, "Dockerfile 命中 Pwn 服务/隔离线索")
+
+    for make_name in ("Makefile", "makefile", "src/Makefile", "src/makefile", "deploy/Makefile", "deploy/makefile"):
+        makefile = _read_text_file(scan_dir / make_name).lower()
+        if makefile and any(token in makefile for token in ("gcc", "clang", "fno-stack-protector", "no-pie", "execstack")):
+            add(18, f"{make_name} 命中 Pwn 编译参数")
+            break
+
+    source_hits = []
+    for pattern in ("*.c", "src/*.c", "challenge/*.c", "deploy/*.c"):
+        for candidate in sorted(scan_dir.glob(pattern)):
+            content = _read_text_file(candidate)
+            if re.search(r"\b(gets|scanf|read|system|strcpy|strcat|puts|printf)\s*\(", content):
+                try:
+                    source_hits.append(str(candidate.relative_to(scan_dir)))
+                except ValueError:
+                    source_hits.append(str(candidate))
+                break
+        if source_hits:
+            break
+    if source_hits:
+        add(14, "C 源码命中 Pwn 常见函数: " + ", ".join(source_hits))
+
+    for script_name in ("run.sh", "run_pwn.sh", "start.sh", "deploy/run.sh", "deploy/run_pwn.sh"):
+        content = _read_text_file(scan_dir / script_name).lower()
+        if content and any(token in content for token in ("xinetd", "socat", "tcpserver", "chroot", "pwn")):
+            add(12, f"{script_name} 命中 Pwn 启动线索")
+            break
+
+    return score, max_score, evidence
+
+
 def _rule_matches(scan_dir: Path, rule: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
     files = [str(x) for x in ensure_list(rule.get("any_of_files"), "patterns.rules.any_of_files")]
     dirs = [str(x) for x in ensure_list(rule.get("any_of_dirs"), "patterns.rules.any_of_dirs")]
@@ -800,6 +879,11 @@ def detect_stack(
                         score += 8
                         max_score += 8
                         break
+            pwn_extra, pwn_extra_max, pwn_evidence = _pwn_signal_score(scan_dir)
+            if pwn_extra:
+                score += pwn_extra
+                max_score += pwn_extra_max
+                file_hits.extend(pwn_evidence)
 
         if stack_id == "linux-qemu":
             vm_dir = scan_dir / "vm"

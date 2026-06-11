@@ -75,6 +75,27 @@ def ensure_unique_names(services: List[Dict[str, Any]]) -> None:
         seen.add(name)
 
 
+def normalize_depends_on(value: Any, field_name: str) -> List[str]:
+    if value is None:
+        return []
+    items = ensure_list(value, field_name)
+    deps: List[str] = []
+    for item in items:
+        dep = str(item).strip()
+        if dep:
+            deps.append(dep)
+    return deps
+
+
+def ensure_depends_on_targets(services: List[Dict[str, Any]]) -> None:
+    names = {str(service.get("name") or "").strip() for service in services}
+    for service in services:
+        name = str(service.get("name") or "").strip()
+        for dep in normalize_depends_on(service.get("depends_on"), f"service {name}.depends_on"):
+            if dep not in names:
+                raise ConfigError(f"service {name}: depends_on 指向不存在的服务: {dep}")
+
+
 def resolve_profile(service: Dict[str, Any], scenario_mode: str, current_challenge: Dict[str, Any]) -> str:
     candidate = (
         str(service.get("profile") or "").strip().lower()
@@ -222,6 +243,7 @@ def render_from_challenge_source(
         "context": f"./services/{name}",
         "dir": out_dir,
         "ports": port_mappings,
+        "depends_on": normalize_depends_on(service.get("depends_on"), f"service {name}.depends_on"),
     }
 
 
@@ -284,6 +306,7 @@ def render_from_component_source(
         "context": f"./services/{name}",
         "dir": out_dir,
         "ports": port_mappings,
+        "depends_on": normalize_depends_on(service.get("depends_on"), f"service {name}.depends_on"),
     }
 
 
@@ -300,6 +323,8 @@ def write_compose(output_dir: Path, scenario_name: str, services: List[Dict[str,
             "ports": service["ports"],
             "networks": ["default"],
         }
+        if service.get("depends_on"):
+            compose["services"][service["name"]]["depends_on"] = service["depends_on"]
     compose_path = output_dir / "docker-compose.yml"
     dump_yaml(compose, compose_path)
     return compose_path
@@ -320,6 +345,7 @@ def main() -> int:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     services: List[Dict[str, Any]] = []
+    ensure_depends_on_targets(scenario["services"])
     for item in scenario["services"]:
         service = ensure_dict(item, "scenario.services[]")
         resolved = normalize_service_source(service, scenario_path.parent)

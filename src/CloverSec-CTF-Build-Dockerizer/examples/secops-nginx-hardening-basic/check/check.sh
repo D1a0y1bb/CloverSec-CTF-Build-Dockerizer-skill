@@ -7,4 +7,9 @@ if [[ "${BODY}" != *"secops-nginx-hardening-basic"* ]]; then
   echo "[FAIL] secops nginx content mismatch" >&2
   exit 1
 fi
+STATUS="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' "http://${TARGET_IP}:${TARGET_PORT}/.git/config" || true)"
+if [[ "${STATUS}" != "404" ]]; then
+  echo "[FAIL] sensitive path should return 404, got ${STATUS}" >&2
+  exit 1
+fi
 echo "[PASS] secops nginx healthy"

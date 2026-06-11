@@ -2,6 +2,17 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## Unreleased
+
+### 变更
+
+- Compose/Vulhub-like 导入增强：draft 保留 ports、environment、depends_on、volumes、networks、healthcheck、command/entrypoint 等线索；renderable subset 支持 image tag/digest 别名匹配、host/container 端口带入、environment 带入和 `depends_on` 写回。
+- check-service 生成器增强：HTTP 支持状态码、正向/反向文本和 header 断言；Redis 支持 key/value 检查；MySQL 支持 query 结果断言；SSH 支持 banner 断言。
+- `smoke_test.sh` 增加可选 `smoke_assert.yaml` 业务断言，支持 HTTP、TCP 和容器内命令；已有 `smoke_assert.sh` 保持兼容。
+- Linux-QEMU 样例维护规则细化：Fragnesia 继续作为外部真实资产样例；Copy Fail 记录为候选负例，缺资产 manifest、boot、flag readback 与 PoC 证据前不升级为真实样例。
+- Pwn 自动探测增强：增加 ELF、C 源码、Makefile、xinetd/socat/tcpserver/chroot 等强证据，减少 BOF/Pwn 题被 `package.json`、`node_modules` 干扰而误判成 Node 的概率。
+- `workflow.py --pretty` 与 `workflow.py <command> --pretty` 都兼容，等价于 `--format json`。
+
 ## v2.2.0-r2 - 2026-06-11
 
 ### 修复

@@ -64,8 +64,8 @@ Real LLM A/B の結果：インストール済み `v2.2.0` は 3/4、r2 candidat
 | 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` / JSON summary |
 | コンポーネント生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | component+variant 最小単位化 | build 可能なサービスディレクトリ |
 | Bundle/Recipe レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | 固定 recipe または明示 custom の単一コンテナ複数サービス構成を生成・検証 | プラットフォーム配布ディレクトリ |
-| Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | draft、renderable subset、import report を生成 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
-| check-service skeleton | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | HTTP/TCP/Redis/MySQL/SSH check 骨格を生成 | review-required `check/check.sh` |
+| Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | ports、environment、depends_on、networks、healthcheck などの手掛かりを保持し、draft、renderable subset、import report を生成 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
+| check-service skeleton | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | HTTP/TCP/Redis/MySQL/SSH check 骨格を生成し、status、text、Redis key、MySQL query 断言に対応 | review-required `check/check.sh` |
 | Linux-QEMU レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Docker 内 QEMU guest 配布物を生成 | 単一イメージ配布ディレクトリ |
 | Linux-QEMU manual validation | `scripts/linux_qemu_manual_check.sh` | preflight/static/build/boot/flag/full 検証 | JSON summary / evidence notes |
 | シナリオ生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py` | ローカル複数サービス編成を生成 | service dir + `docker-compose.yml` |
@@ -399,10 +399,12 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
   --type http \
   --output /tmp/rdg-python/check/check.sh \
   --target-port 8080 \
-  --path /
+  --path / \
+  --expect-status 200 \
+  --expect-text "login"
 ```
 
-生成物には `CHECK_REVIEW_REQUIRED` が入ります。実際の check logic を確認してから削除してください。
+生成物には `CHECK_REVIEW_REQUIRED` が入ります。実際の check logic を確認してから削除してください。HTTP は `--forbid-text`、`--expect-header`、`--forbid-header`、Redis は `--redis-key` / `--redis-expect-value`、MySQL は `--mysql-query` / `--mysql-expect-text` も使えます。
 
 ### AWD
 
@@ -531,6 +533,24 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
   --scenario-name imported-lab \
   --output /tmp/imported-lab
 ```
+
+draft は ports、environment、depends_on、volumes、networks、healthcheck、command/entrypoint、findings を保持します。`render_scenario.py` に渡すのは renderable subset だけです。
+
+build レベルの smoke は任意の `smoke_assert.yaml` に対応します。
+
+```yaml
+assertions:
+  - type: http
+    path: /
+    expect_status: 200
+    expect_text: "login"
+  - type: tcp
+    timeout_seconds: 5
+  - type: container_exec
+    cmd: "test -f /flag"
+```
+
+既存の `smoke_assert.sh` も引き続き使えます。両方ある場合は YAML 断言を先に実行します。
 
 ## プラットフォーム硬契約と境界
 

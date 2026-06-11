@@ -75,3 +75,16 @@ Verify an external asset manifest before boot checks:
 ```bash
 python3 scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
 ```
+
+## Adding Another CVE Case
+
+Keep new Linux-QEMU CVE cases small and evidence-based. A case can be promoted from candidate to real-asset only when all of these are available:
+
+- `manual_case.yaml` with external path, expected accelerator, guest port, guest flag path, timeout, and PoC command.
+- `asset_manifest.yaml` with kernel/initrd/rootfs file names, sizes, and SHA256 values.
+- Static contract result from `validate.sh` or a documented legacy-contract exception.
+- Boot JSON summary from `scripts/linux_qemu_manual_check.sh --mode boot`.
+- Dynamic flag readback JSON summary from `--mode flag` or `--mode full`.
+- PoC evidence with a clear success condition, such as root shell, target file read, or expected exploit output.
+
+`Build_test/linux-qemu-copy-fail-missing-assets/manual_case.yaml` is intentionally a candidate/negative record. It should remain `unsupported` until the missing VM assets and PoC evidence are available.

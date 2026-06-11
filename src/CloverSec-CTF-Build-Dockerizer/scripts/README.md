@@ -38,6 +38,8 @@ python3 scripts/workflow.py propose --project-dir .
 python3 scripts/workflow.py status --project-dir .
 ```
 
+`workflow.py --pretty status` 和 `workflow.py status --pretty` 都会输出 JSON，等价于 `--format json`。
+
 用户确认方案后：
 
 ```bash
@@ -56,7 +58,7 @@ python3 scripts/render.py --config path/to/challenge.yaml --format json
 python3 scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
 python3 scripts/validate_bundle.py --bundle-dir /tmp/bundle
 python3 scripts/import_compose.py --compose docker-compose.yml --output /tmp/compose-import
-python3 scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
+python3 scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path / --expect-status 200
 bash scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
 bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
 bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
@@ -70,6 +72,16 @@ Scenario 说明：
 - 直接调用 `validate_scenario.py` 时，默认只校验 scenario/compose 结构。
 - 追加 `--validate-rendered` 后，会对每个渲染出的服务目录调用 `validate.sh`。
 - `render_scenario.py` 用户侧调用时，必须在用户确认服务清单和端口摘要后传入 `--accepted --reason "..."`。
+- `import_compose.py` 会在 draft 中保留 ports、environment、depends_on、volumes、networks、healthcheck、command/entrypoint 等线索；只有能安全转换的服务会进入 renderable subset。
+- 由 Compose 导入的 `depends_on` 会被 `render_scenario.py` 写回 `docker-compose.yml`，并由 `validate_scenario.py` 校验依赖目标是否存在。
+
+check-service 生成器说明：
+
+- HTTP 支持 `--expect-status`、`--expect-text`、`--forbid-text`、`--expect-header`、`--forbid-header`。
+- Redis 支持 `--redis-key` 和 `--redis-expect-value`。
+- MySQL 支持 `--mysql-query` 和 `--mysql-expect-text`。
+- SSH 支持 `--ssh-expect-banner`。
+- 生成脚本默认带 `CHECK_REVIEW_REQUIRED`，人工确认健康检查和业务断言后才能移除。
 
 Validate 分层说明：
 

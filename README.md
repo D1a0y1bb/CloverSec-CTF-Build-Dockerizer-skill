@@ -133,8 +133,8 @@ flowchart LR
 |---|---|---|---|
 | BaseUnit 组件渲染 | `render_component.py` | 生成“组件 + 指定版本”最小单元 | 可直接 `docker build` 的目录 |
 | Bundle/Recipe 渲染 | `render_bundle.py` / `validate_bundle.py` | 生成并校验固定 Recipe 或显式 custom 单容器多服务组合 | 标准交付目录 |
-| compose/Vulhub-like 导入 | `import_compose.py` | 生成完整 draft、可渲染子集和导入报告 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
-| check-service 骨架 | `generate_check_stub.py` | 生成 HTTP/TCP/Redis/MySQL/SSH 检查脚本骨架 | 待人工确认的 `check/check.sh` |
+| compose/Vulhub-like 导入 | `import_compose.py` | 生成完整 draft、可渲染子集和导入报告，保留端口、环境变量、依赖、网络、健康检查等迁移线索 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
+| check-service 骨架 | `generate_check_stub.py` | 生成 HTTP/TCP/Redis/MySQL/SSH 检查脚本骨架，支持状态码、关键文本、Redis key、MySQL query 等断言 | 待人工确认的 `check/check.sh` |
 | Linux-QEMU 内核题渲染 | `render.py` | 生成 Docker 内 QEMU guest 启动环境 | 单镜像交付目录 |
 | Linux-QEMU 手动验收 | `scripts/linux_qemu_manual_check.sh` | 执行 preflight/static/build/boot/flag/full 分级检查 | JSON summary / 证据记录 |
 | Scenario 场景渲染 | `render_scenario.py` | 渲染多服务本地编排 | 服务目录 + `docker-compose.yml` |
@@ -353,10 +353,12 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
   --type http \
   --output /tmp/rdg-python/check/check.sh \
   --target-port 80 \
-  --path /
+  --path / \
+  --expect-status 200 \
+  --expect-text "login"
 ```
 
-生成脚本默认带 `CHECK_REVIEW_REQUIRED`，`validate.sh` 会阻断发布，直到人工确认并移除标记。
+生成脚本默认带 `CHECK_REVIEW_REQUIRED`，`validate.sh` 会阻断发布，直到人工确认并移除标记。HTTP 还支持 `--forbid-text`、`--expect-header`、`--forbid-header`；Redis 支持 `--redis-key` / `--redis-expect-value`；MySQL 支持 `--mysql-query` / `--mysql-expect-text`。
 
 ### AWD
 
@@ -481,7 +483,23 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
   --scenario-name imported-scenario
 ```
 
-该命令会同时生成完整 `scenario.draft.yaml`、可渲染子集 `scenario.renderable.yaml` 和 `import-report.json`。只有可渲染子集适合继续交给 `render_scenario.py`。
+该命令会同时生成完整 `scenario.draft.yaml`、可渲染子集 `scenario.renderable.yaml` 和 `import-report.json`。draft 会保留 ports、environment、depends_on、volumes、networks、healthcheck、command/entrypoint 等线索；只有可渲染子集适合继续交给 `render_scenario.py`。
+
+构建级 smoke 支持可选业务断言文件 `smoke_assert.yaml`：
+
+```yaml
+assertions:
+  - type: http
+    path: /
+    expect_status: 200
+    expect_text: "login"
+  - type: tcp
+    timeout_seconds: 5
+  - type: container_exec
+    cmd: "test -f /flag"
+```
+
+已有 `smoke_assert.sh` 仍然可用；两个文件都存在时会先执行 YAML，再执行 shell 脚本。
 
 ## 平台硬契约与边界
 

@@ -1,0 +1,3 @@
+assertions:
+  - type: tcp
+    timeout_seconds: 5
