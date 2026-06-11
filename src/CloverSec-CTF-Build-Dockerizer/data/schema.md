@@ -18,7 +18,7 @@
 ```yaml
 challenge:
   name: "example"
-  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|linux-qemu"
+  stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|bundle|linux-qemu"
   profile: "jeopardy|rdg|awd|awdp|secops"
 
   base_image: ""
@@ -67,7 +67,7 @@ challenge:
     drive_format: "raw"
     append: "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1"
     guest_forwards:
-      - proto: "tcp"   # current release supports tcp only, introduced in v2.1.0
+      - proto: "tcp"   # 当前版本仅支持 tcp，自 v2.1.0 起
         host_port: "22"
         guest_port: "22"
     monitor: "none"
@@ -98,6 +98,14 @@ challenge:
   rdg:   # legacy compatibility input
     ...  # same shape as defense
 
+  bundle:   # stack=bundle
+    recipe_id: "legacy-centos7-python39-mysql57-redis5"
+    mode: "single_container"
+    support_level: "partial"
+    services: []
+    startup_order: []
+    notes: []
+
   extra:
     env: { KEY: VALUE }
     copy: [{ from: "x", to: "y" }]
@@ -109,8 +117,9 @@ challenge:
 ## 关键字段说明
 
 - `challenge.stack`
-  - 支持：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/linux-qemu`
+  - 支持：`node/php/python/java/tomcat/lamp/pwn/ai/rdg/secops/baseunit/bundle/linux-qemu`
   - 未显式提供时可由探测规则推断。
+  - `stack=bundle` 只用于 `render_bundle.py` 生成的 Recipe 交付目录；custom 组合必须显式提供安装与启动命令，不是自动安装器。
 
 - `challenge.profile`
   - 支持：`jeopardy/rdg/awd/awdp/secops`
@@ -174,6 +183,15 @@ challenge:
 - `stack=baseunit` 面向“指定组件 + 指定版本”的纯服务最小单元。
 - 推荐优先通过 `render_component.py` 生成，而不是手写 challenge。
 - 组件定义文件：`data/components.yaml`。
+
+## Bundle/Recipe 约定
+
+- `stack=bundle` 面向单容器多服务交付目录。
+- 推荐优先通过 `render_bundle.py` 生成，而不是手写 challenge。
+- 生成的 `challenge.bundle.recipe_id`、`challenge.bundle.services` 和端口声明必须与 recipe 定义一致。
+- 固定 Recipe 未覆盖时，可使用显式 custom bundle：必须提供 `base_image`、`expose_ports`、`services`、`start_commands`，可选 `install_commands`。
+- 不完整组合必须返回 `BUNDLE_UNSUPPORTED_COMBINATION`，不能自动改写为其他栈。
+- Bundle 输入 schema：`data/bundle_schema.md`；Recipe 定义：`data/bundle_recipes.yaml`。
 
 ## Scenario 约定（本地编排）
 

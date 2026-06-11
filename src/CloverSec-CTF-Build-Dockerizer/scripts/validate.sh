@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 用法：
-  bash scripts/validate.sh [--fix] [--fix-write] [--fix-loopback] [--json-summary path] Dockerfile start.sh [challenge.yaml]
+  bash scripts/validate.sh [--fix] [--fix-write] [--fix-loopback] [--static-only] [--with-dynamic-flag] [--json-summary path] Dockerfile start.sh [challenge.yaml]
 
 说明：
   - 先执行平台硬规则，再执行 data/validate_rules.yaml 可配置规则。
@@ -13,6 +13,8 @@ usage() {
   - --fix 仅预览安全自动修复（dry-run，不落盘）
   - --fix-write 应用安全自动修复（落盘）并继续校验
   - --fix-loopback 允许自动修复将显式 loopback 绑定参数改为 0.0.0.0
+  - --static-only 只执行静态契约检查，不执行动态 flag 写入检查
+  - --with-dynamic-flag 执行动态 flag 写入检查（当前默认开启，显式传入用于记录意图）
   - --json-summary 写入机器可读校验摘要
 USAGE
 }
@@ -21,6 +23,8 @@ AUTOFIX_MODE="false"
 AUTOFIX_WRITE="false"
 AUTOFIX_LOOPBACK="false"
 JSON_SUMMARY_PATH=""
+VALIDATION_LAYER="contract+dynamic-flag"
+DYNAMIC_FLAG_CHECK="true"
 POSITIONAL_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -40,6 +44,16 @@ while [[ $# -gt 0 ]]; do
       ;;
     --fix-loopback)
       AUTOFIX_LOOPBACK="true"
+      shift
+      ;;
+    --static-only)
+      VALIDATION_LAYER="contract-static"
+      DYNAMIC_FLAG_CHECK="false"
+      shift
+      ;;
+    --with-dynamic-flag)
+      VALIDATION_LAYER="contract+dynamic-flag"
+      DYNAMIC_FLAG_CHECK="true"
       shift
       ;;
     --json-summary)
@@ -182,12 +196,28 @@ write_json_summary() {
 
   python3 - "$JSON_SUMMARY_PATH" "$exit_code" "$code" "$summary" \
     "$CHECK_COUNT" "$ERROR_COUNT" "$WARN_COUNT" "$INFO_COUNT" \
-    "$DOCKERFILE" "$START_SH" "$CHALLENGE_YAML" "$SUPPORT_LEVEL_CFG" <<'PY'
+    "$DOCKERFILE" "$START_SH" "$CHALLENGE_YAML" "$SUPPORT_LEVEL_CFG" \
+    "$VALIDATION_LAYER" "$DYNAMIC_FLAG_CHECK" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-out, exit_code, code, summary, checks, errors, warns, infos, dockerfile, start_sh, challenge, support_level = sys.argv[1:]
+(
+    out,
+    exit_code,
+    code,
+    summary,
+    checks,
+    errors,
+    warns,
+    infos,
+    dockerfile,
+    start_sh,
+    challenge,
+    support_level,
+    validation_layer,
+    dynamic_flag_check,
+) = sys.argv[1:]
 payload = {
     "ok": int(exit_code) == 0,
     "stage": "validate",
@@ -198,6 +228,11 @@ payload = {
     "hint": "",
     "autofixable": False,
     "support_level": support_level,
+    "verification": {
+        "level": validation_layer,
+        "dynamic_flag_check": dynamic_flag_check == "true",
+        "manual_required": validation_layer == "contract-static",
+    },
     "counts": {
         "checks": int(checks),
         "errors": int(errors),
@@ -1010,11 +1045,11 @@ run_dynamic_checks() {
       log_result INFO "基础镜像命中官方白名单（tag-only 放行）: ${base_image}"
     else
       if [[ "$VALIDATE_ENFORCE_DIGEST" == "1" && "$SUPPORT_LEVEL_CFG" == "partial" ]]; then
-        log_result WARN "support_level=partial：发布门禁记录基础镜像未固定 digest（当前: ${base_image}），但不阻断原型样例。"
+        log_result WARN "support_level=partial：交付校验记录基础镜像未固定 digest（当前: ${base_image}），但不阻断原型样例。"
       elif [[ "$VALIDATE_ENFORCE_DIGEST" == "1" ]]; then
-        log_result ERROR "发布门禁要求基础镜像使用 digest（当前: ${base_image}）。修复：将 base_image 改为 image:tag@sha256:<digest>。"
+        log_result ERROR "交付校验要求基础镜像使用 digest（当前: ${base_image}）。修复：将 base_image 改为 image:tag@sha256:<digest>。"
       else
-        log_result WARN "基础镜像未使用 digest 固定（当前: ${base_image}）。发布前建议 pin digest。"
+        log_result WARN "基础镜像未使用 digest 固定（当前: ${base_image}）。正式交付前建议 pin digest。"
       fi
     fi
   else
@@ -1276,7 +1311,7 @@ run_dynamic_checks() {
         log_result ERROR "linux-qemu 配置需要 KVM，但当前环境 /dev/kvm 不可读写。"
       fi
     elif [[ "$VM_ACCELERATOR_CFG" == "auto" ]]; then
-      log_result WARN "linux-qemu accelerator=auto：发布前需记录实际使用 kvm 还是 tcg。"
+      log_result WARN "linux-qemu accelerator=auto：交付前需记录实际使用 kvm 还是 tcg。"
     else
       log_result INFO "linux-qemu 默认使用 TCG，不要求 /dev/kvm"
     fi
@@ -1553,6 +1588,7 @@ echo "- start.sh:   $START_SH"
 if [[ -n "$CHALLENGE_YAML" ]]; then
   echo "- challenge:  $CHALLENGE_YAML"
 fi
+echo "- verification: ${VALIDATION_LAYER}"
 
 echo
 
@@ -1570,7 +1606,13 @@ fi
 
 run_hard_rules
 run_configurable_rules
-run_dynamic_checks
+if [[ "$DYNAMIC_FLAG_CHECK" == "true" ]]; then
+  run_dynamic_checks
+else
+  echo
+  echo "[D] 动态策略检查"
+  log_result INFO "已按 --static-only 跳过动态 flag 写入检查"
+fi
 run_challenge_port_check
 
 echo

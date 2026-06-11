@@ -11,13 +11,13 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r2</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario/Vulhub-like / Bundle/Recipe / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
@@ -25,11 +25,18 @@
 
 如果用一句话概括现在这个 Skill 的工作形态，那就是：从“让模型阅读一份巨大的操作手册并自己决定怎么做”，变成了“由 Workflow 控制执行阶段，模型只在当前阶段获取需要的信息并完成对应任务”。旧版本本质上是把 Docker 构建规范、题目规范、交付标准、验收规则、交互要求等全部塞进 SKILL.md，每次执行任务都让模型重新阅读和理解一遍，所以输入 Token 很大，而且很多规则实际上是在不断重复发送。新版本则把这些内容拆解成状态化流程，用户提交任务后先进入 Intake 阶段识别题目类型和基本信息，然后进入 Proposal 阶段生成构建方案，用户确认后再进入 Render 阶段生成 Dockerfile、start.sh、challenge.yaml 等交付物，最后进入 Validate 阶段执行验收检查。每个阶段只读取当前需要的文档和规则，而不是加载整个知识体系，因此模型不再承担“记住所有规则”的职责，而是通过 Workflow 决定当前应该执行什么、读取什么、输出什么。这样做带来的收益并不只是 Token 下降，而是将原本依赖 Prompt 和记忆维持的流程约束转移到了 Workflow 本身，复杂能力仍然保留，但只在需要的时候展开。模型负责理解和生成，Workflow 负责阶段控制和行为约束，Knowledge 负责提供对应阶段所需的规范和模板。最终形成的是一种按需加载、状态驱动、渐进式披露的 Skill 运行模式，在保持原有构建能力和交付标准的前提下，大幅降低上下文负担和无效推理开销，这也是为什么在真实 API 调用记录中能够看到输入 Token 降低 96.2%、总 Token 降低 72.3%、费用降低 47.5% 和耗时降低 27.9% 的根本原因。
 
-## V2.2.0-R1 发布修复
+## V2.2.0-R2 发布修复
 
-`v2.2.0-r1` 是 `v2.2.0` 的发布修复版本，不改变题目配置契约和核心渲染行为。重点修正安装版 Skill 的运行时路径说明：发布包内文档统一使用相对于 `SKILL.md` 的 `docs/`、`data/`、`scripts/`、`templates/`、`examples/` 路径，避免 Agent 在安装目录里继续查找源码仓库前缀。
+`v2.2.0-r2` 是 `v2.2.0` 的第二个发布修复版本，不改变 `challenge.yaml` 配置契约和核心单题渲染行为。重点补齐真实使用中发现的两类能力：显式 custom Bundle 组合，以及 Linux-QEMU 的完整 release/manual 验证链路。
 
-本次 r1 发布会使用 `publish_release.sh --wait-release-full-check` 等待 GitHub Actions `release-full-check` 成功后再公开 Release。
+本次 r2 修复覆盖：
+
+- Bundle/Recipe 支持显式 custom 组合：用户明确提供 base image、安装命令、启动命令、端口和服务清单后，可以生成单容器多服务交付目录；信息不完整时仍返回 `BUNDLE_UNSUPPORTED_COMBINATION`。
+- Linux-QEMU full check 覆盖 Docker build、QEMU TCG boot、guest SSH、动态 flag 写入和 PoC 复现；Fragnesia 真实资产已完成 full 验证。
+- 修复 Linux-QEMU 动态 flag 写入顺序，避免 guest 启动后再改 rootfs 导致 `/root/flag` 不生效。
+- 运行时 Skill 文档继续聚焦题目构建，源码发布治理说明不再进入安装包文档。
+
+真实 LLM A/B 结果：已安装 `v2.2.0` 入口为 3/4，当前 r2 候选为 4/4；custom Bundle 用例从“不支持”变为正确进入显式 custom proposal。
 
 ## V2.2.0 重大更新
 
@@ -125,7 +132,7 @@ flowchart LR
 | 场景能力 | 入口 | 作用 | 产出 |
 |---|---|---|---|
 | BaseUnit 组件渲染 | `render_component.py` | 生成“组件 + 指定版本”最小单元 | 可直接 `docker build` 的目录 |
-| Bundle/Recipe 渲染 | `render_bundle.py` / `validate_bundle.py` | 生成并校验固定组合的单容器多服务 Recipe | 标准交付目录 |
+| Bundle/Recipe 渲染 | `render_bundle.py` / `validate_bundle.py` | 生成并校验固定 Recipe 或显式 custom 单容器多服务组合 | 标准交付目录 |
 | compose/Vulhub-like 导入 | `import_compose.py` | 生成完整 draft、可渲染子集和导入报告 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
 | check-service 骨架 | `generate_check_stub.py` | 生成 HTTP/TCP/Redis/MySQL/SSH 检查脚本骨架 | 待人工确认的 `check/check.sh` |
 | Linux-QEMU 内核题渲染 | `render.py` | 生成 Docker 内 QEMU guest 启动环境 | 单镜像交付目录 |
@@ -186,14 +193,25 @@ interface:
 快捷业务提示词（懒人版）：
 
 ```text
-当前 src 是我的 CTF 题目源码，请按平台交付规范构建完整容器并完成校验。
+当前 src 是我的 CTF 题目源码，请先按平台交付规范分析目录并给出构建方案。
+我确认后，再生成完整容器交付件并完成校验。
 ```
 
-### 手动命令链
+### 手动命令链（源码仓库环境）
+
+以下命令适用于源码仓库目录。已安装 Skill 由 Agent 自动解析 Skill 根目录，不需要加 `src/CloverSec-CTF-Build-Dockerizer/` 前缀。
+
+确认前：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py status --project-dir .
+```
+
+用户确认方案后：
+
+```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
@@ -209,6 +227,37 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 ```
 
 镜像优先级规则：`--base-image > --runtime-profile > challenge.base_image > infer/default`。
+
+## AI Coding Playbook
+
+本节只写实际调用方式：让 Agent 先确认方案，再生成和验证。
+
+### Codex
+
+调用方式：在仓库根目录工作，强制走“方案 -> 确认 -> 生成 -> 验证”。
+
+推荐提示词：
+
+```text
+使用 CloverSec-CTF-Build-Dockerizer 处理当前目录。
+先检查题目结构、风险点和缺失信息。
+我确认构建方案后，再生成交付文件并执行对应验证命令。
+目标模式：<jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>。
+```
+
+重试提示词：
+
+```text
+不要重新执行全部流程。只修当前 ERROR 项，
+然后重跑必要检查，并汇报修改文件和命令结果。
+```
+
+验收命令：
+
+```bash
+bash scripts/doc_guard.sh
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+```
 
 ## 竞赛模式构建分类
 
@@ -270,11 +319,13 @@ challenge:
 - `changeflag.sh` 如果只写 `/flag`，guest 内不会自动看到新 flag；内层 flag 路径需要单独写入 rootfs 或由 guest 启动脚本读取。
 - PoC/EXP 不建议进入镜像，作为附件与题解资料管理。
 - 大型 kernel/rootfs 示例不建议进入默认 CI，完整启动验证应在 release/manual 阶段执行。
+- 真实 VM 资产用 `asset_manifest.yaml` 记录文件名、大小和 SHA256；大文件仍放在外部目录。
 
 Release/manual 验证入口：
 
 ```bash
-bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
 bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir /path/to/linux-qemu/code --host-port 2222
 ```
 
@@ -316,7 +367,9 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
   --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-awd-basic/scenario.yaml \
-  --output /tmp/scenario-awd
+  --output /tmp/scenario-awd \
+  --accepted \
+  --reason "user accepted AWD scenario example"
 
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd
@@ -387,9 +440,9 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/baseunit-redis/challenge.yaml
 ```
 
-### Bundle / Recipe（固定组合老环境）
+### Bundle / Recipe（老环境组合）
 
-适用：少数固定组合的单容器多服务老环境。BaseUnit 是单组件，Scenario 是本地多服务编排，Bundle 是一个 Docker 镜像内的有限 Recipe。
+适用：单容器多服务老环境。BaseUnit 是单组件，Scenario 是本地多服务编排，Bundle 是一个 Docker 镜像内的 Recipe。已知组合可用固定 Recipe；未知组合可用显式 custom 配置，但必须写清 base image、安装命令、启动命令、端口和服务清单。
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py \
@@ -400,7 +453,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py \
   --bundle-dir /tmp/bundle-centos7
 ```
 
-当前首批 Recipe 为 `legacy-centos7-python39-mysql57-redis5` 与 `tomcat85-jdk8-mysql57`，均为 `support_level=partial`。旧系统包源和 MySQL 5.7 安装方式可能需要人工处理，默认回归只要求 render 与静态契约校验。
+当前固定 Recipe 为 `legacy-centos7-python39-mysql57-redis5` 与 `tomcat85-jdk8-mysql57`，均为 `support_level=partial`。显式 custom 示例见 `examples/bundle-custom-explicit/`。旧系统包源和 MySQL 5.7 安装方式可能需要人工处理，默认回归只要求 render 与静态契约校验。
 
 ### Vulhub-like（多服务漏洞环境迁移）
 
@@ -409,7 +462,9 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py \
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
   --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml \
-  --output /tmp/scenario-vulhub-like
+  --output /tmp/scenario-vulhub-like \
+  --accepted \
+  --reason "user accepted Vulhub-like scenario example"
 
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
@@ -520,7 +575,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 |---|---|
 | `schema.md` | `challenge.yaml` 输入契约 |
 | `scenario_schema.md` | `scenario.yaml` 输入契约 |
-| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe 输入契约与固定组合定义 |
+| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe 输入契约、custom 格式与固定组合定义 |
 | `stacks.yaml` | 栈默认值与模板映射 |
 | `profiles.yaml` | profile 默认行为定义 |
 | `components.yaml` | BaseUnit 组件与版本变体 |
@@ -549,6 +604,7 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `validate_scenario.py` | 场景契约校验入口 |
 | `validate_examples.sh` | examples 批量回归 |
 | `smoke_test.sh` | 冒烟测试 |
+| `scripts/ci_linux_qemu_full_check.sh` | release-full-check 中按资产可用性执行 Linux-QEMU full 检查 |
 | `validate_context.py` | challenge 上下文解析辅助 |
 | `autofix.py` | 常见问题自动修复辅助 |
 | `detect_stack.py` | 栈识别辅助 |
@@ -641,7 +697,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r1
+bash scripts/publish_release.sh --version v2.2.0-r2
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

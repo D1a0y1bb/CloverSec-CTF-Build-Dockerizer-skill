@@ -11,12 +11,12 @@
 - `scenario_schema.md`：scenario 输入约定
 - `validate_rules.yaml`：单题规则校验
 - `validate_scenario_rules.yaml`：scenario 校验规则
-- `base_image_allowlist.yaml`：发布门禁白名单
+- `base_image_allowlist.yaml`：交付校验白名单
 
 说明：
 
 - 平台硬约束由渲染与校验链路强制执行（`/start.sh`、`/changeflag.sh`、`/bin/bash`、`EXPOSE`）。
 - `/flag` 默认必须存在，仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行。
 - scenario 生成的 compose 为本地验证用途，不改变平台单服务交付模型。
-- bundle 只覆盖固定单容器多服务 Recipe，当前为 partial support，不承诺任意版本组合。
+- bundle 覆盖固定 Recipe 和显式 custom 组合；custom 组合必须提供安装命令、启动命令、端口和服务清单，不做自动版本求解。
 - `linux-qemu` 使用 `challenge.vm` 描述 QEMU guest、VM 资产、hostfwd 和 guest flag 注入策略。

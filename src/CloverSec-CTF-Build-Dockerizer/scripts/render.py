@@ -112,6 +112,45 @@ def parse_cli_env(env_items: List[str]) -> Dict[str, str]:
     return env_map
 
 
+def build_file_plan(context: Dict[str, Any]) -> List[Dict[str, str]]:
+    out_dir = Path(context["output_dir"])
+    entries: List[tuple[str, str]] = [
+        ("Dockerfile", "overwrite"),
+        ("start.sh", "overwrite"),
+        ("changeflag.sh", "overwrite"),
+    ]
+    if not bool(context.get("flag_optional", False)):
+        entries.append(("flag", "create_or_preserve"))
+    if context.get("rdg_check_enabled", True) and context.get("rdg_scoring_mode", "flag") == "check_service":
+        entries.append((str(context.get("rdg_check_script_path", "check/check.sh")), "create_if_missing"))
+    if context.get("profile") == "awdp":
+        entries.extend(
+            [
+                ("patch/src/", "create_if_missing"),
+                ("patch/patch.sh", "create_if_missing"),
+                ("patch_bundle.tar.gz", "overwrite"),
+            ]
+        )
+    plan: List[Dict[str, str]] = []
+    for rel, action in entries:
+        path = out_dir / rel.rstrip("/")
+        plan.append(
+            {
+                "path": rel,
+                "action": action,
+                "exists": "true" if path.exists() else "false",
+            }
+        )
+    return plan
+
+
+def print_file_plan(plan: List[Dict[str, str]]) -> None:
+    print("生成前文件计划")
+    for item in plan:
+        exists = "exists" if item["exists"] == "true" else "new"
+        print(f"- {item['path']}: {item['action']} ({exists})")
+
+
 def choose_stack(
     cli_stack: str,
     cfg_stack: str,
@@ -1462,6 +1501,7 @@ def main() -> int:
         profiles = load_profile_defs(DATA_DIR / "profiles.yaml")
         runtime_profiles = load_runtime_profiles(DATA_DIR / "runtime_profiles.yaml")
         context = build_render_context(args, stacks, patterns, profiles, runtime_profiles)
+        file_plan = build_file_plan(context)
         if args.format == "json":
             with contextlib.redirect_stdout(io.StringIO()):
                 render_files(context)
@@ -1474,6 +1514,7 @@ def main() -> int:
                         profile=context["profile"],
                         input_audit=audit,
                         manual_override=_manual_payload(args),
+                        file_plan=file_plan,
                         accepted_proposal=str(_accepted_path(project_dir))
                         if _accepted_matches(project_dir, challenge_path)
                         else "",
@@ -1485,6 +1526,7 @@ def main() -> int:
             if args.manual:
                 print(f"[WARN] manual override: {args.reason.strip()}")
             maybe_print_detect_debug(args, context["detect_details"])
+            print_file_plan(file_plan)
             render_files(context)
         return 0
     except ConfigError as exc:

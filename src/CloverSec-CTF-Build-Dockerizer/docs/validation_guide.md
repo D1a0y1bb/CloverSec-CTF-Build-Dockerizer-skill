@@ -1,4 +1,4 @@
-# 校验与发布门禁指南（v2.2.0）
+# 校验指南（v2.2.0）
 
 本文档承接 `SKILL.md` 中迁出的校验细节。入口文件只保留门槛，具体规则按需读取本文档。
 
@@ -11,8 +11,7 @@
 - 5. RDG / SecOps check-service 门禁
 - 6. Linux-QEMU 校验边界
 - 7. 自动修复
-- 8. 发布前检查
-- 9. 模板变量速查
+- 8. 模板变量速查
 
 ## 1. 校验入口
 
@@ -29,6 +28,28 @@ bash scripts/validate.sh \
   --json-summary /tmp/validate-summary.json \
   Dockerfile start.sh challenge.yaml
 ```
+
+只做快速静态契约检查：
+
+```bash
+bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
+```
+
+退出码约定：
+
+- `0`：通过。
+- `1`：输入能解析，但交付契约或校验规则不通过。
+- `2`：配置、路径、依赖或运行环境错误。
+
+验证层级：
+
+| 层级 | 入口 | 适用场景 |
+|---|---|---|
+| 静态契约检查 | `validate.sh --static-only` | 快速判断 Dockerfile/start.sh/challenge.yaml 是否满足平台基本契约 |
+| 动态 flag 写入检查 | `validate.sh` 默认启用，或显式 `--with-dynamic-flag` | 检查 `changeflag.sh` 是否能按平台动态 flag 机制写入 |
+| 手动增强验证 | `linux_qemu_manual_check.sh`、Docker smoke、PoC 复现 | Linux-QEMU boot、guest flag、真实服务运行和漏洞复现 |
+
+`--json-summary` 会写入 `verification.level`，Agent 应根据该字段判断本次验证覆盖范围。
 
 Scenario：
 
@@ -76,10 +97,10 @@ bash scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle
 
 | WARN | 判断 |
 |---|---|
-| 基础镜像未 pin digest | 发行前建议固定 digest；开发示例可接受 |
+| 基础镜像未 pin digest | 正式交付前建议固定 digest；开发示例可接受 |
 | localhost/127.0.0.1 监听 | 默认风险较高，SSRF/内部链路题需显式 `platform.allow_loopback_bind=true` |
 | 后台启动符 `&` | 多服务常见，但必须有真实前台主进程 |
-| 命中 legacy runtime | 常用于老题兼容，发布前确认原因 |
+| 命中 legacy runtime | 常用于老题兼容，交付前确认原因 |
 
 WARN 不等于失败，但最终汇报必须说明影响。
 
@@ -120,14 +141,14 @@ python3 scripts/generate_check_stub.py \
 
 ## 6. Linux-QEMU 校验边界
 
-默认 CI 只做静态检查：
+快速校验只做静态检查：
 
 - `challenge.vm` 字段结构
 - `vm/vmlinuz`、`vm/initrd.img`、`vm/rootfs.ext4` 或 `build_script` 是否存在
 - Docker `EXPOSE` 与 QEMU `hostfwd` 是否一致
 - `changeflag.sh` 是否具备 guest flag 写入逻辑
 
-release/manual 级检查使用：
+手动增强检查使用：
 
 ```bash
 bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir <linux-qemu-dir>
@@ -155,55 +176,7 @@ bash scripts/validate.sh --fix-write Dockerfile start.sh challenge.yaml
 bash scripts/validate.sh --fix --fix-loopback Dockerfile start.sh challenge.yaml
 ```
 
-## 8. 发布前检查
-
-使用已安装 Skill 构建题目时，在 Skill 根目录至少执行：
-
-```bash
-python3 -m py_compile scripts/*.py
-find scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
-bash scripts/validate_examples.sh
-```
-
-维护本 Skill 源码仓库时，仓库根目录还需要执行文档治理、真实样例池、Golden snapshot、平台矩阵、发布守卫和 release build。它们属于源码仓库发布治理，不属于安装后 Skill 的题目构建入口。
-
-正式发布在源码仓库根目录执行：
-
-```bash
-bash scripts/release_build.sh --with-smoke
-```
-
-要求 SBOM 必须由 syft 或 docker sbom 生成：
-
-```bash
-bash scripts/release_build.sh --with-smoke --sbom-strict
-```
-
-发布时等待 GitHub Actions release-full-check：
-
-```bash
-bash scripts/publish_release.sh --wait-release-full-check
-```
-
-该模式会在推送 `VERSION` tag 后等待 GitHub Actions 中的 `release-full-check` job 成功，再继续创建或公开 GitHub Release。
-
-跳过 smoke 必须记录原因：
-
-```bash
-python3 scripts/release_build.py --skip-smoke-with-reason "docker unavailable on this host"
-```
-
-发布状态文件：
-
-```text
-dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json
-```
-
-该文件记录 smoke、SkillHub metadata、CHANGELOG 当前版本标题、SBOM 来源和是否可发布。
-
-`platform_matrix.py` 只采集本机能力，不修改源码树。`--profile release` 会把 Docker daemon 作为必需项；`--profile linux-qemu` 会额外要求 QEMU 工具存在。
-
-## 9. 模板变量速查
+## 8. 模板变量速查
 
 本节承接旧版 `SKILL.md` 的统一模板变量清单。实际渲染逻辑以 `render.py`、`utils.py` 和 `templates/` 为准。
 

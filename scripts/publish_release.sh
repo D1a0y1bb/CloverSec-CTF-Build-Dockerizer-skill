@@ -272,6 +272,29 @@ build_release_zip() {
       warn "Optional release asset not found, skip upload: ${extra_asset}"
     fi
   done
+
+  local status_path="${ROOT_DIR}/dist/${PACKAGE_NAME}-${VERSION}.release-status.json"
+  if [[ -f "${status_path}" ]]; then
+    local release_ready
+    release_ready="$(python3 - "$status_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print("true" if data.get("release_ready") is True else "false")
+PY
+)"
+    if [[ "${release_ready}" != "true" ]]; then
+      if [[ "${DRY_RUN}" == "true" ]]; then
+        warn "release-status.json reports release_ready=false; dry-run continues for inspection."
+      else
+        die "release-status.json reports release_ready=false. Re-run release build with required checks, or use --dry-run for inspection."
+      fi
+    fi
+  else
+    die "Missing release status file: ${status_path}"
+  fi
 }
 
 collect_publish_stage_paths() {

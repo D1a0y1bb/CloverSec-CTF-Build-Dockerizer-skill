@@ -1,0 +1,26 @@
+schema_version: "1.0"
+case_id: linux-qemu-real-fragnesia
+title: "Fragnesia Linux-QEMU external VM assets"
+external_case_dir: "/Users/d1a0y1bb/Documents/VulnEnvironment/CVE-2026-46300 Fragnesia Linux Kernel LPE/code"
+policy:
+  store_in_repo: false
+  reason: "rootfs.ext4 is large and belongs to release/manual validation evidence."
+  acquisition: "Obtain the VM assets through the team-controlled external handoff channel, then verify this manifest before boot or PoC checks."
+assets:
+  - role: kernel
+    path: vm/vmlinuz
+    size_bytes: 15047048
+    sha256: 5b7237c963c11bd64557d0467bcbaf7e952ccb478f4c993a0f3101e364547cb6
+  - role: initrd
+    path: vm/initrd.img
+    size_bytes: 36864826
+    sha256: dacac54f7ddc3871846fad1cb78995a629756d6d445d30d87436705a05b69f67
+  - role: rootfs
+    path: vm/rootfs.ext4
+    size_bytes: 1289707520
+    sha256: 561bf05d631fb80dc4c2196dcbd8813de12a1f495064e92c3116c625ddb7007a
+verification:
+  command: >-
+    python3 src/CloverSec-CTF-Build-Dockerizer/scripts/verify_asset_manifest.py
+    --manifest Build_test/linux-qemu-real-fragnesia/asset_manifest.yaml
+  last_recorded_on: "2026-06-11"

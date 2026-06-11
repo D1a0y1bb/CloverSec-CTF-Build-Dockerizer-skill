@@ -2,8 +2,7 @@
 
 职责边界：
 
-- 已安装 Skill 中的本目录 `scripts/` 负责引擎运行链路：探测、渲染、校验、示例回归和 Linux-QEMU manual 检查。
-- 源码仓库根目录另有一组 `scripts/`，负责发布治理和仓库级流程，例如 `release_build.sh`、`publish_release.sh`、`doc_guard.sh`。这些脚本不在安装后的 Skill 根目录中。
+- 本目录 `scripts/` 只负责题目构建链路：探测、提案、渲染、校验和 Linux-QEMU 手动检查。
 
 ## 脚本列表
 
@@ -12,31 +11,18 @@
 - `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `import_compose.py`：将 compose/Vulhub-like 输入转换为 scenario draft、renderable subset 和 import report
 - `generate_check_stub.py`：生成 RDG/SecOps check-service 可编辑脚本骨架，默认带人工确认标记
-- `workflow.py`：推荐工作流入口，依次完成题目分析、方案生成、确认、交付生成、验证和状态查看，并维护 `.ctfbuild/` 状态文件
+- `workflow.py`：推荐工作流入口，依次完成题目分析、方案生成、确认、交付生成、验证和状态查看，并记录 `.ctfbuild/` 状态文件
 - `audit_input.py`：输入审计，输出风险等级、推荐处理路径、支持等级、验证等级、是否需要人工确认和发现项
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
 - `parse_config_block.py`：解析方案确认 YAML（stdin）并生成标准 challenge.yaml
 - `detect_stack.py`：输出技术栈侦测结果和置信度
-- `validate.sh`：执行硬规则与可配置规则校验，支持 `--json-summary`
+- `render_scenario.py`：渲染多服务本地编排；用户确认后使用 `--accepted --reason`
+- `validate.sh`：执行硬规则与可配置规则校验，支持 `--json-summary`、`--static-only` 和动态 flag 校验层级标记
 - `validate_scenario.py`：校验 scenario 输出，支持 `--validate-rendered` 和 `--format text|json`
 - `autofix.py`：`validate.sh --fix/--fix-write` 对应的安全自动修复执行器
-- `validate_examples.sh`：遍历 examples 全目录并做静态校验；默认只读执行，scenario 默认逐服务校验
-- `smoke_test.sh`：执行 render/validate/build/run 冒烟回归；scenario 默认逐服务校验
-- `test_runtime_profiles.sh`：运行时档位推断回归（php/node/java）
-- `linux_qemu_manual_check.sh`：Linux-QEMU release/manual 验证入口，默认只执行 preflight
-- `cleanup_test_containers.sh`：清理 `ctf-skill-test*` 容器和镜像
+- `linux_qemu_manual_check.sh`：Linux-QEMU guest 启动、guest flag 和 PoC 验证入口，默认只执行 preflight
+- `verify_asset_manifest.py`：校验 Linux-QEMU 外部 VM 资产 manifest 的文件存在、大小和 SHA256
 - `utils.py`：模板 include、变量渲染、推断与通用函数
-
-源码仓库维护时，仓库根目录额外提供：
-
-- `validate_build_test.py`：校验 `Build_test/` 真实样例池，按 `cases.yaml` 做期望匹配
-- `golden_snapshot.py`：渲染关键样例并与 `tests/golden/snapshots.json` 哈希清单对比
-- `platform_matrix.py`：采集当前主机、Docker、QEMU、SBOM 工具状态，输出跨平台矩阵结果
-- `generate_sbom.py`：生成 release SBOM；显式 `--strict` 时要求 syft 或 docker sbom 成功
-- `doc_guard.py` / `doc_guard.sh`：文档治理检查
-- `release_build.py` / `release_build.sh`：发布打包入口；支持 `--sbom-strict` 进入 SBOM strict 模式
-- `publish_guard.py`：发布前状态检查
-- `publish_release.sh`：发布入口；可显式要求等待 GitHub Actions `release-full-check` 成功后再公开 Release
 
 ## 常用命令
 
@@ -44,9 +30,17 @@
 python3 scripts/derive_config.py --project-dir .
 ```
 
+确认前：
+
 ```bash
 python3 scripts/workflow.py intake --project-dir .
 python3 scripts/workflow.py propose --project-dir .
+python3 scripts/workflow.py status --project-dir .
+```
+
+用户确认方案后：
+
+```bash
 python3 scripts/workflow.py accept --project-dir .
 python3 scripts/workflow.py render --project-dir .
 python3 scripts/workflow.py validate --project-dir .
@@ -64,43 +58,22 @@ python3 scripts/validate_bundle.py --bundle-dir /tmp/bundle
 python3 scripts/import_compose.py --compose docker-compose.yml --output /tmp/compose-import
 python3 scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
 bash scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
-bash scripts/validate_examples.sh
-bash scripts/smoke_test.sh
-bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
-```
-
-源码仓库发布治理命令需要在源码仓库根目录执行：
-
-```bash
-python3 scripts/validate_build_test.py
-python3 scripts/golden_snapshot.py
-python3 scripts/platform_matrix.py --profile release
-bash scripts/release_build.sh --with-smoke --sbom-strict
-bash scripts/publish_release.sh --wait-release-full-check
+bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
+python3 scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
 ```
 
 校验规则详解见 `docs/validation_guide.md`。
 
-Scenario 回归说明：
+Scenario 说明：
 
 - 直接调用 `validate_scenario.py` 时，默认只校验 scenario/compose 结构。
 - 追加 `--validate-rendered` 后，会对每个渲染出的服务目录调用 `validate.sh`。
-- `validate_examples.sh` 和 `smoke_test.sh` 默认启用逐服务校验。
-- 设置 `SCENARIO_VALIDATE_RENDERED=0` 可让批量回归只做 scenario/compose 结构校验。
+- `render_scenario.py` 用户侧调用时，必须在用户确认服务清单和端口摘要后传入 `--accepted --reason "..."`。
 
-Skill 入口文档说明：
+Validate 分层说明：
 
-- `SKILL.md` 只保留入口规则、路由表和按需读取索引。
-- `doc_guard.sh` 会检查 `SKILL.md` 行数和关键入口，避免把 schema、栈手册、排障和命令细节重新塞回入口文件。
-- `doc_guard.sh` 同时检查 `examples/README.md`、本脚本说明和 `agents/openai.yaml`，避免入口文档或 SkillHub metadata 漏掉确认门槛与治理脚本。
-
-SBOM strict：
-
-- 默认 SBOM 允许在 syft / docker sbom 不可用时退回 source-inventory。
-- `generate_sbom.py --strict` 或 `release_build.py --sbom-strict` 会拒绝 fallback，适合审计要求更高的发布前检查。
-
-GitHub Release 等待策略：
-
-- `publish_release.sh --wait-release-full-check` 会在推送 `VERSION` tag 后轮询 GitHub Actions。
-- 默认等待 `.github/workflows/ci.yml` 中名为 `release-full-check` 的 job 成功，再继续创建或公开 GitHub Release。
-- 可用 `--release-full-check-timeout-seconds`、`--release-full-check-poll-seconds`、`--release-full-check-workflow`、`--release-full-check-job` 调整等待策略。
+- 默认 `validate.sh` 执行静态契约检查和动态 flag 写入检查，并在 `--json-summary` 中写入 `verification.level=contract+dynamic-flag`。
+- `--static-only` 只做静态契约检查，适合快速检查 Dockerfile/start.sh/challenge.yaml。
+- 核心校验脚本按 `0=通过、1=契约失败、2=配置/路径/环境错误` 返回。
+- Linux-QEMU boot、guest flag 写入和 PoC 复现使用 `linux_qemu_manual_check.sh`，默认不会在快速校验里自动执行。

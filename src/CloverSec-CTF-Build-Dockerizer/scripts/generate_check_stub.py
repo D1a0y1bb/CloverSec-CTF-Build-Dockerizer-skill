@@ -48,7 +48,7 @@ def header(port: str) -> str:
     return f"""#!/bin/bash
 set -euo pipefail
 
-# CHECK_REVIEW_REQUIRED: edit this generated check before release.
+# CHECK_REVIEW_REQUIRED: edit this generated check before delivery.
 # Contract: bash check/check.sh [target_ip] [target_port]
 # Exit code: 0=pass, 1=service failed, 2=usage/runtime error.
 
@@ -119,7 +119,7 @@ def redis_body() -> str:
   fi
 else
   printf '*1\\r\\n$4\\r\\nPING\\r\\n' | timeout 5 bash -lc "cat >/dev/tcp/${TARGET_IP}/${TARGET_PORT}" 2>/dev/null && {
-    log "redis tcp probe passed; replace with redis-cli assertion before release"
+    log "redis tcp probe passed; replace with redis-cli assertion before delivery"
     exit 0
   }
 fi
@@ -137,7 +137,7 @@ def mysql_body() -> str:
   fi
 else
   if timeout 5 bash -lc "cat < /dev/null > /dev/tcp/${TARGET_IP}/${TARGET_PORT}" 2>/dev/null; then
-    log "mysql tcp probe passed; replace with authenticated mysqladmin assertion before release"
+    log "mysql tcp probe passed; replace with authenticated mysqladmin assertion before delivery"
     exit 0
   fi
 fi

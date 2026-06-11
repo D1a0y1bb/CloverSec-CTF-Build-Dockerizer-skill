@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VALIDATE_SH="${ROOT_DIR}/src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh"
+VERIFY_ASSET_MANIFEST="${ROOT_DIR}/src/CloverSec-CTF-Build-Dockerizer/scripts/verify_asset_manifest.py"
 
 MODE="preflight"
 CASE_DIR=""
@@ -14,6 +15,7 @@ POC_CMD=""
 JSON_SUMMARY=""
 KEEP_CONTAINER="0"
 CONTAINER_NAME=""
+ASSET_MANIFEST=""
 CHECKS_FILE="$(mktemp "/tmp/linux-qemu-manual-checks.XXXXXX")"
 LOG_FILE="$(mktemp "/tmp/linux-qemu-manual-log.XXXXXX")"
 
@@ -32,6 +34,7 @@ Options:
   --timeout-seconds <n>      boot wait timeout, default: 180
   --flag <value>             dynamic flag used in flag/full mode
   --poc-cmd <cmd>            host-side PoC command for full mode
+  --asset-manifest <path>    optional asset manifest with size/SHA256 checks
   --json-summary <path>      write machine-readable summary
   --keep-container           keep the container after boot/flag/full
   -h, --help                 show this help
@@ -117,6 +120,8 @@ while [[ $# -gt 0 ]]; do
       FLAG_VALUE="$2"; shift 2 ;;
     --poc-cmd)
       POC_CMD="$2"; shift 2 ;;
+    --asset-manifest)
+      ASSET_MANIFEST="$2"; shift 2 ;;
     --json-summary)
       JSON_SUMMARY="$2"; shift 2 ;;
     --keep-container)
@@ -148,6 +153,9 @@ if [[ ! -d "$CASE_DIR" ]]; then
 fi
 
 CASE_DIR="$(cd "$CASE_DIR" && pwd)"
+if [[ -z "$ASSET_MANIFEST" && -f "$CASE_DIR/asset_manifest.yaml" ]]; then
+  ASSET_MANIFEST="$CASE_DIR/asset_manifest.yaml"
+fi
 slugify() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9_.-' '-' | sed 's/^-*//;s/-*$//'
 }
@@ -178,6 +186,14 @@ check_file() {
 }
 
 preflight() {
+  if [[ -n "$ASSET_MANIFEST" ]]; then
+    if python3 "$VERIFY_ASSET_MANIFEST" --manifest "$ASSET_MANIFEST" --base-dir "$CASE_DIR" >>"$LOG_FILE" 2>&1; then
+      require_ok "asset-manifest" "true" "preflight" "asset manifest passed"
+    else
+      require_ok "asset-manifest" "false" "preflight" "asset manifest failed"
+    fi
+  fi
+
   check_file "Dockerfile"
   check_file "start.sh"
   check_file "changeflag.sh"
@@ -254,7 +270,13 @@ wait_for_ssh_banner() {
 
 run_boot() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-  if docker run -d --name "$CONTAINER_NAME" -p "127.0.0.1:${HOST_PORT}:22" "$IMAGE" >>"$LOG_FILE" 2>&1; then
+  local docker_env=()
+  case "$MODE" in
+    flag|full)
+      docker_env=(-e "FLAG=${FLAG_VALUE}" -e "CTF_FLAG=${FLAG_VALUE}")
+      ;;
+  esac
+  if docker run -d --name "$CONTAINER_NAME" -p "127.0.0.1:${HOST_PORT}:22" "${docker_env[@]}" "$IMAGE" >>"$LOG_FILE" 2>&1; then
     require_ok "docker-run" "true" "boot" "container started: $CONTAINER_NAME"
   else
     require_ok "docker-run" "false" "boot" "container failed to start"
@@ -274,10 +296,13 @@ run_flag_check() {
     require_ok "flag-container" "false" "flag" "container is not running"
     return
   fi
-  if docker exec "$CONTAINER_NAME" /changeflag.sh "$FLAG_VALUE" >>"$LOG_FILE" 2>&1; then
-    require_ok "changeflag" "true" "flag" "/changeflag.sh executed"
+
+  local outer_flag
+  outer_flag="$(docker exec "$CONTAINER_NAME" bash -lc 'cat /flag 2>/dev/null' 2>>"$LOG_FILE" | tr -d '\r' | tail -n 1 || true)"
+  if [[ "$outer_flag" == "$FLAG_VALUE" ]]; then
+    require_ok "changeflag" "true" "flag" "/start.sh applied dynamic flag before QEMU boot"
   else
-    require_ok "changeflag" "false" "flag" "/changeflag.sh failed"
+    require_ok "changeflag" "false" "flag" "container /flag does not match dynamic flag"
     return
   fi
 

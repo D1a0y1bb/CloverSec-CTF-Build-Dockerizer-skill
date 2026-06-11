@@ -8,6 +8,16 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      linux_qemu_full_policy:
+        description: "Linux-QEMU full check policy for release-full-check"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - required
+          - skip
 
 jobs:
   fast-check:
@@ -116,6 +126,13 @@ jobs:
 
       - name: Smoke test
         run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+
+      - name: Linux-QEMU full check
+        env:
+          CI_LINUX_QEMU_FULL_POLICY: ${{ github.event.inputs.linux_qemu_full_policy || 'auto' }}
+          CI_LINUX_QEMU_REQUIRE_POC: "1"
+          CI_LINUX_QEMU_JSON_SUMMARY: /tmp/linux-qemu-ci-full.json
+        run: bash scripts/ci_linux_qemu_full_check.sh
 
       - name: Release build
         run: bash scripts/release_build.sh

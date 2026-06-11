@@ -14,23 +14,30 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r2</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.2.0-r1 リリース修正
+## v2.2.0-r2 リリース修正
 
-`v2.2.0-r1` は `v2.2.0` のリリース修正版です。challenge config contract と core rendering behavior は変更しません。主な修正点は、インストール済み Skill の runtime path 表記です。配布パッケージ内の文書は `SKILL.md` からの相対パスとして `docs/`、`data/`、`scripts/`、`templates/`、`examples/` を使うようになり、Agent がインストール済み Skill ディレクトリ内で source repo prefix を探しに行く問題を避けます。
+`v2.2.0-r2` は `v2.2.0` の 2 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。主な対象は、explicit custom Bundle と Linux-QEMU の full release/manual validation です。
 
-この r1 release は `publish_release.sh --wait-release-full-check` を使い、GitHub Actions の `release-full-check` job 成功後に Release を公開します。
+この r2 release の主な修正点：
+
+- ユーザーが base image、install commands、start commands、ports、service list を明示した場合、custom Bundle を生成できます。不完全な custom input は引き続き `BUNDLE_UNSUPPORTED_COMBINATION` を返します。
+- Linux-QEMU full check で Docker build、QEMU TCG boot、guest SSH、dynamic guest flag、PoC reproduction を確認できます。Fragnesia の実アセットで full path を検証済みです。
+- Linux-QEMU dynamic flag は QEMU boot 前に guest rootfs へ書き込むようになり、guest `/root/flag` が古いままになる問題を避けます。
+- runtime Skill docs は問題構築に必要な内容へ絞り、source release governance の説明は配布パッケージ文書から外しました。
+
+Real LLM A/B の結果：インストール済み `v2.2.0` は 3/4、r2 candidate は 4/4 でした。custom Bundle は unsupported ではなく explicit custom proposal path に入るようになりました。
 
 ## v2.2.0 主な更新
 
@@ -56,7 +63,7 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 | 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
 | 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` / JSON summary |
 | コンポーネント生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | component+variant 最小単位化 | build 可能なサービスディレクトリ |
-| Bundle/Recipe レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | 固定単一コンテナ複数サービス recipe を生成・検証 | プラットフォーム配布ディレクトリ |
+| Bundle/Recipe レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | 固定 recipe または明示 custom の単一コンテナ複数サービス構成を生成・検証 | プラットフォーム配布ディレクトリ |
 | Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | draft、renderable subset、import report を生成 | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
 | check-service skeleton | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | HTTP/TCP/Redis/MySQL/SSH check 骨格を生成 | review-required `check/check.sh` |
 | Linux-QEMU レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Docker 内 QEMU guest 配布物を生成 | 単一イメージ配布ディレクトリ |
@@ -119,14 +126,25 @@ CloverSec-CTF-Build-Dockerizer を使って現在の問題ディレクトリを�
 ショートプロンプト：
 
 ```text
-この src は CTF 問題のソースです。プラットフォーム契約準拠の配布物を作ってください。
+この src は CTF 問題のソースです。まず構成を確認し、プラットフォーム契約準拠の構築案を提示してください。
+私が確認した後に Docker 配布物を生成し、検証してください。
 ```
 
-### 手動コマンドチェーン
+### ソースリポジトリ用の手動コマンド
+
+以下はこのソースリポジトリで使うコマンドです。インストール済み Skill は Agent が Skill root から解決するため、`src/CloverSec-CTF-Build-Dockerizer/` prefix は付けません。
+
+確認前：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py status --project-dir .
+```
+
+ユーザー確認後：
+
+```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
@@ -347,11 +365,13 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 - `guest_forwards[*].proto` は現在のリリースでは TCP のみ対応します。
 - 既定の smoke は placeholder sample の render/validate までです。完全な QEMU boot と exploit 再現は実 VM アセットで検証します。
 - `flag_injection=debugfs` では、`changeflag.sh` が guest flag path を rootfs image に書き込む必要があります。
+- 実 VM アセットは `asset_manifest.yaml` にファイル名、サイズ、SHA256 を記録し、大きなファイルは外部ディレクトリに保持します。
 
 manual validation entrypoint：
 
 ```bash
-bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
 bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir /path/to/linux-qemu/code --host-port 2222
 ```
 
@@ -393,7 +413,9 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
   --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-awd-basic/scenario.yaml \
-  --output /tmp/scenario-awd
+  --output /tmp/scenario-awd \
+  --accepted \
+  --reason "user accepted AWD scenario example"
 
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd
@@ -464,7 +486,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 
 ### Bundle / Recipe
 
-固定された少数の単一コンテナ複数サービス旧環境向けです。BaseUnit は単一 component、Scenario はローカル複数サービス編成、Bundle は 1 つの Docker image 内に限定 Recipe をまとめる方式です。
+単一コンテナ複数サービス旧環境向けです。BaseUnit は単一 component、Scenario はローカル複数サービス編成、Bundle は 1 つの Docker image 内に Recipe をまとめる方式です。既知の組み合わせは固定 recipe、未知の組み合わせは base image、install commands、start commands、ports、service metadata を明示した custom 入力を使います。
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py \
@@ -480,7 +502,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/bundle/challenge.yaml
 ```
 
-非対応の組み合わせは `BUNDLE_UNSUPPORTED_COMBINATION` を返します。別 stack に自動変換しません。
+明示 custom 例：`src/CloverSec-CTF-Build-Dockerizer/examples/bundle-custom-explicit/`。不完全な組み合わせは `BUNDLE_UNSUPPORTED_COMBINATION` を返します。別 stack に自動変換しません。
 
 ### Vulhub-like 移行
 
@@ -491,7 +513,9 @@ Vulhub 風の複数サービス環境を「ローカル compose 編成 + 単一�
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
   --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml \
-  --output /tmp/scenario-vulhub-like
+  --output /tmp/scenario-vulhub-like \
+  --accepted \
+  --reason "user accepted Vulhub-like scenario example"
 
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
@@ -620,7 +644,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `schema.md` | `challenge.yaml` 契約 |
 | `scenario_schema.md` | `scenario.yaml` 契約 |
-| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe 契約と固定 recipe 定義 |
+| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe 契約、custom 形式、固定 recipe 定義 |
 | `stacks.yaml` | スタック既定値 |
 | `profiles.yaml` | profile 既定挙動 |
 | `components.yaml` | BaseUnit component + variant 定義 |
@@ -649,6 +673,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `validate_scenario.py` | シナリオ契約検証 |
 | `validate_examples.sh` | 例一括回帰 |
 | `smoke_test.sh` | スモーク回帰 |
+| `scripts/ci_linux_qemu_full_check.sh` | 外部 assets がある場合の release-full-check 用 Linux-QEMU full 検証 |
 | `validate_context.py` | challenge 文脈解析補助 |
 | `autofix.py` | 自動修正補助 |
 | `detect_stack.py` | スタック検出補助 |
@@ -744,7 +769,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r1
+bash scripts/publish_release.sh --version v2.2.0-r2
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

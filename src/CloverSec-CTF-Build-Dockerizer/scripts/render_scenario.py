@@ -27,6 +27,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Render scenario.yaml into service dirs and docker-compose.yml")
     parser.add_argument("--config", required=True, help="scenario.yaml path")
     parser.add_argument("--output", required=True, help="output directory")
+    parser.add_argument(
+        "--accepted",
+        action="store_true",
+        help="声明 scenario 方案已经由用户确认；内部逐服务 render 会记录该确认原因",
+    )
+    parser.add_argument("--reason", default="", help="--accepted 的确认原因")
     return parser.parse_args()
 
 
@@ -85,6 +91,15 @@ def run(cmd: List[str]) -> None:
     result = subprocess.run(cmd, check=False)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
+
+
+def render_manual_args(args: argparse.Namespace) -> List[str]:
+    if not getattr(args, "accepted", False):
+        raise ConfigError("render_scenario.py 需要先确认服务清单和端口摘要；确认后传入 --accepted --reason \"...\"")
+    reason = str(getattr(args, "reason", "") or "").strip()
+    if not reason:
+        raise ConfigError("--accepted 必须同时提供 --reason")
+    return ["--manual", "--reason", reason]
 
 
 def normalize_service_source(service: Dict[str, Any], scenario_dir: Path) -> Dict[str, Any]:
@@ -171,6 +186,7 @@ def render_from_challenge_source(
     resolved: Dict[str, Any],
     scenario_mode: str,
     output_root: Path,
+    render_args: List[str],
 ) -> Dict[str, Any]:
     name = str(service.get("name") or "").strip()
     out_dir = output_root / "services" / name
@@ -194,10 +210,8 @@ def render_from_challenge_source(
             str(challenge_path),
             "--output",
             str(out_dir),
-            "--manual",
-            "--reason",
-            "trusted scenario render",
         ]
+        + render_args
     )
 
     rendered_doc = load_challenge_doc(challenge_path)
@@ -216,6 +230,7 @@ def render_from_component_source(
     resolved: Dict[str, Any],
     scenario_mode: str,
     output_root: Path,
+    render_args: List[str],
 ) -> Dict[str, Any]:
     name = str(service.get("name") or "").strip()
     out_dir = output_root / "services" / name
@@ -257,10 +272,8 @@ def render_from_component_source(
                 str(challenge_path),
                 "--output",
                 str(out_dir),
-                "--manual",
-                "--reason",
-                "trusted scenario render",
             ]
+            + render_args
         )
         challenge_doc = load_challenge_doc(challenge_path)
 
@@ -296,7 +309,7 @@ def main() -> int:
     args = parse_args()
     scenario_path = Path(args.config).resolve()
     output_dir = Path(args.output).resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    render_args = render_manual_args(args)
 
     scenario = load_scenario(scenario_path)
     ensure_unique_names(scenario["services"])
@@ -305,14 +318,15 @@ def main() -> int:
     if scenario_mode and scenario_mode not in ALLOWED_PROFILES:
         raise ConfigError(f"scenario.mode 不支持: {scenario_mode}")
 
+    output_dir.mkdir(parents=True, exist_ok=True)
     services: List[Dict[str, Any]] = []
     for item in scenario["services"]:
         service = ensure_dict(item, "scenario.services[]")
         resolved = normalize_service_source(service, scenario_path.parent)
         if resolved["type"] == "component":
-            services.append(render_from_component_source(service, resolved, scenario_mode, output_dir))
+            services.append(render_from_component_source(service, resolved, scenario_mode, output_dir, render_args))
         else:
-            services.append(render_from_challenge_source(service, resolved, scenario_mode, output_dir))
+            services.append(render_from_challenge_source(service, resolved, scenario_mode, output_dir, render_args))
 
     shutil.copy2(scenario_path, output_dir / "scenario.yaml")
     compose_path = write_compose(output_dir, scenario_name, services)

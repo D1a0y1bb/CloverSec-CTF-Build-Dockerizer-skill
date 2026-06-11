@@ -210,7 +210,6 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
         "workflow.py",
         "Proposal Gate",
         "validate.sh",
-        "release_build.sh",
         "按需读取索引",
         "docs/validation_guide.md",
         "docs/stack_cookbook.md",
@@ -248,6 +247,11 @@ def check_packaged_runtime_paths(counter: Counter, root: Path) -> None:
     skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
     bad_prefix = "src/CloverSec-CTF-Build-Dockerizer/"
     hits: list[str] = []
+    missing_runtime_scripts: list[str] = []
+    script_ref_re = re.compile(r"scripts/([A-Za-z0-9_.-]+)")
+    project_local_script_refs = {
+        "scripts/build-vm.sh",
+    }
     for file in sorted(skill_dir.rglob("*")):
         if not file.is_file():
             continue
@@ -261,6 +265,14 @@ def check_packaged_runtime_paths(counter: Counter, root: Path) -> None:
         for line_no, line in enumerate(text.splitlines(), start=1):
             if bad_prefix in line:
                 hits.append(f"{file}:{line_no}:{line.strip()}")
+            if file.suffix != ".md" and file.name != "SKILL.md":
+                continue
+            for match in script_ref_re.finditer(line):
+                rel = f"scripts/{match.group(1)}"
+                if rel in project_local_script_refs:
+                    continue
+                if not (skill_dir / rel).exists():
+                    missing_runtime_scripts.append(f"{file}:{line_no}:{rel}:{line.strip()}")
     if hits:
         counter.log_error("运行时文档不应引用源码仓库路径前缀；发布包内应使用 Skill 根目录相对路径：")
         for item in hits:
@@ -268,24 +280,24 @@ def check_packaged_runtime_paths(counter: Counter, root: Path) -> None:
     else:
         counter.log_info("运行时文档路径前缀检查通过")
 
+    if missing_runtime_scripts:
+        counter.log_error("运行时文档引用了安装包内不存在的 scripts/ 路径；源码仓库维护命令请不要写成安装包相对命令：")
+        for item in missing_runtime_scripts:
+            print(item, file=sys.stderr)
+    else:
+        counter.log_info("运行时 scripts/ 命令引用检查通过")
+
 
 def check_runtime_readmes(counter: Counter, root: Path) -> None:
     skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
     checks = {
         skill_dir / "examples" / "README.md": (
-            "validate_examples.sh",
-            "smoke_assert.sh",
             "linux-qemu-basic",
             "bundle-",
             "scenario-compose-import-basic",
         ),
         skill_dir / "scripts" / "README.md": (
-            "golden_snapshot.py",
-            "platform_matrix.py",
-            "generate_sbom.py",
-            "release_build.py",
-            "SBOM strict",
-            "SCENARIO_VALIDATE_RENDERED=0",
+            "verify_asset_manifest.py",
         ),
     }
     for path, terms in checks.items():
@@ -298,6 +310,42 @@ def check_runtime_readmes(counter: Counter, root: Path) -> None:
             counter.log_error(f"{path} 缺少关键说明：{', '.join(missing)}")
         else:
             counter.log_info(f"{path.relative_to(root)} 关键入口检查通过")
+
+
+def check_runtime_docs_focus(counter: Counter, root: Path) -> None:
+    skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
+    banned_terms = (
+        "release_build",
+        "publish_release",
+        "publish_guard",
+        "generate_sbom",
+        "golden_snapshot",
+        "platform_matrix",
+        "GitHub Release",
+        "SBOM strict",
+        "发布治理",
+        "发布前检查",
+        "维护本 Skill",
+        "validate_examples.sh",
+        "smoke_test.sh",
+        "smoke_assert.sh",
+        "冒烟",
+        "批量回归",
+    )
+    hits: list[str] = []
+    for file in sorted(skill_dir.rglob("*.md")) + [skill_dir / "SKILL.md"]:
+        if not file.is_file():
+            continue
+        for line_no, line in enumerate(read_text(file).splitlines(), start=1):
+            for term in banned_terms:
+                if term in line:
+                    hits.append(f"{file}:{line_no}:{term}:{line.strip()}")
+    if hits:
+        counter.log_error("运行时 Skill 文档包含源码发布/维护信息，容易干扰题目构建：")
+        for item in hits:
+            print(item, file=sys.stderr)
+    else:
+        counter.log_info("运行时 Skill 文档聚焦检查通过")
 
 
 def check_agent_metadata(counter: Counter, root: Path) -> None:
@@ -461,6 +509,7 @@ def main() -> int:
     check_skill_progressive_disclosure(counter, root)
     check_packaged_runtime_paths(counter, root)
     check_runtime_readmes(counter, root)
+    check_runtime_docs_focus(counter, root)
     check_agent_metadata(counter, root)
 
     print("\n文档检查汇总")

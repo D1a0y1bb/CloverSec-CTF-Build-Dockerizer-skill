@@ -28,21 +28,9 @@
 
 - `scripts/validate.sh`：平台硬规则 + 风险规则
 - `scripts/validate_scenario.py`：scenario 规则校验
-- `scripts/validate_examples.sh`：example/scenario 批量回归
-- `scripts/smoke_test.sh`：容器构建与运行冒烟
-- `linux-qemu` 默认只进入 render/validate；完整 QEMU boot 需显式设置 smoke 模式
+- `linux-qemu` 默认只进入 render/validate；完整 QEMU boot、guest flag 和 PoC 复现必须显式运行手动检查
 
-## 5) 发布治理层
-
-根目录 `scripts/`：
-
-- `doc_guard.py`
-- `release_build.py`
-- `generate_sbom.py`
-- `publish_guard.py`
-- `publish_release.sh`
-
-## 6) 核心约束
+## 5) 核心约束
 
 - 最终交付必须包含：`Dockerfile/start.sh/changeflag.sh`
 - `/flag` 仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行

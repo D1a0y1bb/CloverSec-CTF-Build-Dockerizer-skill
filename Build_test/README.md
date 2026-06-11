@@ -9,7 +9,7 @@ The pool intentionally contains both passing and failing cases. A failing Docker
 - `cases.yaml` is the machine-readable case list.
 - Each case directory has `case_note.md` with source, expected route, verification level, and current limits.
 - Large VM assets, archives, `.git`, `node_modules`, caches, and files over 20 MB must not be copied into this directory.
-- Linux-QEMU real asset cases may use a `manual_case.yaml` record that points to an external local path. Do not copy large rootfs/kernel archives into Git.
+- Linux-QEMU real asset cases may use a `manual_case.yaml` record that points to an external local path. Add `asset_manifest.yaml` with file sizes and SHA256 values, but do not copy large rootfs/kernel archives into Git.
 
 ## Regression Commands
 
@@ -17,6 +17,8 @@ The pool intentionally contains both passing and failing cases. A failing Docker
 python3 scripts/validate_build_test.py
 python3 scripts/validate_build_test.py --format json
 python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/verify_asset_manifest.py \
+  --manifest Build_test/linux-qemu-real-fragnesia/asset_manifest.yaml
 ```
 
 The script runs input audit for every case. When a case has `Dockerfile`, `start.sh`, and `challenge.yaml`, it can also run `validate.sh` and compare the result with the expected contract status in `cases.yaml`.

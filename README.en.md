@@ -14,23 +14,30 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r1-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r2-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r2"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r1</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r2</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.2.0-r1 Release Fix
+## v2.2.0-r2 Release Fix
 
-`v2.2.0-r1` is a release-fix build for `v2.2.0`. It does not change the challenge config contract or core rendering behavior. The main fix is the installed Skill runtime path wording: packaged docs now use paths relative to `SKILL.md`, such as `docs/`, `data/`, `scripts/`, `templates/`, and `examples/`, so agents do not look for the source-repo prefix inside the installed Skill directory.
+`v2.2.0-r2` is the second release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It focuses on two real-use gaps: explicit custom Bundle combinations and full Linux-QEMU release/manual validation.
 
-This r1 release is published with `publish_release.sh --wait-release-full-check`, which waits for the GitHub Actions `release-full-check` job to pass before making the Release public.
+This r2 release includes:
+
+- Explicit custom Bundle support when the user supplies the base image, install commands, start commands, ports, and service list. Incomplete custom inputs still return `BUNDLE_UNSUPPORTED_COMBINATION`.
+- Linux-QEMU full check for Docker build, QEMU TCG boot, guest SSH, dynamic guest flag, and PoC reproduction. The real Fragnesia asset case passed the full path.
+- A Linux-QEMU dynamic flag fix that writes the guest rootfs before QEMU boot, avoiding stale guest `/root/flag` contents.
+- Runtime Skill docs stay focused on challenge building; source release governance notes are kept out of packaged docs.
+
+Real LLM A/B result: installed `v2.2.0` scored 3/4 and the r2 candidate scored 4/4. The custom Bundle case now enters the explicit custom proposal path instead of being rejected as unsupported.
 
 ## v2.2.0 Major Updates
 
@@ -56,7 +63,7 @@ This release covers:
 | Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
 | Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` / JSON summary |
 | Component render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Generate component+variant base units | build-ready service directory |
-| Bundle/Recipe render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | Generate and validate fixed single-container multi-service recipes | platform delivery directory |
+| Bundle/Recipe render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | Generate and validate fixed recipes or explicit custom single-container multi-service bundles | platform delivery directory |
 | Compose/Vulhub-like import | `src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py` | Produce draft, renderable subset, and import report | `scenario.draft.yaml` / `scenario.renderable.yaml` / `import-report.json` |
 | Check-service stub | `src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py` | Generate HTTP/TCP/Redis/MySQL/SSH check skeletons | review-required `check/check.sh` |
 | Linux-QEMU render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate Docker-hosted QEMU guest delivery | single-image delivery directory |
@@ -119,14 +126,25 @@ After I confirm the build plan, generate the Docker delivery files and run valid
 Shortcut prompt:
 
 ```text
-The src folder is my CTF challenge source. Build a platform-compliant container delivery package.
+The src folder is my CTF challenge source. Inspect it first and propose a platform-compliant delivery plan.
+After I confirm, generate the Docker delivery files and run validation.
 ```
 
-### Manual command chain
+### Manual command chain for the source repository
+
+The following commands are for this source repository. Installed skills are resolved by the agent from the skill root; do not add the `src/CloverSec-CTF-Build-Dockerizer/` prefix there.
+
+Before confirmation:
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py status --project-dir .
+```
+
+After the user confirms the plan:
+
+```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
@@ -347,11 +365,13 @@ Delivery notes:
 - `guest_forwards[*].proto` is TCP-only in the current release.
 - The default smoke path renders and validates the placeholder sample; full QEMU boot and exploit replay require real VM assets.
 - `flag_injection=debugfs` requires `changeflag.sh` to write the guest flag path into the rootfs image.
+- Real VM assets should be tracked with `asset_manifest.yaml` containing file names, sizes, and SHA256 values; large files stay outside the repository.
 
 Manual validation entrypoints:
 
 ```bash
-bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
+bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
 bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir /path/to/linux-qemu/code --host-port 2222
 ```
 
@@ -393,7 +413,9 @@ Important: this repo intentionally keeps `stack=awd` out; AWD is implemented as 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
   --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-awd-basic/scenario.yaml \
-  --output /tmp/scenario-awd
+  --output /tmp/scenario-awd \
+  --accepted \
+  --reason "user accepted AWD scenario example"
 
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-awd
@@ -464,7 +486,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 
 ### Bundle / Recipe
 
-Use for a small fixed matrix of legacy single-container multi-service environments. BaseUnit is a single component, Scenario is local multi-service orchestration, and Bundle is a limited Recipe inside one Docker image.
+Use for legacy single-container multi-service environments. BaseUnit is a single component, Scenario is local multi-service orchestration, and Bundle is a Recipe inside one Docker image. Known combinations use fixed recipes; unknown combinations can use explicit custom input with base image, install commands, start commands, ports, and service metadata.
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py \
@@ -480,7 +502,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
   /tmp/bundle/challenge.yaml
 ```
 
-Unsupported combinations return `BUNDLE_UNSUPPORTED_COMBINATION`; they are not silently rewritten as another stack.
+Explicit custom example: `src/CloverSec-CTF-Build-Dockerizer/examples/bundle-custom-explicit/`. Incomplete combinations return `BUNDLE_UNSUPPORTED_COMBINATION`; they are not silently rewritten as another stack.
 
 ### Vulhub-like migration
 
@@ -493,7 +515,9 @@ Final platform delivery remains one service directory at a time.
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
   --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml \
-  --output /tmp/scenario-vulhub-like
+  --output /tmp/scenario-vulhub-like \
+  --accepted \
+  --reason "user accepted Vulhub-like scenario example"
 
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
@@ -621,7 +645,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 |---|---|
 | `schema.md` | `challenge.yaml` contract |
 | `scenario_schema.md` | `scenario.yaml` contract |
-| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe contract and fixed recipe definitions |
+| `bundle_schema.md` / `bundle_recipes.yaml` | Bundle/Recipe contract, custom format, and fixed recipe definitions |
 | `stacks.yaml` | stack defaults and template mapping |
 | `profiles.yaml` | profile default behaviors |
 | `components.yaml` | BaseUnit component + variant catalog |
@@ -650,6 +674,7 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `validate_scenario.py` | scenario validation |
 | `validate_examples.sh` | batch example regression |
 | `smoke_test.sh` | smoke regression |
+| `scripts/ci_linux_qemu_full_check.sh` | Linux-QEMU full check for release-full-check when external assets are available |
 | `validate_context.py` | challenge context parser helper |
 | `autofix.py` | common issue auto-fix helper |
 | `detect_stack.py` | stack detection helper |
@@ -745,7 +770,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r1
+bash scripts/publish_release.sh --version v2.2.0-r2
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

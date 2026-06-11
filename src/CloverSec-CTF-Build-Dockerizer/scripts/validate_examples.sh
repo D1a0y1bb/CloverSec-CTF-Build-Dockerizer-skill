@@ -131,7 +131,7 @@ for dir in "$EXAMPLES_DIR"/*; do
     else
       scenario_out="$(mktemp -d "/tmp/ctf-validate-scenario-${name}-XXXXXX")"
     fi
-    if python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out"; then
+    if python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out" --accepted --reason "trusted examples regression"; then
       if [[ "$SCENARIO_VALIDATE_RENDERED" != "0" ]]; then
         if python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out" --validate-rendered; then
           validate_rc=0
@@ -201,7 +201,7 @@ for dir in "$EXAMPLES_DIR"/*; do
       scenario_out="$(mktemp -d "/tmp/ctf-validate-compose-rendered-${name}-XXXXXX")"
     fi
     if python3 "$IMPORT_COMPOSE_PY" --compose "$compose_yaml" --output "$import_out" --scenario-name "$name"; then
-      if python3 "$RENDER_SCENARIO_PY" --config "$import_out/scenario.renderable.yaml" --output "$scenario_out" \
+      if python3 "$RENDER_SCENARIO_PY" --config "$import_out/scenario.renderable.yaml" --output "$scenario_out" --accepted --reason "trusted examples regression" \
         && python3 "$VALIDATE_SCENARIO_PY" "$scenario_out/docker-compose.yml" "$scenario_out" --validate-rendered; then
         validate_rc=0
       else

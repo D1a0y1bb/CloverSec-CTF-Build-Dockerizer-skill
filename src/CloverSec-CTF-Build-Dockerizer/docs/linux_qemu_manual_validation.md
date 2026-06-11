@@ -1,13 +1,13 @@
 # Linux-QEMU Manual Validation
 
-Linux-QEMU challenges need a separate release/manual validation path. Default CI should keep using render and static validation only; full VM boot, guest flag injection, and exploit proof require an operator-controlled run.
+Linux-QEMU challenges need a separate manual validation path. Default CI should keep using render and static validation only; full VM boot, guest flag injection, and exploit proof require an operator-controlled run.
 
 ## Validation Levels
 
 | Level | Purpose | Typical command |
 |---|---|---|
 | static | Check delivery files, `challenge.vm`, VM assets, `hostfwd`, and Docker contract | `bash validate.sh Dockerfile start.sh challenge.yaml` |
-| release/manual | Build the outer Docker image, boot QEMU, and verify guest service reachability | `bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir ...` |
+| manual boot | Build the outer Docker image, boot QEMU, and verify guest service reachability | `bash scripts/linux_qemu_manual_check.sh --mode boot --case-dir ...` |
 | challenge acceptance | Change dynamic flag inside guest rootfs and run the challenge PoC | `bash scripts/linux_qemu_manual_check.sh --mode full --case-dir ... --poc-cmd '...'` |
 
 ## Manual Script
@@ -18,6 +18,7 @@ Run preflight first. It does not build an image and does not start QEMU.
 bash scripts/linux_qemu_manual_check.sh \
   --mode preflight \
   --case-dir "/path/to/linux-qemu/code" \
+  --asset-manifest "/path/to/asset_manifest.yaml" \
   --json-summary /tmp/linux-qemu-preflight.json
 ```
 
@@ -55,9 +56,10 @@ bash scripts/linux_qemu_manual_check.sh \
 
 ## Evidence to Keep
 
-For release/manual validation, keep these artifacts outside the repository:
+For manual validation, keep these artifacts outside the repository:
 
 - `linux-qemu-*.json` summary from `scripts/linux_qemu_manual_check.sh`
+- `asset_manifest.yaml` with VM asset paths, sizes, and SHA256 values
 - Docker image tag or tar digest
 - QEMU boot log excerpt
 - hostfwd reachability evidence
@@ -66,4 +68,10 @@ For release/manual validation, keep these artifacts outside the repository:
 
 ## Current Real-Asset Case
 
-`Build_test/linux-qemu-real-fragnesia/manual_case.yaml` records a local real-asset case. The VM rootfs is about 1.2 GB and is intentionally not copied into this repository.
+`Build_test/linux-qemu-real-fragnesia/manual_case.yaml` records a local real-asset case. `Build_test/linux-qemu-real-fragnesia/asset_manifest.yaml` records the external kernel, initrd, and rootfs size/SHA256 values. The VM rootfs is about 1.2 GB and is intentionally not copied into this repository.
+
+Verify an external asset manifest before boot checks:
+
+```bash
+python3 scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
+```

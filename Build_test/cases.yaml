@@ -13,6 +13,7 @@ cases:
     contract:
       enabled: true
       expected: fail
+      expected_code: CONTRACT_VALIDATION_FAILED
       reason: "Missing changeflag.sh delivery contract."
 
   - id: python-sandbox-existing
@@ -28,6 +29,7 @@ cases:
     contract:
       enabled: true
       expected: fail
+      expected_code: CONTRACT_VALIDATION_FAILED
       reason: "Missing changeflag.sh delivery contract and /flag readable permission."
 
   - id: cpanel-whm-authbypass-rce
@@ -43,6 +45,7 @@ cases:
     contract:
       enabled: true
       expected: pass
+      expected_code: CONTRACT_VALIDATION_PASSED
       reason: "The current Docker contract is complete, while audit still routes it to bundle_recipe for product handling."
 
   - id: linux-qemu-copy-fail-missing-assets
@@ -58,6 +61,7 @@ cases:
     contract:
       enabled: true
       expected: fail
+      expected_code: CONTRACT_VALIDATION_FAILED
       reason: "VM assets are intentionally absent and debugfs flag injection is not fully verifiable."
 
   - id: web-push-boxs
@@ -73,6 +77,7 @@ cases:
     contract:
       enabled: true
       expected: fail
+      expected_code: CONTRACT_VALIDATION_FAILED
       reason: "The historical Dockerfile does not satisfy current platform contract and port declaration checks."
 
   - id: web-push-letters
@@ -88,6 +93,7 @@ cases:
     contract:
       enabled: true
       expected: fail
+      expected_code: CONTRACT_VALIDATION_FAILED
       reason: "The historical Dockerfile does not satisfy current platform contract and port declaration checks."
 
   - id: pwn-house-deploy

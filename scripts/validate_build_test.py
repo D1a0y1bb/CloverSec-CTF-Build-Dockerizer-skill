@@ -7,6 +7,7 @@ import argparse
 import json
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
@@ -81,11 +82,13 @@ def _audit_case(case_dir: Path) -> Tuple[Dict[str, Any], subprocess.CompletedPro
     return data, proc
 
 
-def _validate_contract(case_dir: Path) -> subprocess.CompletedProcess[str]:
+def _validate_contract(case_dir: Path, summary_path: Path) -> subprocess.CompletedProcess[str]:
     return _run(
         [
             "bash",
             str(VALIDATE_SCRIPT),
+            "--json-summary",
+            str(summary_path),
             str(case_dir / "Dockerfile"),
             str(case_dir / "start.sh"),
             str(case_dir / "challenge.yaml"),
@@ -159,16 +162,30 @@ def validate_case(case: Dict[str, Any]) -> Dict[str, Any]:
                 }
             )
         else:
-            proc = _validate_contract(case_dir)
+            with tempfile.TemporaryDirectory(prefix="ctf-build-test-") as tmp:
+                summary_path = Path(tmp) / "validate-summary.json"
+                proc = _validate_contract(case_dir, summary_path)
+                summary_data: Dict[str, Any] = {}
+                if summary_path.exists():
+                    try:
+                        summary_data = json.loads(summary_path.read_text(encoding="utf-8"))
+                    except json.JSONDecodeError:
+                        summary_data = {"parse_error": "invalid json summary"}
             actual = "pass" if proc.returncode == 0 else "fail"
             expected = str(contract_result["expected"])
+            actual_code = str(summary_data.get("code") or "")
+            expected_code = str(contract_spec.get("expected_code") or "").strip()
+            code_ok = True if not expected_code else actual_code == expected_code
             contract_result.update(
                 {
                     "actual": actual,
+                    "actual_code": actual_code,
+                    "expected_code": expected_code,
                     "returncode": proc.returncode,
+                    "summary": summary_data,
                     "stdout_tail": _tail(proc.stdout),
                     "stderr_tail": _tail(proc.stderr),
-                    "ok": actual == expected,
+                    "ok": actual == expected and code_ok,
                 }
             )
     result["contract"] = contract_result

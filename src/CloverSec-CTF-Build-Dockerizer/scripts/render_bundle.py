@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -63,10 +65,98 @@ def service_signature(services: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
     return sorted(signature)
 
 
+def slugify_identifier(value: str) -> str:
+    slug = re.sub(r"[^a-zA-Z0-9_.-]+", "-", value.strip().lower()).strip("-")
+    return slug or "custom-bundle"
+
+
+def normalize_start_commands(raw: Any, field: str) -> List[Dict[str, str]]:
+    items = ensure_list(raw, field)
+    if not items:
+        raise ConfigError("BUNDLE_UNSUPPORTED_COMBINATION: custom bundle requires start_commands")
+
+    commands: List[Dict[str, str]] = []
+    total = len(items)
+    for idx, item in enumerate(items):
+        if isinstance(item, str):
+            cmd = item.strip()
+            mode = "foreground" if idx == total - 1 else "background"
+        else:
+            entry = ensure_dict(item, f"{field}[]")
+            cmd = str(entry.get("cmd") or entry.get("command") or "").strip()
+            mode = str(entry.get("mode") or ("foreground" if idx == total - 1 else "background")).strip()
+        if not cmd:
+            raise ConfigError(f"{field}[{idx}] 缺少 cmd")
+        if mode not in {"background", "foreground", "wait"}:
+            raise ConfigError(f"{field}[{idx}].mode 仅支持 background/foreground/wait")
+        if mode in {"foreground", "wait"} and idx != total - 1:
+            raise ConfigError(f"{field}[{idx}].mode={mode} 必须是最后一个启动步骤")
+        commands.append({"cmd": cmd, "mode": mode})
+    return commands
+
+
+def can_build_custom_recipe(bundle: Dict[str, Any]) -> bool:
+    explicit = str(bundle.get("recipe") or bundle.get("recipe_id") or "").strip().lower()
+    if explicit in {"custom", "custom-explicit"} or bundle.get("custom") is True:
+        return True
+    return bool(bundle.get("base_image") and bundle.get("start_commands") and bundle.get("services") and bundle.get("expose_ports"))
+
+
+def custom_recipe_from_bundle(bundle: Dict[str, Any], explicit_recipe_id: str = "") -> Dict[str, Any]:
+    name = str(bundle.get("name") or explicit_recipe_id or "custom-bundle").strip()
+    recipe_id_raw = explicit_recipe_id.strip()
+    if recipe_id_raw in {"", "custom", "custom-explicit"}:
+        recipe_id = f"custom-{slugify_identifier(name)}"
+    else:
+        recipe_id = slugify_identifier(recipe_id_raw)
+
+    base_image = str(bundle.get("base_image") or "").strip()
+    if not base_image:
+        raise ConfigError("BUNDLE_UNSUPPORTED_COMBINATION: custom bundle requires base_image")
+
+    expose_ports = [str(port).strip() for port in ensure_list(bundle.get("expose_ports"), "bundle.expose_ports") if str(port).strip()]
+    if not expose_ports:
+        raise ConfigError("BUNDLE_UNSUPPORTED_COMBINATION: custom bundle requires expose_ports")
+
+    services = [ensure_dict(item, "bundle.services[]") for item in ensure_list(bundle.get("services"), "bundle.services")]
+    if not services:
+        raise ConfigError("BUNDLE_UNSUPPORTED_COMBINATION: custom bundle requires services")
+
+    start_commands = normalize_start_commands(bundle.get("start_commands"), "bundle.start_commands")
+    install_commands = [str(item).strip() for item in ensure_list(bundle.get("install_commands", []), "bundle.install_commands") if str(item).strip()]
+    workdir = str(bundle.get("workdir") or "/opt/bundle/app").strip()
+    app_dst = str(bundle.get("app_dst") or workdir).strip()
+    healthcheck_cmd = str(bundle.get("healthcheck_cmd") or f"bash -lc 'echo > /dev/tcp/127.0.0.1/{expose_ports[0]}'").strip()
+    startup_order = ensure_list(bundle.get("startup_order", [str(item.get("id") or "").strip() for item in services if str(item.get("id") or "").strip()]), "bundle.startup_order")
+    notes = [str(item) for item in ensure_list(bundle.get("notes", []), "bundle.notes")]
+    notes.insert(0, "Custom bundle uses user-supplied install_commands and start_commands; no automatic version solver is used.")
+
+    return {
+        "id": recipe_id,
+        "display_name": name,
+        "support_level": str(bundle.get("support_level") or "partial"),
+        "base_os": str(bundle.get("base_os") or base_image),
+        "base_image": base_image,
+        "mode": str(bundle.get("mode") or "single_container"),
+        "workdir": workdir,
+        "app_dst": app_dst,
+        "expose_ports": expose_ports,
+        "healthcheck_cmd": healthcheck_cmd,
+        "install_commands": install_commands,
+        "start_commands": start_commands,
+        "services": services,
+        "startup_order": startup_order,
+        "notes": notes,
+        "custom": True,
+    }
+
+
 def match_recipe(bundle: Dict[str, Any], recipes: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     explicit = str(bundle.get("recipe") or bundle.get("recipe_id") or "").strip()
     if explicit:
         if explicit not in recipes:
+            if can_build_custom_recipe(bundle):
+                return custom_recipe_from_bundle(bundle, explicit)
             raise ConfigError(f"BUNDLE_UNSUPPORTED_COMBINATION: unknown recipe {explicit}")
         return recipes[explicit]
 
@@ -82,6 +172,9 @@ def match_recipe(bundle: Dict[str, Any], recipes: Dict[str, Dict[str, Any]]) -> 
             continue
         if requested_signature == service_signature(ensure_list(recipe.get("services"), "recipe.services")):
             return recipe
+
+    if can_build_custom_recipe(bundle):
+        return custom_recipe_from_bundle(bundle)
 
     raise ConfigError("BUNDLE_UNSUPPORTED_COMBINATION: no fixed recipe matches requested services")
 
@@ -118,7 +211,12 @@ def copy_app(bundle: Dict[str, Any], config_dir: Path | None, output: Path, reci
             return
         raise ConfigError(f"bundle.app_src 不存在: {src}")
 
-    if str(recipe.get("id")) == "tomcat85-jdk8-mysql57":
+    if recipe.get("custom"):
+        (app_dir / "index.html").write_text(
+            f"bundle custom {recipe.get('id')}\n",
+            encoding="utf-8",
+        )
+    elif str(recipe.get("id")) == "tomcat85-jdk8-mysql57":
         (app_dir / "index.jsp").write_text(
             "<% out.println(\"bundle tomcat85-jdk8-mysql57\"); %>\n",
             encoding="utf-8",
@@ -151,6 +249,28 @@ def dockerfile_text(recipe: Dict[str, Any]) -> str:
 
 def start_script_text(recipe: Dict[str, Any]) -> str:
     recipe_id = str(recipe.get("id"))
+    if recipe.get("custom"):
+        lines = [
+            "#!/bin/bash",
+            "set -euo pipefail",
+            "",
+            f"cd {shlex.quote(str(recipe.get('workdir') or '/opt/bundle/app'))}",
+            f"echo \"[INFO] starting bundle recipe: {recipe_id}\"",
+            "",
+        ]
+        for item in normalize_start_commands(recipe.get("start_commands"), "recipe.start_commands"):
+            quoted = shlex.quote(item["cmd"])
+            mode = item["mode"]
+            if mode == "background":
+                lines.append(f"bash -lc {quoted} &")
+            elif mode == "foreground":
+                lines.append(f"exec bash -lc {quoted}")
+            elif mode == "wait":
+                lines.append("wait -n || exit 1")
+        if not any(item["mode"] in {"foreground", "wait"} for item in normalize_start_commands(recipe.get("start_commands"), "recipe.start_commands")):
+            lines.append("wait -n || exit 1")
+        return "\n".join(lines) + "\n"
+
     if recipe_id == "legacy-centos7-python39-mysql57-redis5":
         return """#!/bin/bash
 set -euo pipefail
@@ -257,6 +377,15 @@ def challenge_doc(bundle: Dict[str, Any], recipe: Dict[str, Any]) -> Dict[str, A
 
 
 def render_bundle(bundle: Dict[str, Any], recipe: Dict[str, Any], config_dir: Path | None, output: Path) -> Dict[str, Any]:
+    planned = ["Dockerfile", "start.sh", "changeflag.sh", "flag", "challenge.yaml", "app/"]
+    file_plan = [
+        {
+            "path": item,
+            "action": "overwrite" if item not in {"app/"} else "copy_or_create",
+            "exists": (output / item.rstrip("/")).exists(),
+        }
+        for item in planned
+    ]
     output.mkdir(parents=True, exist_ok=True)
     copy_app(bundle, config_dir, output, recipe)
     (output / "Dockerfile").write_text(dockerfile_text(recipe), encoding="utf-8")
@@ -273,6 +402,7 @@ def render_bundle(bundle: Dict[str, Any], recipe: Dict[str, Any], config_dir: Pa
         output=str(output),
         support_level=str(recipe.get("support_level") or "partial"),
         files=["Dockerfile", "start.sh", "changeflag.sh", "flag", "challenge.yaml"],
+        file_plan=file_plan,
     )
 
 
@@ -306,6 +436,10 @@ def main() -> int:
         print(f"- recipe: {result['recipe_id']}")
         print(f"- output: {result['output']}")
         print(f"- support_level: {result['support_level']}")
+        print("- file_plan:")
+        for item in result.get("file_plan", []):
+            exists = "exists" if item.get("exists") else "new"
+            print(f"  - {item['path']}: {item['action']} ({exists})")
     return 0
 
 

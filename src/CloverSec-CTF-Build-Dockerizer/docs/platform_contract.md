@@ -137,4 +137,4 @@ Scenario 模式可生成 `docker-compose.yml` 用于本地多服务验证，但�
 - 栈手册：`docs/stack_cookbook.md`
 - 场景 Schema：`data/scenario_schema.md`
 - 校验规则：`data/validate_rules.yaml`
-- 校验与发布门禁：`docs/validation_guide.md`
+- 校验规则：`docs/validation_guide.md`

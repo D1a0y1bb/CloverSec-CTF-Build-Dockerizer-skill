@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 EXAMPLES_DIR="${SKILL_ROOT}/examples"
+WORK_EXAMPLES_DIR="$EXAMPLES_DIR"
 RENDER_PY="${SCRIPT_DIR}/render.py"
 RENDER_SCENARIO_PY="${SCRIPT_DIR}/render_scenario.py"
 VALIDATE_SH="${SCRIPT_DIR}/validate.sh"
@@ -17,19 +18,70 @@ LAMP_RUN_MODE="${LAMP_RUN_MODE:-build-only}" # build-only/full
 AI_TRANSFORMERS_RUN_MODE="${AI_TRANSFORMERS_RUN_MODE:-build-only}" # build-only/full
 LINUX_QEMU_RUN_MODE="${LINUX_QEMU_RUN_MODE:-validate-only}" # validate-only/build-only/full
 SCENARIO_VALIDATE_RENDERED="${SCENARIO_VALIDATE_RENDERED:-1}"
+SKIP_DOCKER="${SKIP_DOCKER:-0}"
+SMOKE_READONLY="${SMOKE_READONLY:-1}"
+SMOKE_OUTPUT_ROOT="${SMOKE_OUTPUT_ROOT:-}"
+SMOKE_WORK_ROOT=""
+
+usage() {
+  cat <<'USAGE'
+用法：
+  bash scripts/smoke_test.sh [--in-place] [--output-root DIR] [--skip-docker]
+
+默认行为：
+  复制 examples 到临时目录后执行 render/validate/build/run，不写回原 examples。
+
+参数：
+  --in-place        在原 examples 目录执行旧流程
+  --output-root DIR 指定只读副本根目录
+  --skip-docker     只执行 render/validate，不执行 docker build/run
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --in-place)
+      SMOKE_READONLY=0
+      shift
+      ;;
+    --output-root)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "[ERROR] --output-root 需要目录参数" >&2
+        exit 2
+      fi
+      SMOKE_OUTPUT_ROOT="$2"
+      shift 2
+      ;;
+    --skip-docker)
+      SKIP_DOCKER=1
+      shift
+      ;;
+    *)
+      echo "[ERROR] 未知参数: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
 
 PASS_LIST=()
 FAIL_LIST=()
 SKIP_LIST=()
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "[ERROR] 未检测到 docker 命令，无法执行冒烟测试。" >&2
-  exit 2
-fi
+if [[ "$SKIP_DOCKER" != "1" ]]; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "[ERROR] 未检测到 docker 命令，无法执行冒烟测试。" >&2
+    exit 2
+  fi
 
-if ! docker info >/dev/null 2>&1; then
-  echo "[ERROR] docker daemon 不可访问（可能是权限或服务未启动）。" >&2
-  exit 2
+  if ! docker info >/dev/null 2>&1; then
+    echo "[ERROR] docker daemon 不可访问（可能是权限或服务未启动）。" >&2
+    exit 2
+  fi
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -49,6 +101,27 @@ fi
 if [[ ! -d "$EXAMPLES_DIR" ]]; then
   echo "[ERROR] examples 目录不存在: $EXAMPLES_DIR" >&2
   exit 2
+fi
+
+cleanup_work_root() {
+  if [[ "$SMOKE_READONLY" == "0" || "$KEEP_ARTIFACTS" == "1" || -z "$SMOKE_WORK_ROOT" ]]; then
+    return
+  fi
+  if [[ -z "$SMOKE_OUTPUT_ROOT" ]]; then
+    rm -rf "$SMOKE_WORK_ROOT"
+  fi
+}
+
+if [[ "$SMOKE_READONLY" != "0" ]]; then
+  if [[ -n "$SMOKE_OUTPUT_ROOT" ]]; then
+    SMOKE_WORK_ROOT="$(mkdir -p "$SMOKE_OUTPUT_ROOT" && cd "$SMOKE_OUTPUT_ROOT" && pwd)"
+    rm -rf "${SMOKE_WORK_ROOT}/examples"
+  else
+    SMOKE_WORK_ROOT="$(mktemp -d "/tmp/ctf-smoke-examples-XXXXXX")"
+  fi
+  cp -R "$EXAMPLES_DIR" "${SMOKE_WORK_ROOT}/examples"
+  WORK_EXAMPLES_DIR="${SMOKE_WORK_ROOT}/examples"
+  trap cleanup_work_root EXIT
 fi
 
 contains_csv_item() {
@@ -248,6 +321,9 @@ echo "- LAMP_RUN_MODE: ${LAMP_RUN_MODE}"
 echo "- AI_TRANSFORMERS_RUN_MODE: ${AI_TRANSFORMERS_RUN_MODE}"
 echo "- LINUX_QEMU_RUN_MODE: ${LINUX_QEMU_RUN_MODE}"
 echo "- SCENARIO_VALIDATE_RENDERED: ${SCENARIO_VALIDATE_RENDERED}"
+echo "- SKIP_DOCKER: ${SKIP_DOCKER}"
+echo "- SMOKE_READONLY: ${SMOKE_READONLY}"
+echo "- WORK_EXAMPLES_DIR: ${WORK_EXAMPLES_DIR}"
 echo "- WAIT_SECONDS: ${WAIT_SECONDS}"
 
 while IFS= read -r dir; do
@@ -263,7 +339,7 @@ while IFS= read -r dir; do
   if [[ -f "$scenario_yaml" ]]; then
     scenario_out="$(mktemp -d "/tmp/ctf-scenario-${name}-XXXXXX")"
     echo "[INFO] 检测到 scenario.yaml，执行 scenario 渲染与校验"
-    if ! python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out"; then
+    if ! python3 "$RENDER_SCENARIO_PY" --config "$scenario_yaml" --output "$scenario_out" --accepted --reason "trusted smoke regression"; then
       echo "[ERROR] scenario render 失败: ${name}"
       FAIL_LIST+=("${name}:scenario-render")
       rm -rf "$scenario_out"
@@ -291,7 +367,9 @@ while IFS= read -r dir; do
       continue
     fi
 
-    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    if [[ "$SKIP_DOCKER" == "1" ]]; then
+      echo "[INFO] SKIP_DOCKER=1：scenario 仅执行 render + validate，不执行 docker compose build"
+    elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
       if ! docker compose -f "$compose_file" build; then
         echo "[ERROR] docker compose build 失败: ${name}"
         FAIL_LIST+=("${name}:scenario-build")
@@ -328,6 +406,12 @@ while IFS= read -r dir; do
   stack_id="$(get_stack_id "$challenge_yaml")"
   if [[ "$stack_id" == "linux-qemu" && "$LINUX_QEMU_RUN_MODE" == "validate-only" ]]; then
     echo "[INFO] linux-qemu 当前策略仅执行 render + validate，不执行 docker build/run"
+    PASS_LIST+=("${name}:validate-only")
+    continue
+  fi
+
+  if [[ "$SKIP_DOCKER" == "1" ]]; then
+    echo "[INFO] SKIP_DOCKER=1：仅执行 render + validate，不执行 docker build/run"
     PASS_LIST+=("${name}:validate-only")
     continue
   fi
@@ -441,7 +525,7 @@ while IFS= read -r dir; do
 
   PASS_LIST+=("${name}")
   cleanup_case "$container_name" "$image_tag"
-done < <(find "$EXAMPLES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+done < <(find "$WORK_EXAMPLES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
 
 echo
 echo "冒烟测试汇总"

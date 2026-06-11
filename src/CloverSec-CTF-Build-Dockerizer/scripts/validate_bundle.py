@@ -89,12 +89,14 @@ def validate_bundle(bundle_dir: Path) -> Dict[str, Any]:
 
 def main() -> int:
     args = parse_args()
+    config_error = False
     try:
         bundle_dir = Path(args.bundle_dir).resolve()
         if not bundle_dir.is_dir():
             raise ConfigError(f"bundle dir not found: {bundle_dir}")
         result = validate_bundle(bundle_dir)
     except ConfigError as exc:
+        config_error = True
         result = structured_error("bundle", "BUNDLE_CONFIG_ERROR", str(exc), support_level="unknown")
 
     if args.format == "json":
@@ -107,7 +109,9 @@ def main() -> int:
     else:
         print(f"[ERROR] {result['code']}: {result['summary']}", file=sys.stderr)
 
-    return 0 if result.get("ok") else 1
+    if result.get("ok"):
+        return 0
+    return 2 if config_error else 1
 
 
 if __name__ == "__main__":

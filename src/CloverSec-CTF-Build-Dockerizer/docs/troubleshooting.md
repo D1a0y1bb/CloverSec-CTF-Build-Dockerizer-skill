@@ -8,9 +8,7 @@
 - 2. 校验阶段
 - 3. 构建阶段
 - 4. 运行阶段
-- 5. 冒烟测试阶段
-- 6. 同步阶段
-- 7. 一键排查命令
+- 5. 一键排查命令
 
 ## 1. 渲染阶段
 
@@ -42,7 +40,7 @@ python3 -m pip install -r scripts/requirements.txt
 
 ## 2. 校验阶段
 
-完整校验规则、ERROR/WARN 语义、check-service 门禁和发布前检查见 `docs/validation_guide.md`。
+完整校验规则、ERROR/WARN 语义和 check-service 门禁见 `docs/validation_guide.md`。
 
 ### 2.1 报错：/start.sh 未复制到根目录
 
@@ -181,79 +179,10 @@ python3 -m pip install -r scripts/requirements.txt
 
 ---
 
-## 5. 冒烟测试阶段
-
-### 5.1 报错：docker daemon 不可访问
-
-现象：
-
-- `smoke_test.sh` 报 docker daemon 不可访问
-
-处理：
-
-- 确认 Docker Desktop/daemon 已启动。
-- 确认当前账号具有 Docker 访问权限。
-
-### 5.2 LAMP 目录 run 未执行
-
-说明：
-
-- 默认 `LAMP_RUN_MODE=build-only`，避免资源消耗过大。
-
-需要 full run：
+## 5. 一键排查命令
 
 ```bash
-LAMP_RUN_MODE=full bash scripts/smoke_test.sh
-```
-
-### 5.3 linux-qemu 示例默认不 build/run
-
-说明：
-
-- `examples/linux-qemu-basic` 使用占位 VM 资产，只用于 render/validate。
-- 默认 `LINUX_QEMU_RUN_MODE=validate-only`，不会构建镜像或启动 QEMU。
-
-需要构建真实资产后的镜像：
-
-```bash
-LINUX_QEMU_RUN_MODE=build-only bash scripts/smoke_test.sh
-```
-
-需要完整启动：
-
-```bash
-LINUX_QEMU_RUN_MODE=full SMOKE_FORCE_RUN=linux-qemu-basic bash scripts/smoke_test.sh
-```
-
----
-
-## 6. 同步阶段
-
-### 6.1 同步到 .codex 报不可写
-
-现象：
-
-- `scripts/sync.sh --codex-dir` 提示目标目录不可写
-
-处理：
-
-- 使用可写目录：
-
-```bash
-bash scripts/sync.sh --target-dir /tmp/skills
-```
-
-- 或调整 `.codex` 目录权限后再同步。
-
----
-
-## 7. 一键排查命令
-
-```bash
-# 1) 全量静态回归
-bash scripts/validate_examples.sh
-
-# 2) 单目录渲染+校验
+# 单目录渲染+校验
 cd examples/node-basic
 python3 ../../scripts/render.py --config challenge.yaml --output .
 bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml

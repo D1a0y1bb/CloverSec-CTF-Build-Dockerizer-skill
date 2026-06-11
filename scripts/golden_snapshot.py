@@ -56,6 +56,9 @@ CASES: dict[str, dict[str, Any]] = {
             "scenario.yaml",
             "--output",
             "{out}",
+            "--accepted",
+            "--reason",
+            "golden snapshot trusted regression",
         ],
         "files": [
             "docker-compose.yml",

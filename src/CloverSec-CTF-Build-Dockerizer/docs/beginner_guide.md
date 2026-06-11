@@ -1,27 +1,25 @@
-# CloverSec-CTF-Build-Dockerizer 新手安装与实战使用指南（Codex / Claude / Trae）
+# CloverSec-CTF-Build-Dockerizer 新手实战使用指南（Codex / Claude / Trae）
 
 本指南面向第一次接触该 Skill 的同学，目标是让你不看源码也能完成：
 
-1. 安装 Skill
-2. 在对话里正确触发 Skill
-3. 用最少交互生成可交付的 `Dockerfile + start.sh + changeflag.sh + flag(可选)`
-4. 在真实业务场景中稳定复用
+1. 在对话里正确触发 Skill
+2. 用最少交互生成可交付的 `Dockerfile + start.sh + changeflag.sh + flag(可选)`
+3. 在真实业务场景中稳定复用
 
 ## 目录
 
 - 1. 先知道它能做什么
 - 2. 平台硬约束（必须满足）
-- 3. 安装 Skill（一次配置，可重复覆盖）
-- 4. 三个平台如何触发这个 Skill
-- 5. 新手最推荐对话模式（AI Orchestrated）
-- 6. 真实业务场景怎么触发
-- 7. 手动模式（当你不走对话工作流时）
-- 8. 小白常见误区
-- 9. 你下一步该做什么
+- 3. 三个平台如何触发这个 Skill
+- 4. 新手最推荐对话模式（AI Orchestrated）
+- 5. 真实业务场景怎么触发
+- 6. 手动模式（当你不走对话工作流时）
+- 7. 小白常见误区
+- 8. 你下一步该做什么
 
 ## 1. 先知道它能做什么
 
-`CloverSec-CTF-Build-Dockerizer` 用于把题目目录、组件目录或本地场景定义转换为当前平台契约下可运行、可校验、可回归的容器交付物。当前核心能力覆盖：
+`CloverSec-CTF-Build-Dockerizer` 用于把题目目录、组件目录或本地场景定义转换为当前平台契约下可运行、可校验的容器交付物。当前核心能力覆盖：
 
 - Jeopardy / Web / Pwn / AI
 - RDG / AWD / AWDP / SecOps
@@ -56,66 +54,32 @@
 7. 单服务必须 `exec` 主进程（PID1）
 8. `/flag` 默认要求存在；仅在支持的 defense profile 中显式设置 `include_flag_artifact=false` 时可放行
 
-## 3. 安装 Skill（一次配置，可重复覆盖）
-
-在仓库根目录执行。
-
-### 3.1 安装到 Claude
-
-```bash
-bash scripts/sync.sh
-ls .claude/skills/CloverSec-CTF-Build-Dockerizer
-```
-
-### 3.2 安装到 Codex
-
-```bash
-bash scripts/sync.sh --codex-dir
-ls .codex/skills/CloverSec-CTF-Build-Dockerizer
-```
-
-如果 `--codex-dir` 提示不可写，可改用自定义目录：
-
-```bash
-bash scripts/sync.sh --target-dir /tmp/skills
-ls /tmp/skills/CloverSec-CTF-Build-Dockerizer
-```
-
-### 3.3 安装到 Trae
-
-推荐先同步到项目内目录，再在 Trae 设置里指向该目录：
-
-```bash
-bash scripts/sync.sh --target-dir ./.trae/skills
-ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
-```
-
-## 4. 三个平台如何触发这个 Skill
+## 3. 三个平台如何触发这个 Skill
 
 核心原则：如果没有自动触发，就在提示词里明确写 `CloverSec-CTF-Build-Dockerizer`，并要求走 `CONFIG PROPOSAL -> OK -> 生成` 流程。
 
-### 4.1 Codex 触发示例
+### 3.1 Codex 触发示例
 
 ```text
 请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。
 先执行自动探测并输出 CONFIG PROPOSAL，我确认 OK 后你再自动生成 Dockerfile/start.sh/changeflag.sh/flag(可选)，并运行 validate。
 ```
 
-### 4.2 Claude 触发示例
+### 3.2 Claude 触发示例
 
 ```text
 使用 CloverSec-CTF-Build-Dockerizer skill 对当前目录做容器化。
 按 5 个确认项给出 CONFIG PROPOSAL，我回复 OK 后再执行 render 和 validate。
 ```
 
-### 4.3 Trae 触发示例
+### 3.3 Trae 触发示例
 
 ```text
 使用 CloverSec-CTF-Build-Dockerizer 工作流：derive -> CONFIG PROPOSAL -> parse -> render -> validate。
 先给我 YAML 确认块，我只回复 OK。
 ```
 
-## 5. 新手最推荐对话模式（AI Orchestrated）
+## 4. 新手最推荐对话模式（AI Orchestrated）
 
 你和 AI 的最小交互应当是：
 
@@ -134,7 +98,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 完整 `CONFIG PROPOSAL` 模板、OK 门槛、gates 处理和失败保护规则见 `docs/orchestrated_workflow.md`。
 
-## 6. 真实业务场景怎么触发
+## 5. 真实业务场景怎么触发
 
 | 场景 | 触发语句（可直接发给 AI） | 期望输出 |
 |---|---|---|
@@ -148,7 +112,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 | 需要生成纯组件镜像 | “用 render_component.py 生成 baseunit 组件目录，并保留平台契约文件。” | 输出可直接 `docker build` 的目录 |
 | 需要本地多服务演练 | “用 scenario.yaml 渲染本地场景，并校验 profile/端口/AWDP 补丁契约。” | 服务目录 + `docker-compose.yml` |
 
-## 7. 手动模式（当你不走对话工作流时）
+## 6. 手动模式（当你不走对话工作流时）
 
 ```bash
 # 1) 自动提案（可选）
@@ -166,19 +130,18 @@ docker run -d -p 8080:80 ctf-web-demo:latest /start.sh
 docker logs -f "$(docker ps -q --filter ancestor=ctf-web-demo:latest | head -n 1)"
 ```
 
-## 8. 小白常见误区
+## 7. 小白常见误区
 
 1. 把宿主机端口写进 `expose_ports`
 2. 启动命令只监听 `127.0.0.1`
 3. 用 `sleep infinity` 保活
 4. 忘了 `/start.sh`、`/changeflag.sh` 或 `/bin/bash`
 5. 把 `include_flag_artifact=false` 理解成可以跳过所有平台产物
-6. 忽略 `validate.sh` 与 `smoke_test.sh`
+6. 忽略 `validate.sh`
 
-## 9. 你下一步该做什么
+## 8. 你下一步该做什么
 
-1. 先跑安装命令
-2. 复制触发示例发给 Agent
-3. 收到 `CONFIG PROPOSAL` 后只回复 `OK` 或改 YAML
-4. 查看 `Dockerfile/start.sh/changeflag.sh/flag(可选)` 与 validate 结果
-5. 本地 `docker run ... /start.sh` 做最后验证
+1. 复制触发示例发给 Agent。
+2. 收到 `CONFIG PROPOSAL` 后只回复 `OK` 或改 YAML。
+3. 查看 `Dockerfile/start.sh/changeflag.sh/flag(可选)` 与 validate 结果。
+4. 需要运行时，再本地 `docker run ... /start.sh` 验证。

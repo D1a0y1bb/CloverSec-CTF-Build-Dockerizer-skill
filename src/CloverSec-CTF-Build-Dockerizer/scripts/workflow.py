@@ -142,6 +142,7 @@ def command_accept(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     proposal_path = Path(args.proposal).resolve() if args.proposal else proposal_yaml_path(project_dir)
     challenge_path = Path(args.output).resolve() if args.output else default_challenge_path(project_dir)
+    challenge_existed = challenge_path.exists()
     proposal_root = load_yaml_object(proposal_path)
     proposal = _extract_proposal(proposal_root)
     challenge_doc = build_challenge(proposal, SimpleNamespace(name=args.name or "", output=str(challenge_path)))
@@ -157,6 +158,9 @@ def command_accept(args: argparse.Namespace) -> int:
     write_json(accepted_path(project_dir), accepted)
     audit = audit_project(project_dir, challenge_path=challenge_path)
     write_session(project_dir, stage="proposal_accepted", audit=audit, challenge_path=challenge_path)
+    if args.format == "text":
+        action = "overwrite" if challenge_existed else "create"
+        print(f"[INFO] file plan: {challenge_path} -> {action}")
     emit(
         structured_ok(
             "accept",
@@ -164,6 +168,13 @@ def command_accept(args: argparse.Namespace) -> int:
             challenge_path=str(challenge_path),
             accepted_proposal_path=str(accepted_path(project_dir)),
             input_audit=audit,
+            file_plan=[
+                {
+                    "path": str(challenge_path),
+                    "action": "overwrite" if challenge_existed else "create",
+                    "exists_before": challenge_existed,
+                }
+            ],
         ),
         args.format,
     )

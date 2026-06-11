@@ -2,6 +2,23 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.2.0-r2 - 2026-06-11
+
+### 修复
+
+- Bundle/Recipe 支持显式 custom 组合：用户明确提供 base image、安装命令、启动命令、端口和服务清单后，可以生成单容器多服务交付目录；信息不完整时仍返回 `BUNDLE_UNSUPPORTED_COMBINATION`，不自动猜测依赖或版本。
+- Linux-QEMU release/manual 验证补齐完整链路：新增外部 VM 资产清单校验、CI full check、Fragnesia PoC 自动复现脚本，可覆盖 Docker build、QEMU TCG boot、guest flag 写入和 PoC 验证。
+- 修复 Linux-QEMU 动态 flag 写入顺序：在 QEMU guest 启动前通过外层 `/start.sh` 写入 guest rootfs，避免 guest 已挂载 rootfs 后再改文件导致 flag 不生效。
+- 修复 `flag{...}` 在 Bash 参数展开中多出 `}` 的真实样例问题，并通过 Fragnesia 真实资产验证 guest `/root/flag` 与动态 flag 一致。
+- `golden_snapshot.py` 适配 Scenario 确认门槛，回归场景显式使用 `--accepted --reason`，避免测试脚本绕过当前交互规则。
+- 运行时 Skill 文档继续聚焦题目构建：移除安装包内不必要的源码发布治理说明，并由 `doc_guard.py` 阻止源码维护命令进入运行时文档。
+
+### 验证
+
+- 真实 LLM A/B：已安装 `v2.2.0` 入口为 3/4，当前 r2 候选为 4/4；custom Bundle 用例从“不支持”变为正确进入显式 custom proposal。
+- 完整 Docker smoke：35 通过 / 0 失败 / 4 跳过。
+- Linux-QEMU full check：Docker build、QEMU TCG boot、guest SSH、动态 flag、PoC 均通过。
+
 ## v2.2.0-r1 - 2026-06-11
 
 ### 修复
@@ -9,6 +26,8 @@
 - 修复安装版 Skill 文档路径表述，运行时文档统一使用相对于 `SKILL.md` 的 `docs/`、`data/`、`scripts/`、`templates/`、`examples/` 路径。
 - `doc_guard.py` 与 `release_build.py` 增加发布包运行时路径检查，阻止 `src/CloverSec-CTF-Build-Dockerizer/` 这类源码仓库前缀进入安装包文档。
 - 补齐 `linux_qemu_manual_check.sh` 在 Skill 运行包内的入口，避免文档引用存在但发布包缺脚本。
+- Bundle/Recipe 增加显式 custom 组合：用户提供 base image、安装命令、启动命令、端口和服务清单后可生成交付目录；不完整组合仍返回 `BUNDLE_UNSUPPORTED_COMBINATION`。
+- `release-full-check` 增加 Linux-QEMU full check 步骤；CI 能取得外部 VM 资产时执行 boot、guest flag 与 PoC 检查，资产不存在时按策略记录 skip 或失败。
 
 ### 发布
 
