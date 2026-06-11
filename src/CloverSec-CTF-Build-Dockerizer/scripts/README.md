@@ -93,6 +93,7 @@ Validate 分层说明：
 
 - 默认 `validate.sh` 执行静态契约检查和动态 flag 写入检查，并在 `--json-summary` 中写入 `verification.level=contract+dynamic-flag`。
 - `validate.sh` 不证明题目业务可解；需要题目入口验证时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写 HTTP/TCP/container_exec 断言，并执行业务断言验证入口。
+- `challenge.flag.sync_paths` 由生成的 `/changeflag.sh` 同步。若平台只覆盖 `/flag` 后直接启动服务，业务路径不会自动得到动态 flag；真实交付前应执行 `/changeflag.sh` 或 smoke probe 验证。
 - `--static-only` 只做静态契约检查，适合快速检查 Dockerfile/start.sh/challenge.yaml。
 - 核心校验脚本按 `0=通过、1=契约失败、2=配置/路径/环境错误` 返回。
 - Linux-QEMU boot、guest flag 写入和 PoC 复现使用 `linux_qemu_manual_check.sh`，默认不会在快速校验里自动执行。

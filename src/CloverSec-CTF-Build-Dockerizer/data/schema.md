@@ -157,11 +157,13 @@ challenge:
 - `challenge.flag.sync_paths`
   - 可选数组，表示除 `/flag` 之外，题目业务实际会读取的 flag 文件路径。
   - 生成的 `changeflag.sh` 会把动态 flag 同步到这些路径，适合 Pwn 的 `/home/ctf/flag0`、`/home/ctf/flag1` 或 Web 题自己的 flag 文件。
+  - 生效时机是平台调用 `/changeflag.sh`。普通容器启动只保证 `/flag` 存在；除非模板有专门兼容逻辑，`start.sh` 不会自动把任意 `sync_paths` 全部写好。
 
 - `challenge.verification.solve_probe`
   - 可选字段，由业务断言验证入口在容器启动后执行。
   - 支持与 `smoke_assert.yaml` 相同的断言形态：`http`、`tcp`、`container_exec`。
   - 该字段用于证明“题目入口可用”，不属于 `validate.sh` 的平台契约范围。
+  - 参考示例：`examples/python-flask-basic/challenge.yaml`。
 
 - `challenge.vm`
   - 仅用于 `stack=linux-qemu`。

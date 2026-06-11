@@ -8,7 +8,7 @@
 
   - `node-basic/`
   - `php-apache-basic/`
-  - `python-flask-basic/`
+  - `python-flask-basic/`（包含 `challenge.verification.solve_probe` 官方示例）
   - `java-jar-basic/`
   - `tomcat-war-basic/`
   - `lamp-basic/`
@@ -65,6 +65,7 @@
 - 最小应用文件（源码或二进制制品）
 - `README.md`：本目录的快速运行说明
 - 可选渲染产物：`Dockerfile`、`start.sh`、`flag`
+- 可选业务入口断言：`challenge.verification.solve_probe` 或 `smoke_assert.yaml`
 - RDG 示例额外包含：`check/check.sh`（check-service 真实检查脚本）
 - `linux-qemu-basic/` 默认只用于渲染与静态校验；完整 QEMU boot 需要替换真实 VM 资产后单独执行。
 - `bundle-*` 默认只保存 `bundle.yaml` 输入和最小应用文件。

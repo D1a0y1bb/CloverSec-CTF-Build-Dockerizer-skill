@@ -14,31 +14,30 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r3-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r4-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r3"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r4"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r3</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r4</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.2.0-r3 Release Fix
+## v2.2.0-r4 Release Fix
 
-`v2.2.0-r3` is the third release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It focuses on real historical challenge reproduction issues: Pwn/BOF inputs polluted by stale `package.json`, legacy runtimes such as PHP 7.4 being overridden by inference, challenge business flag paths that are not `/flag`, and cases that need `solve_probe` to prove the challenge entry works.
+`v2.2.0-r4` is the fourth release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It addresses the remaining r3 feedback: `solve_probe` now has an official example, and `flag.sync_paths` clearly documents that business-path sync happens through `/changeflag.sh`.
 
-This r3 release includes:
+This r4 release includes:
 
-- More reliable Pwn/BOF routing: ELF, C source, Makefile, xinetd/socat/tcpserver/chroot signals now outweigh stale frontend files, reducing false Node routing.
-- Stronger legacy runtime preservation: `challenge.base_image` is no longer overridden by inferred runtime profiles, so PHP 7.4, Node 14, JDK 8, and similar historical constraints can stay explicit.
-- `workflow.py accept --refresh` supports continuing after manual `challenge.yaml` edits, and `workflow.py --pretty` now maps to JSON output.
-- `flag.sync_paths` and `verification.solve_probe` are part of the main path, so dynamic flags can sync to business paths and smoke can run entry assertions.
-- Packaged docs keep runtime-relative paths and avoid `src/CloverSec-CTF-Build-Dockerizer/...` references that do not exist after installation.
+- `python-flask-basic` now includes `challenge.verification.solve_probe`, giving the examples set a built-in business-entry assertion case.
+- `smoke_test.sh --case python-flask-basic` reads the HTTP probe from `challenge.yaml` and verifies the running container returns `hello from python-flask-basic`.
+- `flag.sync_paths` is documented as a `/changeflag.sh` sync mechanism. It does not mean any arbitrary `start.sh` will create `flag0/flag1` or other business paths at startup.
+- Real Pwn/Web challenges still require source review for the actual flag path. If the challenge does not read `/flag`, configure `flag.sync_paths` and verify with `solve_probe`, `smoke_assert.yaml`, or a real solve path.
 
-Real LLM A/B result: pre-fix HEAD scored 3/6 and the r3 candidate scored 6/6. Pwn BOF mixed input, PHP 7.4 preservation, and business flag path plus `solve_probe` all changed from failing to passing. Full release build and Docker smoke passed with 35 pass, 0 fail, and 4 policy skips.
+r3 already fixed Pwn/BOF false routing, PHP 7.4 preservation, `accept --refresh`, `--pretty`, business flag paths, and the main `solve_probe` path. r4 makes that behavior easier to keep by adding a formal example and clearer flag-sync boundaries.
 
 ## v2.2.0 Major Updates
 
@@ -559,10 +558,13 @@ Daily debugging does not need a full smoke run. Target one or more examples:
 
 ```bash
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case secops-redis-hardening-basic
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case python-flask-basic
 
 SMOKE_CASES=node-basic,pwn-basic \
   bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 ```
+
+`python-flask-basic` is the built-in `challenge.verification.solve_probe` example. It reads the HTTP assertion from `challenge.yaml` and verifies the challenge entry.
 
 ## Platform Hard Contract and Boundaries
 
@@ -818,7 +820,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r3
+bash scripts/publish_release.sh --version v2.2.0-r4
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

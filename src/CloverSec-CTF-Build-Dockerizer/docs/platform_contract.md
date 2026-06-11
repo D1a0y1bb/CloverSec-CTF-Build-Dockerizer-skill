@@ -57,6 +57,7 @@ docker run -d -p <host>:<container> <image>:latest /start.sh
 - 平台只保证动态 flag 写入 `/flag`。
 - 如果题目程序读取其他路径，例如 `/home/ctf/flag0`、`/home/ctf/flag1` 或 `/challenge/flag.php`，应配置 `challenge.flag.sync_paths`。
 - `changeflag.sh` 会把动态 flag 同步到这些路径；`validate.sh` 只做隔离动态写入检查，不会在宿主机写这些绝对路径。
+- `sync_paths` 不是启动时初始化机制。平台或本地验证必须调用 `/changeflag.sh` 后，业务路径才保证拿到动态 flag；`start.sh` 只保留模板内明确写出的兼容路径。
 
 可选放行：
 

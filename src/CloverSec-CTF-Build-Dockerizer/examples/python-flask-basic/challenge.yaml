@@ -16,6 +16,13 @@ challenge:
   flag:
     path: "/flag"
     permission: "444"
+  verification:
+    solve_probe:
+      type: "http"
+      path: "/"
+      expect_status: 200
+      expect_text: "hello from python-flask-basic"
+      timeout_seconds: 5
   platform:
     entrypoint: "/start.sh"
     require_bash: true

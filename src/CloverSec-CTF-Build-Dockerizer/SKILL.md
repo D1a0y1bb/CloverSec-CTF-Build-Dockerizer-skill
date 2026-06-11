@@ -67,7 +67,7 @@ bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 - Scenario 只用于本地多服务编排和逐服务验证，平台最终交付仍以单服务目录为准。
 - Bundle 支持固定 Recipe 和显式 custom 组合；custom 组合必须由用户给出安装命令、启动命令、端口和服务清单，不做自动版本求解。
 - 历史题复刻必须确认原始运行时版本、镜像架构和题目业务 flag 路径；`validate.sh` 通过只代表平台交付契约成立，不代表题目已经可解。
-- 如果题目程序不读取 `/flag`，在 `challenge.flag.sync_paths` 配置业务路径；需要证明题目入口可用时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 写断言并执行 smoke。
+- 如果题目程序不读取 `/flag`，在 `challenge.flag.sync_paths` 配置业务路径；同步发生在平台调用 `/changeflag.sh` 时，启动脚本只保证 `/flag` 和模板内显式兼容的常见路径。需要证明题目入口可用时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 写断言并执行 smoke。
 
 平台契约细节读取 `docs/platform_contract.md`。
 

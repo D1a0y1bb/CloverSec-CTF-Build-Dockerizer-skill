@@ -100,6 +100,7 @@
 - Alpine 可回退 `tcpserver`，缺失时回退 `socat`。
 - 默认建议设置 `platform.docker_platform: linux/amd64`，避免在 arm64 主机上生成架构不符合原题的镜像。
 - 可通过 `flag.sync_paths` 把平台动态 flag 同步到题目业务路径，例如 `/home/ctf/flag`、`/home/ctf/flag0`、`/home/ctf/flag1`。
+- `sync_paths` 需要平台调用 `/changeflag.sh` 后生效；源码里读 `flag0/flag1`、数据库或环境变量时，仍要人工确认真实路径和验证方式。
 - 模板：`templates/pwn/Dockerfile.tpl`、`templates/pwn/start.sh.tpl`。
 
 ### Linux-QEMU

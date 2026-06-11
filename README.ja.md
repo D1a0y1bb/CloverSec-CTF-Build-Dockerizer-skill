@@ -14,31 +14,30 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r3-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r4-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r3"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r4"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r3</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r4</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.2.0-r3 リリース修正
+## v2.2.0-r4 リリース修正
 
-`v2.2.0-r3` は `v2.2.0` の 3 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。主な対象は、実際の歴史問題復刻で見つかった Pwn/BOF が古い `package.json` に引っ張られる問題、PHP 7.4 などの古い runtime が推論で上書きされる問題、問題本体が `/flag` 以外を読む問題、そして `solve_probe` で入口を確認したいケースです。
+`v2.2.0-r4` は `v2.2.0` の 4 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。r3 の利用フィードバックで残った、`solve_probe` の正式 example 不足と、`flag.sync_paths` が `/changeflag.sh` で同期されることの説明不足を扱います。
 
-この r3 release の主な修正点：
+この r4 release の主な修正点：
 
-- Pwn/BOF routing を改善しました。ELF、C source、Makefile、xinetd/socat/tcpserver/chroot の証拠を優先し、古い frontend file による Node 誤判定を減らします。
-- legacy runtime をより確実に保持します。`challenge.base_image` は推論された runtime profile に上書きされないため、PHP 7.4、Node 14、JDK 8 などの古い制約を明示できます。
-- `workflow.py accept --refresh` により、人工修正した `challenge.yaml` で確認状態を更新できます。`workflow.py --pretty` は JSON output として扱います。
-- `flag.sync_paths` と `verification.solve_probe` を主経路に入れ、dynamic flag を問題本体の読み取り先へ同期し、smoke で入口断言を実行できます。
-- 配布パッケージ文書は runtime relative path を維持し、インストール後に存在しない `src/CloverSec-CTF-Build-Dockerizer/...` を参照しません。
+- `python-flask-basic` に `challenge.verification.solve_probe` を追加し、examples 内に公式の business entry assertion 例を持たせました。
+- `smoke_test.sh --case python-flask-basic` は `challenge.yaml` から HTTP probe を読み取り、起動した container が `hello from python-flask-basic` を返すことを確認します。
+- `flag.sync_paths` は `/changeflag.sh` による同期機構であることを明記しました。任意の `start.sh` 起動時に `flag0/flag1` などを自動生成する意味ではありません。
+- 実際の Pwn/Web 問題では、ソースを読んで本当の flag path を確認する必要があります。`/flag` を読まない場合は `flag.sync_paths` を設定し、`solve_probe`、`smoke_assert.yaml`、または実際の solve path で検証してください。
 
-Real LLM A/B の結果：修正前 HEAD は 3/6、r3 candidate は 6/6 でした。Pwn BOF mixed input、PHP 7.4 preservation、business flag path + `solve_probe` は失敗から成功に変わりました。full release build と Docker smoke も通過し、smoke は 35 pass / 0 fail / 4 policy skip でした。
+r3 では Pwn/BOF の誤 routing、PHP 7.4 preservation、`accept --refresh`、`--pretty`、business flag path、`solve_probe` 主経路を修正済みです。r4 は公式 example と flag sync 境界を追加し、この挙動を維持しやすくします。
 
 ## v2.2.0 主な更新
 
@@ -557,10 +556,13 @@ assertions:
 
 ```bash
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case secops-redis-hardening-basic
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case python-flask-basic
 
 SMOKE_CASES=node-basic,pwn-basic \
   bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 ```
+
+`python-flask-basic` は組み込みの `challenge.verification.solve_probe` example です。`challenge.yaml` の HTTP assertion を読み取り、問題入口を検証します。
 
 ## プラットフォーム硬契約と境界
 
@@ -817,7 +819,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r3
+bash scripts/publish_release.sh --version v2.2.0-r4
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

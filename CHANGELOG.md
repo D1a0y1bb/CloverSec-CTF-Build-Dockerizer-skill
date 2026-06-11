@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+## v2.2.0-r4 - 2026-06-11
+
+### 修复
+
+- `python-flask-basic` 正式加入 `challenge.verification.solve_probe` 示例，`smoke_test.sh --case python-flask-basic` 可直接验证从 `challenge.yaml` 读取业务入口断言的链路。
+- 文档明确 `challenge.flag.sync_paths` 的生效边界：它由生成的 `/changeflag.sh` 同步业务路径，不代表任意 `start.sh` 启动时都会自动写好 `flag0/flag1` 等路径。
+- `SKILL.md`、schema、平台契约、栈手册和脚本 README 同步提醒：真实 Pwn/Web 题若不读 `/flag`，仍需看源码配置业务路径并执行 smoke probe 或实际拿 flag 验证。
+
+### 验证
+
+- r4 发布前验证覆盖 `check_fast.sh`、`validate_examples.sh`、`smoke_test.sh --case python-flask-basic`、`release_build.sh --with-smoke`。
+
 ## v2.2.0-r3 - 2026-06-11
 
 ### 变更
