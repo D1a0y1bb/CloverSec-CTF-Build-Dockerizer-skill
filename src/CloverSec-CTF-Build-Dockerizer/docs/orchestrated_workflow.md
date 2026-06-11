@@ -42,6 +42,13 @@ python3 scripts/derive_config.py --project-dir <题目目录> --format json --pr
 
 每项必须附带 evidence。若输出包含 `config_proposal` 字段，优先用它生成 Step 1 的 YAML 确认块。
 
+字段来源必须分清：
+
+- `stack_guess`、`port_guess`、`workdir_guess` 是推断结果。
+- `stack_source=challenge.yaml` 或 `explicit_config.*=true` 表示已有明确配置，优先级高于自动探测。
+- `detected_stack_hint` 只是复核提示，不能覆盖 `challenge.yaml` 中明确写出的 stack。
+- `inference_hints` 用于提示需要人工看的线索，例如 Pwn flag 路径。
+
 若输出包含 gates，必须执行门禁：
 
 - `requires_explicit_stack_confirm=true`：Q1 必须显式确认 stack。
@@ -77,6 +84,13 @@ python3 scripts/derive_config.py --project-dir <题目目录> --format json --pr
 ```
 
 随后输出 `CONFIG PROPOSAL` YAML。
+
+Pwn 题必须额外说明业务 flag 路径来源：
+
+- 若输出包含 `pwn_flag_path_hints`，把命中的文件、行号和候选路径列出来，并要求用户确认 `flag.sync_paths`。
+- 若没有命中线索，也要提示用户看源码或 PoC，确认程序读取 `/flag`、`/home/ctf/flag`、`flag0/flag1` 还是其他路径。
+- 源码里的相对路径要按 WORKDIR 转成绝对路径，例如 WORKDIR 为 `/home/ctf` 时，`flag0` 应写成 `/home/ctf/flag0`。
+- 不得把默认 `/home/ctf/flag` 描述为所有 Pwn 题都正确。
 
 ## 4. CONFIG PROPOSAL 模板
 
@@ -164,6 +178,14 @@ python3 scripts/workflow.py render --project-dir <project_dir>
 ```
 
 这样会更新 accepted hash，不会重新生成 `challenge.yaml`，也能保留 proposal gate 记录。
+
+低风险、已有明确 `challenge.yaml`，且用户已经审查方案摘要时，可以使用：
+
+```bash
+python3 scripts/workflow.py reviewed-render --project-dir <project_dir> --reason "reviewed explicit challenge.yaml"
+```
+
+`reviewed-render` 不用于跳过高风险 gate。mixed/dirty/high_risk 输入必须先完成 `propose` 和 `accept`，或已有匹配的 accepted hash。
 
 ## 6. Step 3：交付说明
 

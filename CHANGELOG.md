@@ -4,6 +4,25 @@
 
 ## Unreleased
 
+## v2.2.0-r6 - 2026-06-11
+
+### 修复
+
+- 修复 `smoke_test.sh` 在 macOS 上生成 `solve_probe` 临时 YAML 时可能得到字面量 `XXXXXX.yaml` 文件名的问题，改为使用随机临时目录。
+- `derive_config.py` 保证 `gates` 与 `manual_required` 一致；已有 `challenge.yaml` 明确提供 stack、端口和启动命令时，关闭对应确认 gate。
+- `audit_input.py` 区分明确配置和自动探测：显式 `challenge.stack` 优先，自动探测结果作为 `detected_stack_hint` 复核提示，不再覆盖明确配置。
+- Pwn 输入新增源码 flag 路径提示，识别 `flag0`、`flag1`、`flag.txt`、`/home/ctf/flag*` 等线索，并要求确认 `challenge.flag.sync_paths`。
+- `workflow.py` 新增 `reviewed-render --reason "..."`，用于低风险、明确配置或已接受 proposal 的快速审查渲染；mixed/dirty/high_risk 输入仍会被 gate 阻断。
+- 新增 `src/CloverSec-CTF-Build-Dockerizer/docs/solve_probe_recipes.md`，提供 HTTP、TCP、container_exec、Pwn nc 和动态 flag 路径的业务断言片段。
+
+### 验证
+
+- `check_fast.sh` 通过；`validate_examples.sh` 通过，39 通过、0 失败、0 跳过。
+- `smoke_test.sh --case python-flask-basic` 通过，`challenge.verification.solve_probe` 使用随机临时目录中的 `solve_probe.yaml` 执行成功。
+- `release_build.sh --with-smoke` 通过，`dist/CloverSec-CTF-Build-Dockerizer-v2.2.0-r6.release-status.json` 显示 `release_ready=true`。
+- 定向行为验证通过：显式 `stack=python` 优先于 AI 探测提示；Pwn `flag0/flag1` 会提示并转换为 `/home/ctf/flag0`、`/home/ctf/flag1`；`reviewed-render` 可渲染低风险 Node 示例，并会阻断未接受 proposal 的 Pwn 输入。
+- 真实 LLM A/B 使用 `gpt-5.4`、4 组输入比较 r5 安装版与 r6 当前工作区：r5 为 2/4，r6 为 4/4。报告保存在 `开发文档（不同步）/llm_ab_v220_r6_retry_20260611_191223/REPORT.md`。
+
 ## v2.2.0-r5 - 2026-06-11
 
 ### 修复

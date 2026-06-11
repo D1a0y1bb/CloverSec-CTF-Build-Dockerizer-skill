@@ -212,6 +212,7 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
         "validate.sh",
         "按需读取索引",
         "docs/validation_guide.md",
+        "docs/solve_probe_recipes.md",
         "docs/stack_cookbook.md",
         "docs/linux_qemu_manual_validation.md",
         "data/scenario_schema.md",

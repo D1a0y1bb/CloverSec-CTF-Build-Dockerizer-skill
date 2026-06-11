@@ -145,6 +145,125 @@ def _rel_or_empty(path: Optional[Path], root: Path) -> str:
         return ""
 
 
+_PWN_FLAG_HINT_RE = re.compile(
+    r"""(?P<quoted>["'](?P<qpath>(?:\.?/)?(?:flag[0-9]+|flag\.txt)|/home/ctf/flag(?:[0-9]+)?|/flag(?:[0-9]+|\.txt)?)["'])"""
+    r"""|(?P<bare>\bflag[0-9]+\b|\bflag\.txt\b)""",
+    re.IGNORECASE,
+)
+_TEXT_SUFFIXES = {
+    "",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".py",
+    ".php",
+    ".js",
+    ".ts",
+    ".go",
+    ".rs",
+    ".java",
+    ".sh",
+    ".txt",
+    ".md",
+    ".conf",
+    ".service",
+}
+_SKIP_DIRS = {
+    ".git",
+    ".ctfbuild",
+    "__pycache__",
+    "node_modules",
+    "vendor",
+    "dist",
+    "build",
+    ".venv",
+    "venv",
+}
+
+
+def _normalise_flag_hint(raw: str) -> str:
+    value = raw.strip().strip("\"'")
+    if value.startswith("./"):
+        value = value[2:]
+    return value
+
+
+def _scan_pwn_flag_hints(project_dir: Path) -> List[Dict[str, Any]]:
+    hints: List[Dict[str, Any]] = []
+    seen: set[tuple[str, str, int]] = set()
+    scanned = 0
+    for path in project_dir.rglob("*"):
+        if scanned >= 120:
+            break
+        if not path.is_file():
+            continue
+        if any(part in _SKIP_DIRS for part in path.relative_to(project_dir).parts):
+            continue
+        if path.name in {"challenge.yaml", "challenge.yml"}:
+            continue
+        if path.suffix.lower() not in _TEXT_SUFFIXES and path.name not in {"Dockerfile", "Makefile"}:
+            continue
+        try:
+            if path.stat().st_size > 256 * 1024:
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        scanned += 1
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            for match in _PWN_FLAG_HINT_RE.finditer(line):
+                raw = match.group("qpath") or match.group("bare") or ""
+                flag_path = _normalise_flag_hint(raw)
+                key = (str(path), flag_path, line_no)
+                if not flag_path or key in seen:
+                    continue
+                seen.add(key)
+                hints.append(
+                    {
+                        "path": flag_path,
+                        "file": _rel_or_empty(path, project_dir),
+                        "line": line_no,
+                        "evidence": line.strip()[:180],
+                    }
+                )
+                if len(hints) >= 20:
+                    return hints
+    return hints
+
+
+def _configured_flag_paths(challenge_doc: Dict[str, Any], config_proposal: Dict[str, Any]) -> set[str]:
+    flag = challenge_doc.get("flag") if isinstance(challenge_doc.get("flag"), dict) else {}
+    if not flag and isinstance(config_proposal.get("flag"), dict):
+        flag = config_proposal["flag"]
+    paths: set[str] = set()
+    path_value = flag.get("path")
+    if isinstance(path_value, str) and path_value.strip():
+        paths.add(path_value.strip())
+    sync_paths = flag.get("sync_paths")
+    if isinstance(sync_paths, list):
+        for item in sync_paths:
+            if str(item).strip():
+                paths.add(str(item).strip())
+    return paths
+
+
+def _stack_detail_summary(details: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    summary: List[Dict[str, Any]] = []
+    for item in details[:5]:
+        summary.append(
+            {
+                "id": item.get("id", ""),
+                "score": item.get("score", 0),
+                "file_hits": item.get("file_hits", []),
+                "dir_hits": item.get("dir_hits", []),
+            }
+        )
+    return summary
+
+
 def audit_project(
     project_dir: Path,
     *,
@@ -164,13 +283,21 @@ def audit_project(
 
     stack_defs = load_stack_defs(DATA_DIR / "stacks.yaml")
     detected_id, confidence, details = detect_stack(project_dir, stack_defs)
-    stack_id = (
-        str(challenge_doc.get("stack") or "")
-        or str(config_proposal.get("stack") or "")
-        or str(stack_guess.get("id") or "")
-        or detected_id
-        or ""
-    )
+    explicit_stack = str(challenge_doc.get("stack") or "").strip()
+    proposal_stack = str(config_proposal.get("stack") or "").strip()
+    guessed_stack = str(stack_guess.get("id") or "").strip()
+    if explicit_stack:
+        stack_id = explicit_stack
+        stack_source = "challenge.yaml"
+    elif proposal_stack:
+        stack_id = proposal_stack
+        stack_source = "config_proposal"
+    elif guessed_stack:
+        stack_id = guessed_stack
+        stack_source = "stack_guess"
+    else:
+        stack_id = detected_id or ""
+        stack_source = "detected" if detected_id else "unknown"
     profile = challenge_doc.get("profile") or config_proposal.get("profile") or ""
     ports = _normalise_ports(
         challenge_doc.get("ports")
@@ -247,10 +374,20 @@ def audit_project(
             risk="mixed",
         )
 
-    if challenge_doc and detected_id and stack_id and detected_id != stack_id and confidence >= 0.4:
+    if explicit_stack and detected_id and detected_id != explicit_stack and confidence >= 0.4:
+        findings.append(
+            _finding(
+                "INTAKE_DETECTED_STACK_DIFFERS",
+                f"challenge.yaml 明确声明 {explicit_stack}，目录探测提示为 {detected_id}。",
+                level="info",
+                file=_rel_or_empty(challenge_path, project_dir) if challenge_path and challenge_path.exists() else "",
+                hint="明确配置优先；探测结果仅作为复核提示。",
+            )
+        )
+    elif challenge_doc and detected_id and stack_id and detected_id != stack_id and confidence >= 0.4:
         add(
             "INTAKE_STACK_CONFLICT",
-            f"challenge.yaml 声明 {stack_id}，目录探测更像 {detected_id}。",
+            f"配置声明 {stack_id}，目录探测更像 {detected_id}。",
             file=_rel_or_empty(challenge_path, project_dir) if challenge_path and challenge_path.exists() else "",
             hint="确认 stack 是否按题目真实运行方式填写。",
             risk="mixed",
@@ -343,6 +480,36 @@ def audit_project(
                 )
         verification_level = _rank_update(verification_level, "docker_smoke", VERIFY_ORDER)
 
+    pwn_flag_hints = _scan_pwn_flag_hints(project_dir) if stack_id == "pwn" else []
+    if stack_id == "pwn":
+        configured_paths = _configured_flag_paths(challenge_doc, config_proposal)
+        hint_paths = {item["path"] for item in pwn_flag_hints}
+        missing_paths = sorted(
+            path
+            for path in hint_paths
+            if path not in configured_paths
+            and f"/home/ctf/{path}" not in configured_paths
+            and not (not path.startswith("/") and any(item.endswith(f"/{path}") for item in configured_paths))
+        )
+        if pwn_flag_hints and missing_paths:
+            add(
+                "PWN_FLAG_PATH_REVIEW_REQUIRED",
+                "源码里发现疑似业务 flag 路径，需要确认 challenge.flag.sync_paths。",
+                hint="查看 flag_path_hints，把真实业务读取路径写入 challenge.flag.sync_paths。",
+                risk="mixed",
+                path="proposal_required",
+                verify="rendered",
+            )
+        elif not pwn_flag_hints:
+            add(
+                "PWN_FLAG_PATH_CONFIRM_REQUIRED",
+                "Pwn 题无法仅靠文件结构确认业务 flag 路径。",
+                hint="看源码或 PoC，确认程序读取 /flag、/home/ctf/flag、flag0/flag1 还是其他路径。",
+                risk="mixed",
+                path="proposal_required",
+                verify="rendered",
+            )
+
     return {
         "schema_version": SCHEMA_VERSION,
         "project_dir": str(project_dir),
@@ -353,8 +520,22 @@ def audit_project(
         "manual_required": bool(manual_required),
         "gates": gates,
         "stack_id": stack_id,
+        "stack_source": stack_source,
         "detected_stack": detected_id,
+        "detected_stack_hint": {
+            "id": detected_id,
+            "confidence": confidence,
+            "differs_from_explicit": bool(explicit_stack and detected_id and detected_id != explicit_stack),
+            "details": _stack_detail_summary(details),
+        },
         "detection_confidence": confidence,
+        "explicit_config": {
+            "stack": bool(explicit_stack),
+            "ports": bool(ports),
+            "start": bool(start_cmd),
+            "profile": bool(profile),
+        },
+        "flag_path_hints": pwn_flag_hints,
         "findings": findings,
     }
 

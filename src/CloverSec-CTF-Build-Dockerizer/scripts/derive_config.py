@@ -28,6 +28,7 @@ from utils import (  # noqa: E402
     load_profile_defs,
     load_runtime_profiles,
     load_stack_defs,
+    load_yaml_file,
     normalize_ports,
 )
 from audit_input import audit_project  # noqa: E402
@@ -110,6 +111,63 @@ def _file_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore")
     except Exception:
         return ""
+
+
+def _challenge_doc_from_path(path: Path) -> Dict[str, Any]:
+    if not path.is_file():
+        return {}
+    try:
+        loaded = load_yaml_file(path)
+    except Exception:
+        return {}
+    if not isinstance(loaded, dict):
+        return {}
+    challenge = loaded.get("challenge")
+    return challenge if isinstance(challenge, dict) else loaded
+
+
+def _challenge_has_ports(challenge: Dict[str, Any]) -> bool:
+    ports = challenge.get("ports") or challenge.get("expose_ports")
+    if isinstance(ports, list):
+        return any(str(item).strip() for item in ports)
+    return bool(str(ports or "").strip())
+
+
+def _challenge_has_start(challenge: Dict[str, Any]) -> bool:
+    start = challenge.get("start")
+    if isinstance(start, dict):
+        return bool(str(start.get("cmd") or start.get("service_name") or "").strip())
+    return bool(str(start or "").strip())
+
+
+def _apply_explicit_config_to_gates(gates: Dict[str, Any], challenge: Dict[str, Any]) -> Dict[str, Any]:
+    updated = dict(gates)
+    if str(challenge.get("stack") or "").strip():
+        updated["requires_explicit_stack_confirm"] = False
+    if _challenge_has_ports(challenge):
+        updated["requires_port_confirm"] = False
+    if _challenge_has_start(challenge):
+        updated["requires_start_cmd_confirm"] = False
+    return updated
+
+
+def _gate_required(gates: Dict[str, Any]) -> bool:
+    return any(bool(value) for value in gates.values())
+
+
+def _pwn_hint_sync_paths(audit: Dict[str, Any], workdir: str) -> List[str]:
+    paths: List[str] = []
+    seen: set[str] = set()
+    base_dir = workdir.strip() or "/home/ctf"
+    for item in audit.get("flag_path_hints", []):
+        path = str(item.get("path") or "").strip()
+        if not path:
+            continue
+        candidate = path if path.startswith("/") else f"{base_dir.rstrip('/')}/{path}"
+        if candidate not in seen:
+            paths.append(candidate)
+            seen.add(candidate)
+    return paths
 
 
 def _historical_runtime_notes(scan_dir: Path) -> List[str]:
@@ -920,8 +978,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
         proposal["config_proposal"]["rdg"] = dict(defense_proposal)
 
     challenge_path = project_dir / "challenge.yaml"
-    if challenge_path.exists():
-        proposal["input_audit"] = audit_project(project_dir, challenge_path=challenge_path)
+    challenge_doc = _challenge_doc_from_path(challenge_path)
+    if challenge_doc:
+        proposal["gates"] = _apply_explicit_config_to_gates(proposal["gates"], challenge_doc)
+        proposal["input_audit"] = audit_project(project_dir, challenge_path=challenge_path, gates=proposal["gates"])
     else:
         proposal["input_audit"] = audit_project(
             project_dir,
@@ -929,11 +989,38 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             stack_guess=proposal["stack_guess"],
             config_proposal=proposal["config_proposal"],
         )
+    effective_stack = str(proposal["input_audit"].get("stack_id") or stack_id)
+    if challenge_doc and effective_stack:
+        proposal["config_proposal"]["stack"] = effective_stack
+        proposal["stack_guess"]["selected"] = effective_stack
+        proposal["stack_guess"]["selected_source"] = proposal["input_audit"].get("stack_source", "unknown")
+    if effective_stack == "pwn":
+        pwn_sync_paths = _pwn_hint_sync_paths(proposal["input_audit"], str(proposal["config_proposal"].get("workdir") or ""))
+        if pwn_sync_paths:
+            proposal["config_proposal"]["flag"]["sync_paths"] = pwn_sync_paths
+        proposal["pwn_flag_path_hints"] = proposal["input_audit"].get("flag_path_hints", [])
     proposal["risk_level"] = proposal["input_audit"]["risk_level"]
     proposal["recommended_path"] = proposal["input_audit"]["recommended_path"]
     proposal["support_level"] = proposal["input_audit"]["support_level"]
     proposal["verification_level"] = proposal["input_audit"]["verification_level"]
-    proposal["manual_required"] = proposal["input_audit"]["manual_required"]
+    proposal["manual_required"] = bool(proposal["input_audit"]["manual_required"] or _gate_required(proposal["gates"]))
+    proposal["stack_source"] = proposal["input_audit"].get("stack_source", "unknown")
+    proposal["detected_stack_hint"] = proposal["input_audit"].get("detected_stack_hint", {})
+    proposal["explicit_config"] = proposal["input_audit"].get("explicit_config", {})
+    proposal["inference_hints"] = [
+        {
+            "field": "stack",
+            "source": proposal["stack_source"],
+            "value": proposal["input_audit"].get("stack_id", ""),
+            "detected_hint": proposal.get("detected_stack_hint", {}),
+        },
+        {
+            "field": "pwn_flag_paths",
+            "source": "source_scan",
+            "value": proposal.get("pwn_flag_path_hints", []),
+            "requires_user_confirmation": effective_stack == "pwn",
+        },
+    ]
 
     return proposal
 

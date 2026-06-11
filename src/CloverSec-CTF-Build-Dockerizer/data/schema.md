@@ -130,6 +130,12 @@ challenge:
   - 未显式提供时可由探测规则推断。
   - `stack=bundle` 只用于 `render_bundle.py` 生成的 Recipe 交付目录；custom 组合必须显式提供安装与启动命令，不是自动安装器。
 
+- `challenge.flag.sync_paths`
+  - 用于同步题目业务实际读取的动态 flag 路径。
+  - Pwn 历史题常见源码线索包括 `/home/ctf/flag`、`flag0`、`flag1`、`flag.txt`，必须看源码或 PoC 后确认。
+  - 源码中的相对路径应按题目 WORKDIR 转成绝对路径，例如 WORKDIR 为 `/home/ctf` 时，`flag0` 应写成 `/home/ctf/flag0`。
+  - 自动探测只会给出 `flag_path_hints`，不能代替人工确认。
+
 - `challenge.profile`
   - 支持：`jeopardy/rdg/awd/awdp/secops`
   - 默认值：

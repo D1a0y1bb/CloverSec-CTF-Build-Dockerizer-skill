@@ -11,13 +11,13 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r5-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r6-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r5</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r6</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario/Vulhub-like / Bundle/Recipe / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
@@ -25,18 +25,18 @@
 
 如果用一句话概括现在这个 Skill 的工作形态，那就是：从“让模型阅读一份巨大的操作手册并自己决定怎么做”，变成了“由 Workflow 控制执行阶段，模型只在当前阶段获取需要的信息并完成对应任务”。旧版本本质上是把 Docker 构建规范、题目规范、交付标准、验收规则、交互要求等全部塞进 SKILL.md，每次执行任务都让模型重新阅读和理解一遍，所以输入 Token 很大，而且很多规则实际上是在不断重复发送。新版本则把这些内容拆解成状态化流程，用户提交任务后先进入 Intake 阶段识别题目类型和基本信息，然后进入 Proposal 阶段生成构建方案，用户确认后再进入 Render 阶段生成 Dockerfile、start.sh、challenge.yaml 等交付物，最后进入 Validate 阶段执行验收检查。每个阶段只读取当前需要的文档和规则，而不是加载整个知识体系，因此模型不再承担“记住所有规则”的职责，而是通过 Workflow 决定当前应该执行什么、读取什么、输出什么。这样做带来的收益并不只是 Token 下降，而是将原本依赖 Prompt 和记忆维持的流程约束转移到了 Workflow 本身，复杂能力仍然保留，但只在需要的时候展开。模型负责理解和生成，Workflow 负责阶段控制和行为约束，Knowledge 负责提供对应阶段所需的规范和模板。最终形成的是一种按需加载、状态驱动、渐进式披露的 Skill 运行模式，在保持原有构建能力和交付标准的前提下，大幅降低上下文负担和无效推理开销，这也是为什么在真实 API 调用记录中能够看到输入 Token 降低 96.2%、总 Token 降低 72.3%、费用降低 47.5% 和耗时降低 27.9% 的根本原因。
 
-## V2.2.0-R5 发布修复
+## V2.2.0-R6 发布修复
 
-`v2.2.0-r5` 是 `v2.2.0` 的第五个发布修复版本，不改变 `challenge.yaml` 配置契约和核心单题渲染行为。重点处理真实 LLM A/B 中暴露的两个 Agent 引导缺口：`solve_probe` 虽然有了正式 example，但安装版 Skill 没有把直接执行命令暴露清楚；`flag.sync_paths` 的启动时兼容同步需要明确为题目特定选择，不能让 Agent 理解成默认行为。
+`v2.2.0-r6` 是 `v2.2.0` 的第六个发布修复版本，不改变 `challenge.yaml` 配置契约和核心单题渲染行为。重点处理真实使用反馈中的自动推断边界、Pwn flag 路径确认和熟练用户低风险渲染入口。
 
-本次 r5 修复覆盖：
+本次 r6 修复覆盖：
 
-- 安装版 Skill 的 `SKILL.md`、scripts README、`validation_guide.md` 和 `python-flask-basic/README.md` 都明确写出：执行 `challenge.verification.solve_probe` 的直接命令是 `bash scripts/smoke_test.sh --case python-flask-basic`。
-- `doc_guard.py` 不再把运行时文档里的 `smoke_test.sh` 当作发布治理噪声，同时仍阻止发布脚本和源码维护说明进入 Skill 包。
-- `flag.sync_paths` 的说明进一步收紧：默认同步发生在平台调用 `/changeflag.sh` 时；只有用户明确说明平台不会调用 `/changeflag.sh`，才把启动时同步写成题目特定兼容逻辑。
-- 真实 LLM A/B 会继续用 `flag_sync_lifecycle` 和 `solve_probe_example` 两组输入复测，避免只靠文档检查判断效果。
-
-r4 已经把 `solve_probe` 变成正式 example，并补充动态 flag 同步边界；r5 的目标是让 Agent 在真实使用时能直接找到正确执行命令，并减少把题目特定兼容逻辑说成默认行为的概率。
+- `smoke_test.sh` 修正 macOS 上 `mktemp "...XXXXXX.yaml"` 可能生成字面量文件名的问题，`solve_probe` 临时 YAML 改为写入随机临时目录。
+- `derive_config.py` 的 `gates` 与 `manual_required` 保持一致；已有 `challenge.yaml` 明确写出 stack、端口和启动命令时，对应 gate 会关闭。
+- `audit_input.py` 区分“明确配置”和“自动探测”。`challenge.yaml` 的 `stack` 优先，探测结果只作为 `detected_stack_hint` 复核提示。
+- Pwn 题会扫描源码中的 `flag0`、`flag1`、`flag.txt`、`/home/ctf/flag*` 等线索，输出 `flag_path_hints` 并要求确认 `challenge.flag.sync_paths`。
+- `workflow.py reviewed-render --reason "..."` 提供低风险快速审查渲染入口；mixed/dirty/high_risk 输入仍必须先完成 proposal/accept。
+- 新增 `src/CloverSec-CTF-Build-Dockerizer/docs/solve_probe_recipes.md`，提供 HTTP、TCP、container_exec、Pwn nc 和动态 flag 路径断言片段。
 
 ## V2.2.0 重大更新
 
@@ -755,7 +755,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r5
+bash scripts/publish_release.sh --version v2.2.0-r6
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

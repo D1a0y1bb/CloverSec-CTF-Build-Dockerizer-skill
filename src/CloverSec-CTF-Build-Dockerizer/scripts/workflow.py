@@ -252,6 +252,76 @@ def command_render(args: argparse.Namespace) -> int:
     return result.returncode
 
 
+def command_reviewed_render(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    challenge_path = Path(args.config).resolve() if args.config else default_challenge_path(project_dir)
+    output_dir = Path(args.output).resolve() if args.output else default_render_dir(project_dir)
+    if not challenge_path.exists():
+        payload = structured_error(
+            "reviewed-render",
+            "CONFIG_CHALLENGE_NOT_FOUND",
+            "reviewed-render 需要已存在的 challenge.yaml。",
+            file=str(challenge_path),
+            hint="先执行 workflow.py propose/accept，或提供 --config。",
+        )
+        emit(payload, args.format)
+        return 2
+    if not args.reason.strip():
+        payload = structured_error(
+            "reviewed-render",
+            "RENDER_REVIEW_REASON_REQUIRED",
+            "reviewed-render 必须提供 --reason。",
+            hint="示例：--reason \"reviewed explicit low-risk challenge.yaml\"",
+        )
+        emit(payload, args.format)
+        return 2
+
+    audit = audit_project(project_dir, challenge_path=challenge_path)
+    accepted = _accepted_matches(project_dir, challenge_path)
+    if proposal_gate_required(audit) and not accepted:
+        payload = structured_error(
+            "reviewed-render",
+            "CONFIG_REVIEWED_RENDER_BLOCKED",
+            "当前输入仍需要 proposal/accept，reviewed-render 已拒绝。",
+            file=str(challenge_path),
+            hint="执行 workflow.py propose 与 workflow.py accept；确认后可重新运行 reviewed-render。",
+            support_level=audit.get("support_level", "partial"),
+        )
+        write_session(project_dir, stage="reviewed_render_blocked", audit=audit, challenge_path=challenge_path, last_result=payload)
+        emit(payload, args.format)
+        return 2
+
+    cmd: List[str] = [
+        sys.executable,
+        str(RENDER_PY),
+        "--config",
+        str(challenge_path),
+        "--output",
+        str(output_dir),
+        "--format",
+        args.format,
+        "--manual",
+        "--reason",
+        f"reviewed-render: {args.reason.strip()}",
+    ]
+    result = subprocess.run(cmd, cwd=str(project_dir), text=True, capture_output=True)
+    if result.stdout:
+        sys.stdout.write(result.stdout)
+    if result.stderr:
+        sys.stderr.write(result.stderr)
+    stage = "rendered" if result.returncode == 0 else "render_failed"
+    last_result = {
+        "ok": result.returncode == 0,
+        "returncode": result.returncode,
+        "output_dir": str(output_dir),
+        "reviewed_render": True,
+        "reason": args.reason.strip(),
+        "accepted_proposal": accepted,
+    }
+    write_session(project_dir, stage=stage, audit=audit, challenge_path=challenge_path, last_result=last_result)
+    return result.returncode
+
+
 def command_validate(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     challenge_path = Path(args.config).resolve() if args.config else default_challenge_path(project_dir)
@@ -347,6 +417,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--manual", action="store_true", help="人工确认后绕过 gate")
     p.add_argument("--reason", default="", help="manual 原因")
     p.set_defaults(func=command_render)
+
+    p = sub.add_parser("reviewed-render", help="低风险或已接受 proposal 的快速渲染入口")
+    common(p)
+    p.add_argument("--config", help="challenge.yaml 路径")
+    p.add_argument("--output", help="渲染目录，默认 .ctfbuild/rendered")
+    p.add_argument("--reason", default="", help="人工审查原因，必填")
+    p.set_defaults(func=command_reviewed_render)
 
     p = sub.add_parser("validate", help="校验渲染产物")
     common(p)

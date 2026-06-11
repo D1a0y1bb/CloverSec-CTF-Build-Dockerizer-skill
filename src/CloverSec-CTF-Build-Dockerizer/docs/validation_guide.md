@@ -66,6 +66,8 @@ bash scripts/smoke_test.sh --case python-flask-basic
 
 这个命令会构建并启动示例容器，然后读取 `challenge.yaml` 中的 `challenge.verification.solve_probe`。`validate.sh` 不会执行该 probe。
 
+HTTP、TCP、container_exec、Pwn nc 和动态 flag 路径断言片段见 `docs/solve_probe_recipes.md`。
+
 `--json-summary` 会写入 `verification.level`，Agent 应根据该字段判断本次验证覆盖范围。
 
 Scenario：

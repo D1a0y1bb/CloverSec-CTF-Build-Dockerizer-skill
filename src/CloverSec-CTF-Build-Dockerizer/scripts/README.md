@@ -49,6 +49,12 @@ python3 scripts/workflow.py render --project-dir .
 python3 scripts/workflow.py validate --project-dir .
 ```
 
+低风险且已有明确 `challenge.yaml` 时，熟练用户可用快速审查入口。该入口仍要求写明原因；mixed/dirty/high_risk 输入或未接受 proposal 的高风险输入会被拒绝：
+
+```bash
+python3 scripts/workflow.py reviewed-render --project-dir . --reason "reviewed explicit challenge.yaml"
+```
+
 接受后如人工修改了 `challenge.yaml`，使用下面命令登记当前配置，不重新生成文件：
 
 ```bash
@@ -96,6 +102,7 @@ Validate 分层说明：
 - 默认 `validate.sh` 执行静态契约检查和动态 flag 写入检查，并在 `--json-summary` 中写入 `verification.level=contract+dynamic-flag`。
 - `validate.sh` 不证明题目业务可解；需要题目入口验证时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写 HTTP/TCP/container_exec 断言，再执行 `bash scripts/smoke_test.sh --case <example-name>`。
 - 内置 `python-flask-basic` 已包含 `challenge.verification.solve_probe`，可用 `bash scripts/smoke_test.sh --case python-flask-basic` 直接验证该字段会被读取并执行。
+- 常用 HTTP/TCP/container_exec/Pwn nc 断言片段见 `docs/solve_probe_recipes.md`。
 - `challenge.flag.sync_paths` 由生成的 `/changeflag.sh` 同步。若平台只覆盖 `/flag` 后直接启动服务，业务路径不会自动得到动态 flag；只有用户明确说明平台不会调用 `/changeflag.sh` 时，才把启动时同步写成题目特定兼容逻辑。
 - `--static-only` 只做静态契约检查，适合快速检查 Dockerfile/start.sh/challenge.yaml。
 - 核心校验脚本按 `0=通过、1=契约失败、2=配置/路径/环境错误` 返回。

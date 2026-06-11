@@ -75,7 +75,7 @@ bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 
 | 输入状态 | 推荐路径 | 读取资料 |
 |---|---|---|
-| 明确 `challenge.yaml`，低风险 | 输出方案摘要，用户 `OK` 后执行 `render.py` -> `validate.sh` | `data/schema.md`、`docs/stack_cookbook.md` |
+| 明确 `challenge.yaml`，低风险 | 输出方案摘要，用户 `OK` 后执行 `render.py` -> `validate.sh`；熟练用户可用 `workflow.py reviewed-render --reason "..."` 记录审查原因 | `data/schema.md`、`docs/stack_cookbook.md` |
 | 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | `workflow.py intake/propose/accept/render/validate` | `scripts/README.md`、`docs/troubleshooting.md` |
 | compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `data/scenario_schema.md` |
 | Scenario 正向编排 | 输出服务清单和端口摘要，用户 `OK` 后执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `data/scenario_schema.md` |
@@ -181,6 +181,7 @@ python3 scripts/generate_check_stub.py --type http --output check/check.sh --tar
 | 栈选择、运行时档位、Linux-QEMU 配置示例 | `docs/stack_cookbook.md` |
 | 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `docs/platform_contract.md` |
 | 校验项、错误码、check-service 门禁 | `docs/validation_guide.md` |
+| 题目入口业务断言、动态 flag 路径和 smoke probe 示例 | `docs/solve_probe_recipes.md` |
 | 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `docs/orchestrated_workflow.md` |
 | 脚本入口和常用命令 | `scripts/README.md` |
 | Scenario schema 和 compose import 边界 | `data/scenario_schema.md` |

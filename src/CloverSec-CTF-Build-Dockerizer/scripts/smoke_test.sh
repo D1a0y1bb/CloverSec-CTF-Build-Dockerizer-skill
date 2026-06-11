@@ -681,18 +681,20 @@ while IFS= read -r dir; do
     fi
   fi
 
-  solve_probe_yaml="$(mktemp "/tmp/ctf-solve-probe-${name}-XXXXXX.yaml")"
+  safe_probe_name="$(printf '%s' "$name" | tr -c 'A-Za-z0-9_.-' '-')"
+  solve_probe_dir="$(mktemp -d "/tmp/ctf-solve-probe-${safe_probe_name}-XXXXXX")"
+  solve_probe_yaml="${solve_probe_dir}/solve_probe.yaml"
   if write_solve_probe_assert_yaml "$challenge_yaml" "$solve_probe_yaml" >/dev/null 2>&1; then
     echo "[INFO] 执行 challenge.verification.solve_probe"
     if ! run_smoke_assert_yaml "${solve_probe_yaml}" "${cid}" "${host_port}" "${container_port}"; then
       echo "[ERROR] verification.solve_probe 失败: ${name}"
-      rm -f "${solve_probe_yaml}"
+      rm -rf "${solve_probe_dir}"
       FAIL_LIST+=("${name}:solve-probe")
       cleanup_case "$container_name" "$image_tag"
       continue
     fi
   fi
-  rm -f "${solve_probe_yaml}"
+  rm -rf "${solve_probe_dir}"
 
   assert_script="${dir}/smoke_assert.sh"
   if [[ -f "${assert_script}" ]]; then
