@@ -2,6 +2,19 @@
 
 本项目的重要变更都会记录在本文件中。
 
+## v2.2.0-r1 - 2026-06-11
+
+### 修复
+
+- 修复安装版 Skill 文档路径表述，运行时文档统一使用相对于 `SKILL.md` 的 `docs/`、`data/`、`scripts/`、`templates/`、`examples/` 路径。
+- `doc_guard.py` 与 `release_build.py` 增加发布包运行时路径检查，阻止 `src/CloverSec-CTF-Build-Dockerizer/` 这类源码仓库前缀进入安装包文档。
+- 补齐 `linux_qemu_manual_check.sh` 在 Skill 运行包内的入口，避免文档引用存在但发布包缺脚本。
+
+### 发布
+
+- 本版本计划通过 `publish_release.sh --wait-release-full-check` 发布，等待 GitHub Actions `release-full-check` job 成功后再公开 GitHub Release。
+- 本版本不改变 `challenge.yaml` schema、Proposal Gate、render/validate 契约或 Linux-QEMU 渲染行为。
+
 ## v2.2.0 - 2026-06-10
 
 ### 新增
