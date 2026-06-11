@@ -554,6 +554,15 @@ assertions:
 
 Existing `smoke_assert.sh` files are still supported. When both files exist, YAML assertions run first.
 
+Daily debugging does not need a full smoke run. Target one or more examples:
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case secops-redis-hardening-basic
+
+SMOKE_CASES=node-basic,pwn-basic \
+  bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+```
+
 ## Platform Hard Contract and Boundaries
 
 Every rendered output must satisfy:
@@ -777,10 +786,28 @@ No. It validates skill discovery. Release assets are packaging/distribution arti
 
 ## Maintenance, Contribution, and Release
 
-Minimum pre-release checks:
+Fast daily maintenance check:
 
 ```bash
-bash scripts/doc_guard.sh
+bash scripts/check_fast.sh
+```
+
+For normal functional changes, add examples regression:
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+```
+
+For Docker templates, port mapping, check-service, or startup script changes, run only the affected example:
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case node-basic
+```
+
+Pre-release checks:
+
+```bash
+bash scripts/check_fast.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list

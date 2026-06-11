@@ -552,6 +552,15 @@ assertions:
 
 既存の `smoke_assert.sh` も引き続き使えます。両方ある場合は YAML 断言を先に実行します。
 
+日常の確認では全量 smoke は不要です。対象例だけを指定できます。
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case secops-redis-hardening-basic
+
+SMOKE_CASES=node-basic,pwn-basic \
+  bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+```
+
 ## プラットフォーム硬契約と境界
 
 すべてのレンダリング結果で以下が必須です。
@@ -776,10 +785,28 @@ AWDP の本質は「パッチ提出と監査」です。`patch/src + patch.sh + 
 
 ## 保守・貢献・リリース
 
-リリース前の最小チェック：
+日常保守の高速チェック：
 
 ```bash
-bash scripts/doc_guard.sh
+bash scripts/check_fast.sh
+```
+
+通常の機能変更では examples 回帰を追加します。
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+```
+
+Docker template、port mapping、check-service、startup script を変えた場合は、影響する例だけを実行します。
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case node-basic
+```
+
+リリース前チェック：
+
+```bash
+bash scripts/check_fast.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list

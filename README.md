@@ -501,6 +501,15 @@ assertions:
 
 已有 `smoke_assert.sh` 仍然可用；两个文件都存在时会先执行 YAML，再执行 shell 脚本。
 
+日常调试不需要跑全量 smoke，可以指定示例：
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case secops-redis-hardening-basic
+
+SMOKE_CASES=node-basic,pwn-basic \
+  bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+```
+
 ## 平台硬契约与边界
 
 所有渲染产物必须满足：存在 `Dockerfile`。存在可执行 `start.sh`。存在可执行 `changeflag.sh`。容器内存在 `/bin/bash`。Dockerfile 声明 `EXPOSE`。`start.sh` 启动真实服务进程，禁止空转保活。
@@ -702,10 +711,28 @@ AWDP 的关键是“补丁提交与审计”，不是现场运维。选手通过
 
 ## 维护、贡献与发布
 
-发布前最小检查清单：
+日常维护快速检查：
 
 ```bash
-bash scripts/doc_guard.sh
+bash scripts/check_fast.sh
+```
+
+常规功能改动再补 examples 回归：
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+```
+
+涉及 Docker 模板、端口映射、check-service 或启动脚本时，只跑受影响示例：
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh --case node-basic
+```
+
+正式发布前检查清单：
+
+```bash
+bash scripts/check_fast.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 npx -y skills add . --list

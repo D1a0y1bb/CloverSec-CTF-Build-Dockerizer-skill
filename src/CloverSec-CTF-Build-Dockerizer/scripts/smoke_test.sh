@@ -22,16 +22,22 @@ SKIP_DOCKER="${SKIP_DOCKER:-0}"
 SMOKE_READONLY="${SMOKE_READONLY:-1}"
 SMOKE_OUTPUT_ROOT="${SMOKE_OUTPUT_ROOT:-}"
 SMOKE_WORK_ROOT=""
+SMOKE_CASES="${SMOKE_CASES:-}"
+CASE_FILTERS=()
+if [[ -n "$SMOKE_CASES" ]]; then
+  IFS=',' read -r -a CASE_FILTERS <<< "$SMOKE_CASES"
+fi
 
 usage() {
   cat <<'USAGE'
 用法：
-  bash scripts/smoke_test.sh [--in-place] [--output-root DIR] [--skip-docker]
+  bash scripts/smoke_test.sh [--case NAME] [--in-place] [--output-root DIR] [--skip-docker]
 
 默认行为：
   复制 examples 到临时目录后执行 render/validate/build/run，不写回原 examples。
 
 参数：
+  --case NAME       只测试指定 examples 子目录，可重复传入；也可用 SMOKE_CASES=a,b
   --in-place        在原 examples 目录执行旧流程
   --output-root DIR 指定只读副本根目录
   --skip-docker     只执行 render/validate，不执行 docker build/run
@@ -43,6 +49,14 @@ while [[ $# -gt 0 ]]; do
     -h|--help)
       usage
       exit 0
+      ;;
+    --case)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "[ERROR] --case 需要 examples 子目录名称" >&2
+        exit 2
+      fi
+      CASE_FILTERS+=("$2")
+      shift 2
       ;;
     --in-place)
       SMOKE_READONLY=0
@@ -131,6 +145,22 @@ contains_csv_item() {
   IFS=',' read -r -a arr <<< "$csv"
   for item in "${arr[@]}"; do
     if [[ "${item}" == "${needle}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+case_selected() {
+  local name="$1"
+  local item
+
+  if [[ ${#CASE_FILTERS[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  for item in "${CASE_FILTERS[@]}"; do
+    if [[ "$item" == "$name" ]]; then
       return 0
     fi
   done
@@ -450,6 +480,11 @@ echo "- SKIP_DOCKER: ${SKIP_DOCKER}"
 echo "- SMOKE_READONLY: ${SMOKE_READONLY}"
 echo "- WORK_EXAMPLES_DIR: ${WORK_EXAMPLES_DIR}"
 echo "- WAIT_SECONDS: ${WAIT_SECONDS}"
+if [[ ${#CASE_FILTERS[@]} -gt 0 ]]; then
+  echo "- CASE_FILTERS: ${CASE_FILTERS[*]}"
+fi
+
+MATCHED_CASE_COUNT=0
 
 while IFS= read -r dir; do
   name="$(basename "$dir")"
@@ -457,6 +492,11 @@ while IFS= read -r dir; do
   scenario_yaml="${dir}/scenario.yaml"
   dockerfile="${dir}/Dockerfile"
   start_sh="${dir}/start.sh"
+
+  if ! case_selected "$name"; then
+    continue
+  fi
+  MATCHED_CASE_COUNT=$((MATCHED_CASE_COUNT + 1))
 
   echo
   echo "== 测试目录: ${name} =="
@@ -665,6 +705,11 @@ while IFS= read -r dir; do
   PASS_LIST+=("${name}")
   cleanup_case "$container_name" "$image_tag"
 done < <(find "$WORK_EXAMPLES_DIR" -mindepth 1 -maxdepth 1 -type d | sort)
+
+if [[ ${#CASE_FILTERS[@]} -gt 0 && "$MATCHED_CASE_COUNT" -eq 0 ]]; then
+  echo "[ERROR] --case 未匹配任何 examples 子目录: ${CASE_FILTERS[*]}" >&2
+  exit 2
+fi
 
 echo
 echo "冒烟测试汇总"

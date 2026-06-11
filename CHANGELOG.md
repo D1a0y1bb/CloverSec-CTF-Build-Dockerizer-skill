@@ -12,6 +12,8 @@
 - Linux-QEMU 样例维护规则细化：Fragnesia 继续作为外部真实资产样例；Copy Fail 记录为候选负例，缺资产 manifest、boot、flag readback 与 PoC 证据前不升级为真实样例。
 - Pwn 自动探测增强：增加 ELF、C 源码、Makefile、xinetd/socat/tcpserver/chroot 等强证据，减少 BOF/Pwn 题被 `package.json`、`node_modules` 干扰而误判成 Node 的概率。
 - `workflow.py --pretty` 与 `workflow.py <command> --pretty` 都兼容，等价于 `--format json`。
+- 新增 `scripts/check_fast.sh`，日常维护只执行 Python/Bash 语法、文档治理和 `git diff --check`。
+- `smoke_test.sh` 增加 `--case <name>` 与 `SMOKE_CASES=a,b`，可只跑受影响的示例，避免每次都执行全量 Docker smoke。
 
 ## v2.2.0-r2 - 2026-06-11
 
