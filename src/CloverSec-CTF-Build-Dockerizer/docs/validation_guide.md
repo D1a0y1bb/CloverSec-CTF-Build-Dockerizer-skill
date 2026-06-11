@@ -183,6 +183,14 @@ bash scripts/release_build.sh --with-smoke
 bash scripts/release_build.sh --with-smoke --sbom-strict
 ```
 
+发布时等待 GitHub Actions release-full-check：
+
+```bash
+bash scripts/publish_release.sh --wait-release-full-check
+```
+
+该模式会在推送 `VERSION` tag 后等待 GitHub Actions 中的 `release-full-check` job 成功，再继续创建或公开 GitHub Release。
+
 跳过 smoke 必须记录原因：
 
 ```bash

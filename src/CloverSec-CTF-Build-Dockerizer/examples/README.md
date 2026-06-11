@@ -41,6 +41,7 @@
 - 可选渲染产物：`Dockerfile`、`start.sh`、`flag`
 - RDG 示例额外包含：`check/check.sh`（check-service 真实检查脚本）
 - 可选冒烟断言：`smoke_assert.sh`（由 `smoke_test.sh` 自动调用）
+- 当前 Web/Java/Tomcat 关键示例的 `smoke_assert.sh` 会校验 HTTP 响应内容，不只判断容器是否运行。
 - `linux-qemu-basic/` 默认只用于渲染与静态校验；完整 QEMU boot 需要替换真实 VM 资产后单独执行。
 - `bundle-*` 默认只保存 `bundle.yaml` 输入和最小应用文件；批量回归会在临时目录渲染后校验。
 - `scenario-compose-import-basic/` 默认生成 `scenario.draft.yaml`、`scenario.renderable.yaml` 与 `import-report.json` 后再校验可渲染子集。

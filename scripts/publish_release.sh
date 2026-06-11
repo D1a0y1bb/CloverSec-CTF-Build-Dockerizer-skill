@@ -17,6 +17,11 @@ SKIP_SMOKE_REASON=""
 DRY_RUN="false"
 COMMIT_MESSAGE=""
 VERSION_OVERRIDE=""
+WAIT_RELEASE_FULL_CHECK="false"
+RELEASE_FULL_CHECK_TIMEOUT_SECONDS=2700
+RELEASE_FULL_CHECK_POLL_SECONDS=20
+RELEASE_FULL_CHECK_WORKFLOW="ci.yml"
+RELEASE_FULL_CHECK_JOB="release-full-check"
 
 VERSION=""
 CURRENT_BRANCH=""
@@ -80,6 +85,18 @@ Options:
                           Skip Docker smoke test with an explicit reason
   --skip-release          Skip GitHub Release create/update and asset upload
   --skip-upload           Create/update release but skip asset upload
+  --wait-release-full-check
+                          After pushing the VERSION tag, wait for the GitHub
+                          Actions release-full-check job to pass before creating
+                          or publishing the GitHub Release
+  --release-full-check-timeout-seconds <n>
+                          Timeout for --wait-release-full-check (default: 2700)
+  --release-full-check-poll-seconds <n>
+                          Poll interval for --wait-release-full-check (default: 20)
+  --release-full-check-workflow <file-or-id>
+                          GitHub Actions workflow file/id (default: ci.yml)
+  --release-full-check-job <name>
+                          Job name to require (default: release-full-check)
   --dry-run               Validate and build only; skip commit/push/tag/release
   -h, --help              Show help
 
@@ -87,6 +104,7 @@ Examples:
   bash scripts/publish_release.sh --source-dir /path/to/source-repo
   bash scripts/publish_release.sh --version v1.3.0
   bash scripts/publish_release.sh --notes-file /tmp/release_notes.md
+  bash scripts/publish_release.sh --wait-release-full-check
 USAGE
 }
 
@@ -135,6 +153,34 @@ parse_args() {
       --skip-upload)
         SKIP_UPLOAD="true"
         shift
+        ;;
+      --wait-release-full-check)
+        WAIT_RELEASE_FULL_CHECK="true"
+        shift
+        ;;
+      --release-full-check-timeout-seconds)
+        [[ $# -ge 2 ]] || die "--release-full-check-timeout-seconds requires a number"
+        [[ "$2" =~ ^[0-9]+$ && "$2" -gt 0 ]] || die "--release-full-check-timeout-seconds must be a positive integer"
+        RELEASE_FULL_CHECK_TIMEOUT_SECONDS="$2"
+        shift 2
+        ;;
+      --release-full-check-poll-seconds)
+        [[ $# -ge 2 ]] || die "--release-full-check-poll-seconds requires a number"
+        [[ "$2" =~ ^[0-9]+$ && "$2" -gt 0 ]] || die "--release-full-check-poll-seconds must be a positive integer"
+        RELEASE_FULL_CHECK_POLL_SECONDS="$2"
+        shift 2
+        ;;
+      --release-full-check-workflow)
+        [[ $# -ge 2 ]] || die "--release-full-check-workflow requires a workflow file or id"
+        [[ -n "$2" ]] || die "--release-full-check-workflow cannot be empty"
+        RELEASE_FULL_CHECK_WORKFLOW="$2"
+        shift 2
+        ;;
+      --release-full-check-job)
+        [[ $# -ge 2 ]] || die "--release-full-check-job requires a job name"
+        [[ -n "$2" ]] || die "--release-full-check-job cannot be empty"
+        RELEASE_FULL_CHECK_JOB="$2"
+        shift 2
         ;;
       --dry-run)
         DRY_RUN="true"
@@ -461,6 +507,170 @@ else:
 PY
 }
 
+extract_actions_run() {
+  local json_file="$1"
+  local head_sha="$2"
+  python3 - "$json_file" "$VERSION" "$head_sha" <<'PY'
+import json
+import sys
+
+json_file, tag, head_sha = sys.argv[1:4]
+try:
+    payload = json.load(open(json_file, "r", encoding="utf-8"))
+except Exception:
+    print("false\t\t\t\t\t")
+    raise SystemExit(0)
+
+runs = payload.get("workflow_runs") if isinstance(payload, dict) else []
+if not isinstance(runs, list):
+    runs = []
+
+candidates = []
+for run in runs:
+    if not isinstance(run, dict):
+        continue
+    if str(run.get("head_sha") or "") != head_sha:
+        continue
+    score = 0
+    if str(run.get("head_branch") or "") == tag:
+        score += 10
+    if str(run.get("event") or "") == "push":
+        score += 2
+    if str(run.get("name") or "") == "CI":
+        score += 1
+    candidates.append((score, int(run.get("run_number") or 0), run))
+
+if not candidates:
+    print("false\t\t\t\t\t")
+    raise SystemExit(0)
+
+_, _, run = sorted(candidates, key=lambda item: (item[0], item[1]), reverse=True)[0]
+fields = [
+    "true",
+    str(run.get("id") or ""),
+    str(run.get("status") or ""),
+    str(run.get("conclusion") or ""),
+    str(run.get("html_url") or ""),
+    str(run.get("head_branch") or ""),
+]
+print("\t".join(fields))
+PY
+}
+
+extract_actions_job() {
+  local json_file="$1"
+  python3 - "$json_file" "$RELEASE_FULL_CHECK_JOB" <<'PY'
+import json
+import sys
+
+json_file, job_name = sys.argv[1:3]
+try:
+    payload = json.load(open(json_file, "r", encoding="utf-8"))
+except Exception:
+    print("false\t\t\t\t")
+    raise SystemExit(0)
+
+jobs = payload.get("jobs") if isinstance(payload, dict) else []
+if not isinstance(jobs, list):
+    jobs = []
+
+for job in jobs:
+    if not isinstance(job, dict):
+        continue
+    if str(job.get("name") or "") != job_name:
+        continue
+    fields = [
+        "true",
+        str(job.get("id") or ""),
+        str(job.get("status") or ""),
+        str(job.get("conclusion") or ""),
+        str(job.get("html_url") or ""),
+    ]
+    print("\t".join(fields))
+    raise SystemExit(0)
+
+print("false\t\t\t\t")
+PY
+}
+
+wait_for_release_full_check() {
+  [[ "${WAIT_RELEASE_FULL_CHECK}" == "true" ]] || return 0
+
+  local head_sha
+  local deadline
+  local runs_file
+  local jobs_file
+  local code
+  local run_probe
+  local run_found
+  local run_id
+  local run_status
+  local run_conclusion
+  local run_url
+  local run_ref
+  local job_probe
+  local job_found
+  local job_id
+  local job_status
+  local job_conclusion
+  local job_url
+
+  head_sha="$(git -C "${ROOT_DIR}" rev-parse HEAD)"
+  deadline=$((SECONDS + RELEASE_FULL_CHECK_TIMEOUT_SECONDS))
+  log "Waiting for GitHub Actions job ${RELEASE_FULL_CHECK_JOB} on tag ${VERSION} (timeout ${RELEASE_FULL_CHECK_TIMEOUT_SECONDS}s)"
+
+  while (( SECONDS < deadline )); do
+    runs_file="$(mktemp)"
+    code="$(api_request "GET" "https://api.github.com/repos/${OWNER_REPO}/actions/workflows/${RELEASE_FULL_CHECK_WORKFLOW}/runs?event=push&head_sha=${head_sha}&per_page=20" "${runs_file}")"
+    if [[ "${code}" != "200" ]]; then
+      rm -f "${runs_file}"
+      die "Failed to query GitHub Actions workflow runs (HTTP ${code})"
+    fi
+
+    run_probe="$(extract_actions_run "${runs_file}" "${head_sha}")"
+    rm -f "${runs_file}"
+    IFS=$'\t' read -r run_found run_id run_status run_conclusion run_url run_ref <<< "${run_probe}"
+
+    if [[ "${run_found}" != "true" || -z "${run_id}" ]]; then
+      log "release-full-check workflow run not visible yet; waiting ${RELEASE_FULL_CHECK_POLL_SECONDS}s"
+      sleep "${RELEASE_FULL_CHECK_POLL_SECONDS}"
+      continue
+    fi
+
+    jobs_file="$(mktemp)"
+    code="$(api_request "GET" "https://api.github.com/repos/${OWNER_REPO}/actions/runs/${run_id}/jobs?per_page=100" "${jobs_file}")"
+    if [[ "${code}" != "200" ]]; then
+      rm -f "${jobs_file}"
+      die "Failed to query GitHub Actions jobs for run ${run_id} (HTTP ${code})"
+    fi
+    job_probe="$(extract_actions_job "${jobs_file}")"
+    rm -f "${jobs_file}"
+    IFS=$'\t' read -r job_found job_id job_status job_conclusion job_url <<< "${job_probe}"
+
+    if [[ "${job_found}" != "true" ]]; then
+      if [[ "${run_status}" == "completed" && "${run_conclusion}" != "success" ]]; then
+        die "GitHub Actions run completed without ${RELEASE_FULL_CHECK_JOB} success: ${run_conclusion:-unknown} ${run_url}"
+      fi
+      log "workflow run ${run_id} is ${run_status:-unknown}, job ${RELEASE_FULL_CHECK_JOB} not available yet; waiting ${RELEASE_FULL_CHECK_POLL_SECONDS}s"
+      sleep "${RELEASE_FULL_CHECK_POLL_SECONDS}"
+      continue
+    fi
+
+    if [[ "${job_status}" == "completed" ]]; then
+      if [[ "${job_conclusion}" == "success" ]]; then
+        log "GitHub Actions job ${RELEASE_FULL_CHECK_JOB} passed: ${job_url:-${run_url}}"
+        return 0
+      fi
+      die "GitHub Actions job ${RELEASE_FULL_CHECK_JOB} failed: ${job_conclusion:-unknown} ${job_url:-${run_url}}"
+    fi
+
+    log "job ${RELEASE_FULL_CHECK_JOB} is ${job_status:-unknown} on ${run_ref:-${VERSION}}; waiting ${RELEASE_FULL_CHECK_POLL_SECONDS}s"
+    sleep "${RELEASE_FULL_CHECK_POLL_SECONDS}"
+  done
+
+  die "Timed out waiting for GitHub Actions job ${RELEASE_FULL_CHECK_JOB} on tag ${VERSION}"
+}
+
 refresh_release_state() {
   local response_file
   local code
@@ -720,6 +930,7 @@ main() {
 
   resolve_owner_repo
   setup_auth
+  wait_for_release_full_check
   create_or_prepare_release
   upload_release_assets
   publish_release_if_needed

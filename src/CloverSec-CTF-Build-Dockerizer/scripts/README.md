@@ -29,6 +29,7 @@
 - `../../../scripts/platform_matrix.py`：采集当前主机、Docker、QEMU、SBOM 工具状态，输出跨平台矩阵结果
 - `../../../scripts/generate_sbom.py`：生成 release SBOM；显式 `--strict` 时要求 syft 或 docker sbom 成功
 - `../../../scripts/release_build.py`：发布打包入口；支持 `--sbom-strict` 进入 SBOM strict 模式
+- `../../../scripts/publish_release.sh`：发布入口；可显式要求等待 GitHub Actions `release-full-check` 成功后再公开 Release
 - `cleanup_test_containers.sh`：清理 `ctf-skill-test*` 容器和镜像
 - `utils.py`：模板 include、变量渲染、推断与通用函数
 
@@ -65,6 +66,7 @@ bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/lin
 python3 scripts/golden_snapshot.py
 python3 scripts/platform_matrix.py --profile release
 bash scripts/release_build.sh --with-smoke --sbom-strict
+bash scripts/publish_release.sh --wait-release-full-check
 ```
 
 校验规则详解见 `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md`。
@@ -86,3 +88,9 @@ SBOM strict：
 
 - 默认 SBOM 允许在 syft / docker sbom 不可用时退回 source-inventory。
 - `generate_sbom.py --strict` 或 `release_build.py --sbom-strict` 会拒绝 fallback，适合审计要求更高的发布前检查。
+
+GitHub Release 等待策略：
+
+- `publish_release.sh --wait-release-full-check` 会在推送 `VERSION` tag 后轮询 GitHub Actions。
+- 默认等待 `.github/workflows/ci.yml` 中名为 `release-full-check` 的 job 成功，再继续创建或公开 GitHub Release。
+- 可用 `--release-full-check-timeout-seconds`、`--release-full-check-poll-seconds`、`--release-full-check-workflow`、`--release-full-check-job` 调整等待策略。
