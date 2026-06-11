@@ -64,8 +64,12 @@ fi
 
 START_CMD="{{START_CMD}}"
 if [[ -n "${START_CMD}" ]]; then
-  echo "[INFO] exec explicit start cmd: ${START_CMD}"
-  exec bash -lc "${START_CMD}"
+  if [[ "${START_CMD}" == *"xinetd"* ]] && ! command -v xinetd >/dev/null 2>&1 && [[ ! -x /usr/sbin/xinetd ]]; then
+    echo "[WARN] explicit start cmd requires xinetd but xinetd is unavailable; falling back to tcpserver/socat"
+  else
+    echo "[INFO] exec explicit start cmd: ${START_CMD}"
+    exec bash -lc "${START_CMD}"
+  fi
 fi
 
 if command -v xinetd >/dev/null 2>&1; then

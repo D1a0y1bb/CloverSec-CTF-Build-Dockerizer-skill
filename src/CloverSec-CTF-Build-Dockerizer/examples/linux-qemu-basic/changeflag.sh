@@ -3,7 +3,16 @@ set -euo pipefail
 
 # linux-qemu 动态 flag 写入入口：保留外层 /flag，并按配置写入 guest rootfs。
 TARGET_PATH="${FLAG_PATH:-/flag}"
-TARGET_FLAG="${FLAG:-${CTF_FLAG:-${1:-flag{dynamic_flag_placeholder}}}}"
+DEFAULT_FLAG="flag{dynamic_flag_placeholder}"
+if [[ -n "${FLAG:-}" ]]; then
+  TARGET_FLAG="${FLAG}"
+elif [[ -n "${CTF_FLAG:-}" ]]; then
+  TARGET_FLAG="${CTF_FLAG}"
+elif [[ $# -gt 0 && -n "${1:-}" ]]; then
+  TARGET_FLAG="$1"
+else
+  TARGET_FLAG="${DEFAULT_FLAG}"
+fi
 VM_ROOTFS="${VM_ROOTFS:-vm/rootfs.ext4}"
 GUEST_FLAG_PATH="${GUEST_FLAG_PATH:-/root/flag}"
 FLAG_INJECTION="${FLAG_INJECTION:-debugfs}"

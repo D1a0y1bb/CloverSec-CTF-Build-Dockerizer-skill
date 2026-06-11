@@ -66,11 +66,11 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh 
 
 | 输入状态 | 推荐路径 | 读取资料 |
 |---|---|---|
-| 明确 `challenge.yaml`，低风险 | `render.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/data/schema.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
+| 明确 `challenge.yaml`，低风险 | 输出方案摘要，用户 `OK` 后执行 `render.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/data/schema.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
 | 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | `workflow.py intake/propose/accept/render/validate` | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
 | compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
-| Scenario 正向编排 | `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
-| 固定老环境组合 | `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md`、`src/CloverSec-CTF-Build-Dockerizer/data/bundle_recipes.yaml` |
+| Scenario 正向编排 | 输出服务清单和端口摘要，用户 `OK` 后执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
+| 固定老环境组合 | 输出 Recipe 摘要，用户 `OK` 后执行 `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md`、`src/CloverSec-CTF-Build-Dockerizer/data/bundle_recipes.yaml` |
 | Linux kernel CVE/LPE | `stack=linux-qemu`，release/manual 再跑 `linux_qemu_manual_check.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
 | RDG/SecOps 需要 check 脚本 | `generate_check_stub.py` 生成骨架，人工确认后移除 `CHECK_REVIEW_REQUIRED` | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
 | 发布包检查 | `release_build.py --with-smoke`，跳过 smoke 必须说明原因 | 根目录 `README.md`、`CHANGELOG.md` |
@@ -100,14 +100,16 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 
 ## 交互确认规则
 
-当输入不是明确、低风险的 `challenge.yaml` 时，必须先给用户输出 proposal，不得直接 render。
+凡是会生成、覆盖或修改交付件的动作，都必须先给用户输出 proposal 或方案摘要，不得直接 render。明确、低风险的 `challenge.yaml` 也要先列出 stack/profile、端口、WORKDIR、启动命令和文件映射摘要，用户确认后再执行 `render.py` 或 `validate.sh`。
+
+只读动作可以先执行，例如 `workflow.py intake`、`audit_input.py`、`derive_config.py`、读取配置和检查目录；一旦进入 `render.py`、`render_scenario.py`、`render_bundle.py`、`workflow.py render` 或会改写文件的命令，必须先取得确认。
 
 用户确认方式只接受两种：
 
 - 回复 `OK`
 - 返回修改后的 `CONFIG PROPOSAL` YAML
 
-用户未确认前，不得执行 `render.py` 或 `workflow.py render`。默认确认项固定为 5 个：
+用户未确认前，不得执行 `render.py`、`render_scenario.py`、`render_bundle.py` 或 `workflow.py render`。默认确认项固定为 5 个：
 
 1. 技术栈 + profile / runtime profile
 2. 容器端口

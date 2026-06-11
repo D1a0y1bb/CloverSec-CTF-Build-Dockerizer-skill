@@ -163,6 +163,37 @@ print(f"{str(enabled).lower()}|{mode}|{path_value}")
 PY
 }
 
+resolve_host_port() {
+  local cid="$1"
+  local container_port="$2"
+  local host_port=""
+
+  host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
+  if [[ -n "${host_port}" ]]; then
+    printf '%s\n' "$host_port"
+    return 0
+  fi
+
+  docker inspect "$cid" 2>/dev/null | python3 -c '
+import json
+import sys
+
+container_port = sys.argv[1].split("/")[0] + "/tcp"
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    raise SystemExit(0)
+if not data:
+    raise SystemExit(0)
+ports = (((data[0] or {}).get("NetworkSettings") or {}).get("Ports") or {})
+for item in ports.get(container_port) or []:
+    host_port = str((item or {}).get("HostPort") or "").strip()
+    if host_port:
+        print(host_port)
+        raise SystemExit(0)
+' "$container_port" || true
+}
+
 cleanup_case() {
   local cname="$1"
   local image_tag="$2"
@@ -354,7 +385,7 @@ while IFS= read -r dir; do
   echo "[INFO] 容器运行正常，日志前 50 行："
   echo "$logs_out"
 
-  host_port="$(docker port "$cid" "${container_port}/tcp" 2>/dev/null | head -n1 | awk -F: '{print $NF}' || true)"
+  host_port="$(resolve_host_port "$cid" "$container_port")"
   if [[ -z "${host_port}" ]]; then
     echo "[WARN] 无法解析宿主端口映射: ${name} ${container_port}/tcp"
   fi

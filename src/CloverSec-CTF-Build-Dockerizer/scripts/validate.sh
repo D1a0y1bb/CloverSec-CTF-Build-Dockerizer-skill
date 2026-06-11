@@ -371,6 +371,55 @@ find_unrendered_template_vars() {
     | sed -E 's/[[:space:]]+$//' || true
 }
 
+validate_changeflag_dynamic_write() {
+  local changeflag_host
+  changeflag_host="$(cd "$(dirname "$START_SH")" && pwd)/changeflag.sh"
+
+  if [[ ! -f "$changeflag_host" ]]; then
+    log_result ERROR "changeflag.sh 不存在，无法验证动态 flag 写入。"
+    return
+  fi
+
+  if contains_re "$changeflag_host" 'TARGET_FLAG=.*\$\{[^[:space:]]*flag\{'; then
+    log_result ERROR "changeflag.sh 使用嵌套参数展开直接包含 flag{...} 默认值，传入动态 flag 时可能产生多余字符。修复：改用 if/elif/else 明确赋值。"
+  else
+    log_result INFO "changeflag.sh 未检测到 flag{...} 嵌套参数展开风险"
+  fi
+
+  if ! contains_re "$changeflag_host" 'FLAG_PATH'; then
+    log_result WARN "changeflag.sh 未支持 FLAG_PATH，跳过隔离动态写入测试；建议支持 FLAG_PATH 以便验证和平台调试。"
+    return
+  fi
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d "/tmp/ctf-changeflag-XXXXXX")"
+  local expected="flag{validate_dynamic_flag}"
+  local target="${tmp_dir}/flag"
+  local stdout_file="${tmp_dir}/stdout.txt"
+  local stderr_file="${tmp_dir}/stderr.txt"
+
+  if FLAG_PATH="$target" FLAG_INJECTION=none bash "$changeflag_host" "$expected" >"$stdout_file" 2>"$stderr_file"; then
+    if [[ ! -f "$target" ]]; then
+      log_result ERROR "changeflag.sh 执行成功但没有写入 FLAG_PATH 指定文件。"
+    else
+      local actual
+      actual="$(tr -d '\r' < "$target" | sed -E 's/[[:space:]]+$//')"
+      if [[ "$actual" == "$expected" ]]; then
+        log_result INFO "changeflag.sh 动态 flag 写入测试通过"
+      else
+        log_result ERROR "changeflag.sh 动态 flag 写入不一致：期望 ${expected}，实际 ${actual}。"
+      fi
+    fi
+  else
+    log_result ERROR "changeflag.sh 动态 flag 写入测试执行失败。"
+    if [[ -s "$stderr_file" ]]; then
+      sed -n '1,5p' "$stderr_file" >&2 || true
+    fi
+  fi
+
+  rm -rf "$tmp_dir"
+}
+
 has_background_ampersand() {
   grep -Eiq '(^|[^#].*)[^&]&[[:space:]]*$' "$START_SH"
 }
@@ -880,6 +929,8 @@ PY
 run_dynamic_checks() {
   echo
   echo "[D] 动态策略检查"
+
+  validate_changeflag_dynamic_write
 
   WORKDIR_VALUE="$(grep -Ei '^[[:space:]]*WORKDIR[[:space:]]+' "$DOCKERFILE" | tail -n1 | awk '{print $2}' || true)"
 
