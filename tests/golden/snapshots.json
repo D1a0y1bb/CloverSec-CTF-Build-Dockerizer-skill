@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-06-11T01:47:14.099656+00:00",
+  "cases": {
+    "bundle-legacy-centos7-webstack": {
+      "description": "Fixed Bundle/Recipe render",
+      "files": {
+        "Dockerfile": "40de0c348fb4377def173c388fcd912aaebab01cfdbe2a983709e5e3f26ddced",
+        "start.sh": "1372f46ee444901bbc532c39b027c8ed15775a92339ceae6fefc6044ef6f3f39",
+        "changeflag.sh": "e584031c309faaa013844feb6b949b1bbe3108c5efe372cf7c2dd6b568ea6d77",
+        "challenge.yaml": "a138ad5b58926cbd80dc559fa563ba598bdd28bb49621f4ed60dfefafd296eea"
+      }
+    },
+    "node-basic": {
+      "description": "Low-risk single challenge render",
+      "files": {
+        "Dockerfile": "5d608746aeee131e76771f79fc364601b573e58f11a88ddd988ea844136c9ffa",
+        "start.sh": "ced20534d0db6b41b83993c5fa4fe58f5588f9a91e110c9e24d3bd6b6ac253bf",
+        "changeflag.sh": "db525ee4473e78e09dc5bf05a4ef637ffaa8fd0903194468f68ec75c1bfd09c4"
+      }
+    },
+    "scenario-vulhub-like-basic": {
+      "description": "Scenario render with challenge and component services",
+      "files": {
+        "docker-compose.yml": "84ae051665783c648f184630f6db2a3e1c819580bf65c2b655bbdc3d1b70a737",
+        "services/web1/Dockerfile": "cce456450a340e7ecd6bf0a082ca11f385c921605f03277bd4438f8222c89f1c",
+        "services/web1/start.sh": "347f671c3068460c974ff1bb1aafed0e5babc562a0a0e5a3b6f8675feb8dfeec",
+        "services/web1/changeflag.sh": "db525ee4473e78e09dc5bf05a4ef637ffaa8fd0903194468f68ec75c1bfd09c4",
+        "services/web1/challenge.yaml": "20657449198622b6708b9f5735533d19ddc382086d7dc4a99f8ea4c4ba743bdd",
+        "services/redis1/Dockerfile": "101007be9af038f1f68fb80cd72943565dd359274f3e0c08a17d34599004379d",
+        "services/redis1/start.sh": "9e3b63f2608197e9c4bd25f13872b171ebd26d72f42f8feddd322d364026b19b",
+        "services/redis1/changeflag.sh": "db525ee4473e78e09dc5bf05a4ef637ffaa8fd0903194468f68ec75c1bfd09c4",
+        "services/redis1/challenge.yaml": "d50c0bfc84c004711dc342bd72227618a038509a89bd46fd13b1d05297282e76"
+      }
+    }
+  }
+}

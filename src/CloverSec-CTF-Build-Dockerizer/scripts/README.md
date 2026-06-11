@@ -25,6 +25,10 @@
 - `test_runtime_profiles.sh`：运行时档位推断回归（php/node/java）
 - `../../../scripts/validate_build_test.py`：校验仓库根目录 `Build_test/` 真实样例池，按 `cases.yaml` 做期望匹配
 - `../../../scripts/linux_qemu_manual_check.sh`：Linux-QEMU release/manual 验证入口，默认只执行 preflight
+- `../../../scripts/golden_snapshot.py`：渲染关键样例并与 `tests/golden/snapshots.json` 哈希清单对比
+- `../../../scripts/platform_matrix.py`：采集当前主机、Docker、QEMU、SBOM 工具状态，输出跨平台矩阵结果
+- `../../../scripts/generate_sbom.py`：生成 release SBOM；显式 `--strict` 时要求 syft 或 docker sbom 成功
+- `../../../scripts/release_build.py`：发布打包入口；支持 `--sbom-strict` 进入 SBOM strict 模式
 - `cleanup_test_containers.sh`：清理 `ctf-skill-test*` 容器和镜像
 - `utils.py`：模板 include、变量渲染、推断与通用函数
 
@@ -58,6 +62,9 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 python3 scripts/validate_build_test.py
 bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code
+python3 scripts/golden_snapshot.py
+python3 scripts/platform_matrix.py --profile release
+bash scripts/release_build.sh --with-smoke --sbom-strict
 ```
 
 校验规则详解见 `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md`。
@@ -73,3 +80,9 @@ Skill 入口文档说明：
 
 - `SKILL.md` 只保留入口规则、路由表和按需读取索引。
 - `doc_guard.sh` 会检查 `SKILL.md` 行数和关键入口，避免把 schema、栈手册、排障和命令细节重新塞回入口文件。
+- `doc_guard.sh` 同时检查 `examples/README.md`、本脚本说明和 `agents/openai.yaml`，避免入口文档或 SkillHub metadata 漏掉确认门槛与治理脚本。
+
+SBOM strict：
+
+- 默认 SBOM 允许在 syft / docker sbom 不可用时退回 source-inventory。
+- `generate_sbom.py --strict` 或 `release_build.py --sbom-strict` 会拒绝 fallback，适合审计要求更高的发布前检查。

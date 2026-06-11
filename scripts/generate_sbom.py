@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-dir", required=True, help="source directory")
     parser.add_argument("--output-prefix", required=True, help="dist output prefix")
     parser.add_argument("--metadata-output", help="optional SBOM metadata JSON path")
+    parser.add_argument("--strict", action="store_true", help="fail when syft/docker sbom cannot generate SBOM")
     return parser.parse_args()
 
 
@@ -174,13 +176,13 @@ def generate_deps_report(source_dir: Path, out_file: Path, sbom_source: str) -> 
     out_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def run_cmd(cmd: list[str], stdout_file: Path | None = None) -> int:
+def run_cmd(cmd: list[str], stdout_file: Path | None = None, env: dict[str, str] | None = None) -> int:
     try:
         if stdout_file is None:
-            proc = subprocess.run(cmd, check=False)
+            proc = subprocess.run(cmd, check=False, env=env)
         else:
             with stdout_file.open("w", encoding="utf-8") as fh:
-                proc = subprocess.run(cmd, check=False, stdout=fh, stderr=subprocess.DEVNULL)
+                proc = subprocess.run(cmd, check=False, stdout=fh, stderr=subprocess.DEVNULL, env=env)
         return proc.returncode
     except FileNotFoundError:
         return 127
@@ -215,8 +217,16 @@ def docker_sbom_generate(source_dir: Path, spdx: Path, cdx: Path) -> bool:
             return False
 
         try:
-            code_spdx = run_cmd(["docker", "sbom", "--format", "spdx-json", tmp_tag], spdx)
-            code_cdx = run_cmd(["docker", "sbom", "--format", "cyclonedx-json", tmp_tag], cdx)
+            code_spdx = run_cmd(["docker", "sbom", tmp_tag, "--format", "spdx-json"], spdx)
+            code_cdx = run_cmd(["docker", "sbom", tmp_tag, "--format", "cyclonedx-json"], cdx)
+            if code_spdx == 0 and code_cdx == 0:
+                return True
+
+            if "DOCKER_API_VERSION" not in os.environ:
+                retry_env = os.environ.copy()
+                retry_env["DOCKER_API_VERSION"] = "1.44"
+                code_spdx = run_cmd(["docker", "sbom", tmp_tag, "--format", "spdx-json"], spdx, env=retry_env)
+                code_cdx = run_cmd(["docker", "sbom", tmp_tag, "--format", "cyclonedx-json"], cdx, env=retry_env)
             return code_spdx == 0 and code_cdx == 0
         finally:
             subprocess.run(["docker", "rmi", tmp_tag], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -261,6 +271,28 @@ def main() -> int:
         else:
             fallback_reason = "no syft/docker sbom available; generated source inventory SBOM"
 
+    if not generated and args.strict:
+        print(f"[ERROR] SBOM strict mode failed: {fallback_reason}", flush=True)
+        meta.write_text(
+            json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "source": "",
+                    "strict": True,
+                    "fallback_reason": fallback_reason,
+                    "spdx": str(spdx),
+                    "cyclonedx": str(cdx),
+                    "deps": str(deps),
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return 3
+
     if not generated:
         write_source_inventory_sbom(source_dir, spdx, cdx, fallback_reason)
 
@@ -270,6 +302,7 @@ def main() -> int:
             {
                 "schema_version": "1.0",
                 "source": sbom_source,
+                "strict": bool(args.strict),
                 "fallback_reason": fallback_reason,
                 "spdx": str(spdx),
                 "cyclonedx": str(cdx),

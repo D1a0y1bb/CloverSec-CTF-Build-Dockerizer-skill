@@ -166,6 +166,8 @@ bash scripts/doc_guard.sh
 git diff --check
 python3 scripts/validate_build_test.py
 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+python3 scripts/golden_snapshot.py
+python3 scripts/platform_matrix.py --profile dev
 python3 scripts/publish_guard.py stage --root .
 ```
 
@@ -173,6 +175,12 @@ python3 scripts/publish_guard.py stage --root .
 
 ```bash
 bash scripts/release_build.sh --with-smoke
+```
+
+要求 SBOM 必须由 syft 或 docker sbom 生成：
+
+```bash
+bash scripts/release_build.sh --with-smoke --sbom-strict
 ```
 
 跳过 smoke 必须记录原因：
@@ -188,6 +196,8 @@ dist/CloverSec-CTF-Build-Dockerizer-<version>.release-status.json
 ```
 
 该文件记录 smoke、SkillHub metadata、CHANGELOG 当前版本标题、SBOM 来源和是否可发布。
+
+`platform_matrix.py` 只采集本机能力，不修改源码树。`--profile release` 会把 Docker daemon 作为必需项；`--profile linux-qemu` 会额外要求 QEMU 工具存在。
 
 ## 9. 模板变量速查
 

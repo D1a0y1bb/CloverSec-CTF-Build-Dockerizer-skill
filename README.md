@@ -499,6 +499,8 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | `scripts/publish_release.sh` | commit + push + tag + release 编排 |
 | `scripts/validate_build_test.py` | Build_test 真实样例池回归 |
 | `scripts/linux_qemu_manual_check.sh` | Linux-QEMU release/manual 分级验收 |
+| `scripts/golden_snapshot.py` | 关键渲染产物哈希快照回归 |
+| `scripts/platform_matrix.py` | 本机 Docker/QEMU/SBOM 工具矩阵检查 |
 | `scripts/generate_sbom.py` | SBOM 生成主实现 |
 | `scripts/generate_sbom.sh` | SBOM 入口 |
 | `scripts/sync.py` | 私有仓到发布仓同步逻辑 |

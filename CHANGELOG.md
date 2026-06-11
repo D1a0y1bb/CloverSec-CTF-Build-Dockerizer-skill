@@ -6,6 +6,8 @@
 
 ### 新增
 
+- 新增 `scripts/golden_snapshot.py` 与 `tests/golden/snapshots.json`，对关键样例的渲染产物做哈希快照回归。
+- 新增 `scripts/platform_matrix.py`，采集 Python、Docker、Compose、QEMU、SBOM 工具状态并输出跨平台矩阵结果。
 - `Build_test/` 升级为真实样例池，新增 `cases.yaml`、每个样例的 `case_note.md` 和独立说明文档。
 - 新增 `scripts/validate_build_test.py`，按 `cases.yaml` 对真实样例执行输入审计与 Docker 契约期望匹配，支持 `--format json`、`--case` 和 `--fail-fast`。
 - 首批样例覆盖现有历史样例、cPanel/WHM 仿真、Linux-QEMU 缺资产、Web 历史题、Pwn compose/xinetd 输入和 PHP compose 输入。
@@ -20,6 +22,8 @@
 
 - `SKILL.md` 改为渐进加载入口，只保留任务定位、首选工作流、门槛规则、输入路由和按需读取索引。
 - `doc_guard.py` 增加 `SKILL.md` 行数、关键入口和大段迁出内容检查，防止入口文件再次膨胀。
+- `doc_guard.py` 扩展到 `src/CloverSec-CTF-Build-Dockerizer/examples/README.md`、`src/CloverSec-CTF-Build-Dockerizer/scripts/README.md` 和 `agents/openai.yaml`，检查回归入口、治理脚本和默认确认提示。
+- `generate_sbom.py` 新增 `--strict`，`release_build.py` 新增 `--sbom-strict`，可要求 syft/docker sbom 真正生成 SBOM，不再退回 source-inventory。
 - `stack_cookbook.md` 补充旧版 `SKILL.md` 的 12 栈最小模板库索引，`validation_guide.md` 补充模板变量速查。
 - 移除运行包中的迁移映射文档，避免 Agent 把审计记录当作执行手册；长参考文档补充目录以提升按需读取质量。
 - `validate.sh` 读取 `support_level`，发布 digest 门禁对 `partial` 原型样例记录 WARN 而不阻断；Redis 7.2 BaseUnit 组件改用 digest 固定镜像。

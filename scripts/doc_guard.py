@@ -90,6 +90,9 @@ def collect_doc_files(root: Path) -> list[Path]:
     files: list[Path] = [root / name for name in ALL_READMES]
     files.append(root / "CHANGELOG.md")
     files.append(skill_dir / "SKILL.md")
+    files.append(skill_dir / "scripts" / "README.md")
+    files.append(skill_dir / "examples" / "README.md")
+    files.append(skill_dir / "data" / "README.md")
     docs_dir = skill_dir / "docs"
     if docs_dir.is_dir():
         files.extend(sorted(docs_dir.glob("*.md")))
@@ -234,6 +237,59 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
             counter.log_error(f"SKILL.md 仍包含应迁出的内容：{label}")
 
 
+def check_runtime_readmes(counter: Counter, root: Path) -> None:
+    skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
+    checks = {
+        skill_dir / "examples" / "README.md": (
+            "validate_examples.sh",
+            "smoke_assert.sh",
+            "linux-qemu-basic",
+            "bundle-",
+            "scenario-compose-import-basic",
+        ),
+        skill_dir / "scripts" / "README.md": (
+            "golden_snapshot.py",
+            "platform_matrix.py",
+            "generate_sbom.py",
+            "release_build.py",
+            "SBOM strict",
+            "SCENARIO_VALIDATE_RENDERED=0",
+        ),
+    }
+    for path, terms in checks.items():
+        if not path.is_file():
+            counter.log_error(f"缺少运行文档：{path}")
+            continue
+        text = read_text(path)
+        missing = [term for term in terms if term not in text]
+        if missing:
+            counter.log_error(f"{path} 缺少关键说明：{', '.join(missing)}")
+        else:
+            counter.log_info(f"{path.relative_to(root)} 关键入口检查通过")
+
+
+def check_agent_metadata(counter: Counter, root: Path) -> None:
+    path = root / "src" / "CloverSec-CTF-Build-Dockerizer" / "agents" / "openai.yaml"
+    if not path.is_file():
+        counter.log_error(f"缺少 SkillHub metadata: {path}")
+        return
+    text = read_text(path)
+    required_terms = (
+        "display_name:",
+        "short_description:",
+        "brand_color:",
+        "default_prompt:",
+        "allow_implicit_invocation:",
+        "$cloversec-ctf-build-dockerizer",
+        "OK",
+    )
+    missing = [term for term in required_terms if term not in text]
+    if missing:
+        counter.log_error(f"agents/openai.yaml 缺少关键字段或确认门槛描述：{', '.join(missing)}")
+    else:
+        counter.log_info("agents/openai.yaml 关键字段检查通过")
+
+
 def has_readme_link(text: str, target: str) -> bool:
     return f"({target})" in text or f'href="{target}"' in text
 
@@ -371,6 +427,8 @@ def main() -> int:
 
     check_additional_consistency(counter, docs)
     check_skill_progressive_disclosure(counter, root)
+    check_runtime_readmes(counter, root)
+    check_agent_metadata(counter, root)
 
     print("\n文档检查汇总")
     print(f"- ERROR: {counter.error}")

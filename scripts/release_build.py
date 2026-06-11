@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-checks", action="store_true", help="skip pre checks")
     parser.add_argument("--with-smoke", action="store_true", help="run Docker smoke test during release build")
     parser.add_argument("--skip-smoke-with-reason", default="", help="skip smoke test with an explicit reason")
+    parser.add_argument("--sbom-strict", action="store_true", help="require syft/docker sbom instead of source-inventory fallback")
     return parser.parse_args()
 
 
@@ -110,7 +111,7 @@ def new_status(version: str, package_basename: str) -> dict:
         "checks": [],
         "smoke": {"executed": False, "skipped": False, "reason": ""},
         "skillhub_metadata": {"ok": False, "file": "agents/openai.yaml"},
-        "sbom": {"source": "", "metadata_file": ""},
+        "sbom": {"source": "", "metadata_file": "", "strict": False},
         "release_ready": False,
     }
 
@@ -285,6 +286,7 @@ def main() -> int:
         package_basename = f"{PACKAGE_NAME}-{version}"
         status_path = dist / f"{package_basename}.release-status.json"
         status = new_status(version, package_basename)
+        status["sbom"]["strict"] = bool(args.sbom_strict)
         if args.with_smoke and args.skip_smoke_with_reason:
             raise RuntimeError("--with-smoke 与 --skip-smoke-with-reason 不能同时使用")
         if not src_skill_dir.exists():
@@ -375,22 +377,24 @@ def main() -> int:
 
         print("[INFO] 生成 SBOM 与依赖清单...")
         sbom_meta = Path(f"{dist / package_basename}.sbom.meta.json")
-        run(
-            [
-                sys.executable,
-                str(sbom_script),
-                "--source-dir",
-                str(release_root),
-                "--output-prefix",
-                str(dist / package_basename),
-                "--metadata-output",
-                str(sbom_meta),
-            ]
-        )
+        sbom_cmd = [
+            sys.executable,
+            str(sbom_script),
+            "--source-dir",
+            str(release_root),
+            "--output-prefix",
+            str(dist / package_basename),
+            "--metadata-output",
+            str(sbom_meta),
+        ]
+        if args.sbom_strict:
+            sbom_cmd.append("--strict")
+        run(sbom_cmd)
         if sbom_meta.exists():
             meta = json.loads(sbom_meta.read_text(encoding="utf-8"))
             status["sbom"]["source"] = str(meta.get("source") or "")
             status["sbom"]["metadata_file"] = str(sbom_meta)
+            status["sbom"]["strict"] = bool(meta.get("strict"))
         record_check(status, "sbom", True)
 
         status["release_ready"] = (

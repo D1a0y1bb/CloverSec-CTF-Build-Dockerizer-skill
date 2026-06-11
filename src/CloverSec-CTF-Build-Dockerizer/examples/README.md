@@ -44,3 +44,12 @@
 - `linux-qemu-basic/` 默认只用于渲染与静态校验；完整 QEMU boot 需要替换真实 VM 资产后单独执行。
 - `bundle-*` 默认只保存 `bundle.yaml` 输入和最小应用文件；批量回归会在临时目录渲染后校验。
 - `scenario-compose-import-basic/` 默认生成 `scenario.draft.yaml`、`scenario.renderable.yaml` 与 `import-report.json` 后再校验可渲染子集。
+
+批量回归入口：
+
+```bash
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+```
+
+`validate_examples.sh` 默认只读执行，会把示例复制到临时目录再渲染和校验，不写回本目录。

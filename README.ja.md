@@ -601,6 +601,8 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 | `scripts/publish_release.sh` | commit + push + tag + release 編成 |
 | `scripts/validate_build_test.py` | Build_test 実例プール回帰 |
 | `scripts/linux_qemu_manual_check.sh` | Linux-QEMU release/manual validation |
+| `scripts/golden_snapshot.py` | 主要な生成物の hash snapshot 回帰 |
+| `scripts/platform_matrix.py` | ローカル Docker/QEMU/SBOM tool matrix check |
 | `scripts/generate_sbom.py` | SBOM 生成本体 |
 | `scripts/generate_sbom.sh` | SBOM エントリ |
 | `scripts/sync.py` | ソース同期ロジック |
