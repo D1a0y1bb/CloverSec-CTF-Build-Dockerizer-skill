@@ -26,7 +26,7 @@ def load_yaml_file(path: Path) -> Any:
     except ModuleNotFoundError as exc:
         raise ConfigError(
             "缺少依赖 PyYAML。请先执行："
-            "python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt"
+            "python3 -m pip install -r scripts/requirements.txt"
         ) from exc
 
     if not path.exists():

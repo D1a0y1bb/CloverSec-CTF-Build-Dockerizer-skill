@@ -10,7 +10,7 @@ This example packages a minimal Redis service directory with `stack=baseunit`.
 You can render a similar directory with:
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
+python3 scripts/render_component.py \
   --component redis \
   --variant 7.2-alpine \
   --output /tmp/baseunit-redis-render

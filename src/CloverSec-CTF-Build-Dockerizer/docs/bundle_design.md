@@ -24,7 +24,7 @@ cPanel/WHM-like input should stay on `bundle_recipe` or manual review until a de
 Use:
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py --bundle-dir /tmp/bundle
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
+python3 scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
+python3 scripts/validate_bundle.py --bundle-dir /tmp/bundle
+bash scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
 ```

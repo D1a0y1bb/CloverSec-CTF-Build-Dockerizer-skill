@@ -31,21 +31,23 @@ allowed-tools:
 
 ## 首选入口
 
+本文中的 `scripts/`、`docs/`、`data/`、`templates/`、`examples/` 均相对于本 `SKILL.md` 所在目录。使用已安装 Skill 时，不要给这些路径加源码仓库前缀；先解析 Skill 根目录真实位置，再读取或执行对应文件。
+
 优先使用 `workflow.py`，让输入审计、Proposal Gate、渲染和校验有状态记录：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir <题目目录>
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir <题目目录>
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir <题目目录>
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir <题目目录>
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir <题目目录>
+python3 scripts/workflow.py intake --project-dir <题目目录>
+python3 scripts/workflow.py propose --project-dir <题目目录>
+python3 scripts/workflow.py accept --project-dir <题目目录>
+python3 scripts/workflow.py render --project-dir <题目目录>
+python3 scripts/workflow.py validate --project-dir <题目目录>
 ```
 
 低风险且字段明确的 `challenge.yaml` 可直接调用 `render.py`：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+python3 scripts/render.py --config challenge.yaml --output .
+bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
 
 ## 必须遵守
@@ -60,20 +62,20 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh 
 - Scenario 只用于本地多服务编排和逐服务验证，平台最终交付仍以单服务目录为准。
 - Bundle 只支持固定 Recipe 组合；不支持的组合必须返回 `BUNDLE_UNSUPPORTED_COMBINATION`，不能自动改成别的栈。
 
-平台契约细节读取 `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md`。
+平台契约细节读取 `docs/platform_contract.md`。
 
 ## 输入路由
 
 | 输入状态 | 推荐路径 | 读取资料 |
 |---|---|---|
-| 明确 `challenge.yaml`，低风险 | 输出方案摘要，用户 `OK` 后执行 `render.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/data/schema.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
-| 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | `workflow.py intake/propose/accept/render/validate` | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md`、`src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
-| compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
-| Scenario 正向编排 | 输出服务清单和端口摘要，用户 `OK` 后执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
-| 固定老环境组合 | 输出 Recipe 摘要，用户 `OK` 后执行 `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md`、`src/CloverSec-CTF-Build-Dockerizer/data/bundle_recipes.yaml` |
-| Linux kernel CVE/LPE | `stack=linux-qemu`，release/manual 再跑 `linux_qemu_manual_check.sh` | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
-| RDG/SecOps 需要 check 脚本 | `generate_check_stub.py` 生成骨架，人工确认后移除 `CHECK_REVIEW_REQUIRED` | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
-| 发布包检查 | `release_build.py --with-smoke`，跳过 smoke 必须说明原因 | 根目录 `README.md`、`CHANGELOG.md` |
+| 明确 `challenge.yaml`，低风险 | 输出方案摘要，用户 `OK` 后执行 `render.py` -> `validate.sh` | `data/schema.md`、`docs/stack_cookbook.md` |
+| 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | `workflow.py intake/propose/accept/render/validate` | `scripts/README.md`、`docs/troubleshooting.md` |
+| compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `data/scenario_schema.md` |
+| Scenario 正向编排 | 输出服务清单和端口摘要，用户 `OK` 后执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `data/scenario_schema.md` |
+| 固定老环境组合 | 输出 Recipe 摘要，用户 `OK` 后执行 `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `docs/bundle_design.md`、`data/bundle_recipes.yaml` |
+| Linux kernel CVE/LPE | `stack=linux-qemu`，release/manual 再跑 `linux_qemu_manual_check.sh` | `docs/linux_qemu_manual_validation.md` |
+| RDG/SecOps 需要 check 脚本 | `generate_check_stub.py` 生成骨架，人工确认后移除 `CHECK_REVIEW_REQUIRED` | `docs/validation_guide.md` |
+| 维护本 Skill 源码仓库 | 在源码仓库根目录执行发布治理脚本 | `README.md`、`CHANGELOG.md`、源码仓库 `scripts/` |
 
 ## Proposal Gate
 
@@ -89,7 +91,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh 
 保留手动模式：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
+python3 scripts/render.py \
   --config challenge.yaml \
   --output . \
   --manual \
@@ -117,37 +119,37 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 4. 启动命令
 5. `app_src` -> `app_dst`
 
-详细提案格式读取 `src/CloverSec-CTF-Build-Dockerizer/docs/orchestrated_workflow.md`，新手说明读取 `src/CloverSec-CTF-Build-Dockerizer/docs/beginner_guide.md`，解析使用 `parse_config_block.py`。
+详细提案格式读取 `docs/orchestrated_workflow.md`，新手说明读取 `docs/beginner_guide.md`，解析使用 `parse_config_block.py`。
 
 ## 运行顺序
 
 常规题目：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir <题目目录> --format json --pretty
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config <题目目录>/challenge.yaml --output <题目目录>
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <题目目录>/Dockerfile <题目目录>/start.sh <题目目录>/challenge.yaml
+python3 scripts/derive_config.py --project-dir <题目目录> --format json --pretty
+python3 scripts/render.py --config <题目目录>/challenge.yaml --output <题目目录>
+bash scripts/validate.sh <题目目录>/Dockerfile <题目目录>/start.sh <题目目录>/challenge.yaml
 ```
 
 Scenario：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py --config scenario.yaml --output /tmp/scenario
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py --output /tmp/scenario --validate-rendered
+python3 scripts/render_scenario.py --config scenario.yaml --output /tmp/scenario
+python3 scripts/validate_scenario.py --output /tmp/scenario --validate-rendered
 ```
 
 Bundle：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py --bundle-dir /tmp/bundle
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
+python3 scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
+python3 scripts/validate_bundle.py --bundle-dir /tmp/bundle
+bash scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
 ```
 
 Check-service 骨架：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
+python3 scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
 ```
 
 生成脚本默认带 `CHECK_REVIEW_REQUIRED`，必须人工确认检查逻辑后移除。
@@ -156,35 +158,33 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py --type
 
 | 需要的信息 | 文件 |
 |---|---|
-| 输入字段、`challenge.yaml` 结构 | `src/CloverSec-CTF-Build-Dockerizer/data/schema.md` |
-| 栈选择、运行时档位、Linux-QEMU 配置示例 | `src/CloverSec-CTF-Build-Dockerizer/docs/stack_cookbook.md` |
-| 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `src/CloverSec-CTF-Build-Dockerizer/docs/platform_contract.md` |
-| 校验项、错误码、check-service 门禁 | `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md` |
-| 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `src/CloverSec-CTF-Build-Dockerizer/docs/orchestrated_workflow.md` |
-| 脚本入口和常用命令 | `src/CloverSec-CTF-Build-Dockerizer/scripts/README.md` |
-| Scenario schema 和 compose import 边界 | `src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md` |
-| Bundle/Recipe 边界 | `src/CloverSec-CTF-Build-Dockerizer/docs/bundle_design.md` |
-| Linux-QEMU release/manual 验证 | `src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md` |
-| 常见 render/validate/build/run 问题 | `src/CloverSec-CTF-Build-Dockerizer/docs/troubleshooting.md` |
-| 目录职责 | `src/CloverSec-CTF-Build-Dockerizer/docs/directory_guide.md` |
+| 输入字段、`challenge.yaml` 结构 | `data/schema.md` |
+| 栈选择、运行时档位、Linux-QEMU 配置示例 | `docs/stack_cookbook.md` |
+| 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `docs/platform_contract.md` |
+| 校验项、错误码、check-service 门禁 | `docs/validation_guide.md` |
+| 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `docs/orchestrated_workflow.md` |
+| 脚本入口和常用命令 | `scripts/README.md` |
+| Scenario schema 和 compose import 边界 | `data/scenario_schema.md` |
+| Bundle/Recipe 边界 | `docs/bundle_design.md` |
+| Linux-QEMU release/manual 验证 | `docs/linux_qemu_manual_validation.md` |
+| 常见 render/validate/build/run 问题 | `docs/troubleshooting.md` |
+| 目录职责 | `docs/directory_guide.md` |
 
 读取原则：只读当前任务需要的文件，避免把 schema、栈手册和排障手册一次性全部读入上下文。
 
 ## 发布前验证
 
-普通开发提交至少执行：
+使用已安装 Skill 构建题目时，在 Skill 根目录至少执行：
 
 ```bash
-python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
-find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
-bash scripts/doc_guard.sh
-git diff --check
-python3 scripts/validate_build_test.py
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
-python3 scripts/publish_guard.py stage --root .
+python3 -m py_compile scripts/*.py
+find scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+bash scripts/validate_examples.sh
 ```
 
-正式发布默认执行 Docker smoke：
+维护本 Skill 源码仓库时，源码仓库根目录另有 `doc_guard.sh`、`validate_build_test.py`、`golden_snapshot.py`、`platform_matrix.py`、`publish_guard.py`、`release_build.sh`、`publish_release.sh` 等发布治理脚本。这些脚本不属于题目目录里的交付文件，也不应被当成普通题目构建入口。
+
+正式发布默认执行 Docker smoke，命令在源码仓库根目录运行：
 
 ```bash
 bash scripts/release_build.sh --with-smoke

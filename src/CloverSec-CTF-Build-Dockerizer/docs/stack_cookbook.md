@@ -199,7 +199,7 @@ challenge:
 - 示例：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
+python3 scripts/render_component.py \
   --component mysql \
   --variant 8.0-debian \
   --output /tmp/baseunit-mysql

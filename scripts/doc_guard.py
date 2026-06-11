@@ -142,10 +142,17 @@ def check_missing_refs(root: Path, docs: Iterable[Path]) -> list[str]:
     link_re = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
     seen: set[tuple[str, str]] = set()
     missing: list[str] = []
+    skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
 
     for doc in docs:
         text = read_text(doc)
         candidates = code_re.findall(text) + link_re.findall(text)
+        doc_paths = [root]
+        try:
+            doc.relative_to(skill_dir)
+            doc_paths.insert(0, skill_dir)
+        except ValueError:
+            pass
         for raw in candidates:
             cand = normalize_candidate(raw)
             if not should_check_candidate(cand):
@@ -154,7 +161,7 @@ def check_missing_refs(root: Path, docs: Iterable[Path]) -> list[str]:
             if key in seen:
                 continue
             seen.add(key)
-            if not (root / cand).exists():
+            if not any((base / cand).exists() for base in doc_paths):
                 missing.append(f"{doc}:{cand}")
     return missing
 
@@ -235,6 +242,31 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
     for label, pattern in bulky_patterns.items():
         if re.search(pattern, text, flags=re.MULTILINE):
             counter.log_error(f"SKILL.md 仍包含应迁出的内容：{label}")
+
+
+def check_packaged_runtime_paths(counter: Counter, root: Path) -> None:
+    skill_dir = root / "src" / "CloverSec-CTF-Build-Dockerizer"
+    bad_prefix = "src/CloverSec-CTF-Build-Dockerizer/"
+    hits: list[str] = []
+    for file in sorted(skill_dir.rglob("*")):
+        if not file.is_file():
+            continue
+        data = file.read_bytes()
+        if b"\0" in data:
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if bad_prefix in line:
+                hits.append(f"{file}:{line_no}:{line.strip()}")
+    if hits:
+        counter.log_error("运行时文档不应引用源码仓库路径前缀；发布包内应使用 Skill 根目录相对路径：")
+        for item in hits:
+            print(item, file=sys.stderr)
+    else:
+        counter.log_info("运行时文档路径前缀检查通过")
 
 
 def check_runtime_readmes(counter: Counter, root: Path) -> None:
@@ -427,6 +459,7 @@ def main() -> int:
 
     check_additional_consistency(counter, docs)
     check_skill_progressive_disclosure(counter, root)
+    check_packaged_runtime_paths(counter, root)
     check_runtime_readmes(counter, root)
     check_agent_metadata(counter, root)
 

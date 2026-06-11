@@ -132,7 +132,7 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 4. 启动命令
 5. `app_src -> app_dst`
 
-完整 `CONFIG PROPOSAL` 模板、OK 门槛、gates 处理和失败保护规则见 `src/CloverSec-CTF-Build-Dockerizer/docs/orchestrated_workflow.md`。
+完整 `CONFIG PROPOSAL` 模板、OK 门槛、gates 处理和失败保护规则见 `docs/orchestrated_workflow.md`。
 
 ## 6. 真实业务场景怎么触发
 
@@ -152,13 +152,13 @@ ls ./.trae/skills/CloverSec-CTF-Build-Dockerizer
 
 ```bash
 # 1) 自动提案（可选）
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir . --format json --pretty
+python3 scripts/derive_config.py --project-dir . --format json --pretty
 
 # 2) 渲染
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config challenge.yaml --output .
+python3 scripts/render.py --config challenge.yaml --output .
 
 # 3) 静态校验
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 
 # 4) 本地构建与运行（平台等价）
 docker build -t ctf-web-demo:latest .

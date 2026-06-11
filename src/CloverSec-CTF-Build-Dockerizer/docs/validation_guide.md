@@ -19,13 +19,13 @@
 单题交付目录：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile start.sh challenge.yaml
+bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
 
 写入机器可读摘要：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
+bash scripts/validate.sh \
   --json-summary /tmp/validate-summary.json \
   Dockerfile start.sh challenge.yaml
 ```
@@ -33,7 +33,7 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh \
 Scenario：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+python3 scripts/validate_scenario.py \
   --output /tmp/scenario \
   --validate-rendered
 ```
@@ -41,8 +41,8 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 Bundle：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_bundle.py --bundle-dir /tmp/bundle
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
+python3 scripts/validate_bundle.py --bundle-dir /tmp/bundle
+bash scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle/challenge.yaml
 ```
 
 ## 2. 硬规则
@@ -109,7 +109,7 @@ bash check/check.sh [target_ip] [target_port]
 可用骨架生成器减少重复工作：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py \
+python3 scripts/generate_check_stub.py \
   --type http \
   --output check/check.sh \
   --target-port 80 \
@@ -140,38 +140,34 @@ Docker build、QEMU boot、guest flag 写入和 PoC 复现必须显式选择 `--
 预览安全修复：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --fix Dockerfile start.sh challenge.yaml
+bash scripts/validate.sh --fix Dockerfile start.sh challenge.yaml
 ```
 
 写入安全修复：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --fix-write Dockerfile start.sh challenge.yaml
+bash scripts/validate.sh --fix-write Dockerfile start.sh challenge.yaml
 ```
 
 允许把显式 loopback 绑定参数改写为 `0.0.0.0`：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --fix --fix-loopback Dockerfile start.sh challenge.yaml
+bash scripts/validate.sh --fix --fix-loopback Dockerfile start.sh challenge.yaml
 ```
 
 ## 8. 发布前检查
 
-普通开发提交：
+使用已安装 Skill 构建题目时，在 Skill 根目录至少执行：
 
 ```bash
-python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
-find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
-bash scripts/doc_guard.sh
-git diff --check
-python3 scripts/validate_build_test.py
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
-python3 scripts/golden_snapshot.py
-python3 scripts/platform_matrix.py --profile dev
-python3 scripts/publish_guard.py stage --root .
+python3 -m py_compile scripts/*.py
+find scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+bash scripts/validate_examples.sh
 ```
 
-正式发布：
+维护本 Skill 源码仓库时，仓库根目录还需要执行文档治理、真实样例池、Golden snapshot、平台矩阵、发布守卫和 release build。它们属于源码仓库发布治理，不属于安装后 Skill 的题目构建入口。
+
+正式发布在源码仓库根目录执行：
 
 ```bash
 bash scripts/release_build.sh --with-smoke

@@ -169,7 +169,7 @@ def render_component(args: argparse.Namespace, component: Dict[str, Any], varian
         import yaml
     except ModuleNotFoundError as exc:  # pragma: no cover - dependency hint
         raise ConfigError(
-            "Missing PyYAML. Run: python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt"
+            "Missing PyYAML. Run: python3 -m pip install -r scripts/requirements.txt"
         ) from exc
 
     challenge_path = output_dir / "challenge.yaml"

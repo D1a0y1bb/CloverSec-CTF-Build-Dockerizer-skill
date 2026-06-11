@@ -218,6 +218,26 @@ def assert_no_trailing_whitespace(paths: list[Path]) -> None:
         raise RuntimeError(f"公开发布文件存在行尾空格:\n{preview}{more}")
 
 
+def assert_no_source_path_prefix(paths: list[Path]) -> None:
+    bad_prefix = "src/CloverSec-CTF-Build-Dockerizer/"
+    hits: list[str] = []
+    for file in iter_files(paths):
+        data = file.read_bytes()
+        if b"\0" in data:
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        for line_no, line in enumerate(text.splitlines(), start=1):
+            if bad_prefix in line:
+                hits.append(f"{file}:{line_no}: {line.strip()}")
+    if hits:
+        preview = "\n".join(hits[:50])
+        more = "" if len(hits) <= 50 else f"\n... and {len(hits) - 50} more"
+        raise RuntimeError(f"发布包运行时文档存在源码仓库路径前缀:\n{preview}{more}")
+
+
 def is_git_ignored(repo_root: Path, path: Path) -> bool:
     try:
         rel = path.resolve().relative_to(repo_root.resolve()).as_posix()
@@ -368,6 +388,7 @@ def main() -> int:
         privacy_scan([release_root])
         assert_skillhub_slug(release_root / "SKILL.md")
         assert_no_trailing_whitespace([release_root])
+        assert_no_source_path_prefix([release_root])
         record_check(status, "release_tree_validation", True)
 
         print(f"[INFO] 生成 zip: {zip_path}")

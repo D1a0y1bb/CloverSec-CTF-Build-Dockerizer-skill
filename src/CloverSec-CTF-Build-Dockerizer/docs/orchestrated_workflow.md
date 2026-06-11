@@ -29,7 +29,7 @@ Agent 必须遵守：
 先执行：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/derive_config.py --project-dir <题目目录> --format json --pretty
+python3 scripts/derive_config.py --project-dir <题目目录> --format json --pretty
 ```
 
 从输出中提取 proposed config，并生成 5 项配置提案摘要：
@@ -149,9 +149,9 @@ YAML 块后必须输出：
 确认后执行：
 
 ```bash
-cat <project_dir>/config-proposal.yaml | python3 src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py --output <project_dir>/challenge.yaml
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config <project_dir>/challenge.yaml --output <project_dir>
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh <project_dir>/Dockerfile <project_dir>/start.sh <project_dir>/challenge.yaml
+cat <project_dir>/config-proposal.yaml | python3 scripts/parse_config_block.py --output <project_dir>/challenge.yaml
+python3 scripts/render.py --config <project_dir>/challenge.yaml --output <project_dir>
+bash scripts/validate.sh <project_dir>/Dockerfile <project_dir>/start.sh <project_dir>/challenge.yaml
 ```
 
 如果 validate 出现 ERROR，Agent 必须自动修复并重跑 validate，直到 `ERROR=0` 或明确说明无法自动修复。只有 WARN 时可以继续，但必须说明影响。

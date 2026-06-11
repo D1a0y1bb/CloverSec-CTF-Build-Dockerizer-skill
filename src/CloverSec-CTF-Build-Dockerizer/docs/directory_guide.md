@@ -6,13 +6,13 @@
 - `CHANGELOG.md`
 - `VERSION`
 - `scripts/`（发布治理）
-- `src/CloverSec-CTF-Build-Dockerizer/`（技能主目录）
+- 技能主目录（源码仓库中的 Skill 源目录；发布包内对应 Skill 根目录）
 - `dist/`（发布资产）
 - `开发文档（不同步）/`（本地开发资料，默认不纳入公开同步与发布范围）
 
 ## 技能主目录
 
-`src/CloverSec-CTF-Build-Dockerizer/`：
+发布包内的 Skill 根目录包含：
 
 - `SKILL.md`：技能协议
 - `data/`：schema / stacks / profiles / components / scenario / rules
@@ -33,7 +33,7 @@
 - `publish_guard.py`
 - `publish_release.sh`
 
-### 技能目录 `src/CloverSec-CTF-Build-Dockerizer/scripts/`
+### 技能目录 `scripts/`
 
 用于题目构建链路：
 
@@ -54,4 +54,4 @@
 - 场景编排问题：改 `render_scenario.py` + `validate_scenario.py`
 - 校验误报/漏报：改 `validate.sh` + `data/validate_rules.yaml`
 - 发布问题：改根目录 `scripts/`
-- 公开文档口径问题：优先改 `README.*` 与 `src/CloverSec-CTF-Build-Dockerizer/docs/`，不要把 `开发文档（不同步）/` 作为公开事实来源
+- 公开文档口径问题：优先改 `README.*` 与 `docs/`，不要把 `开发文档（不同步）/` 作为公开事实来源

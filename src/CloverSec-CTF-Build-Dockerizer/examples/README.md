@@ -49,8 +49,8 @@
 批量回归入口：
 
 ```bash
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+bash scripts/validate_examples.sh
+bash scripts/smoke_test.sh
 ```
 
 `validate_examples.sh` 默认只读执行，会把示例复制到临时目录再渲染和校验，不写回本目录。

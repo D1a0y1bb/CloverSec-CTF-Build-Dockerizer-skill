@@ -208,22 +208,22 @@ scenario:
 
 该示例对应目录：
 
-- `src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml`
+- `examples/scenario-vulhub-like-basic/scenario.yaml`
 
 ## 命令示例
 
 渲染：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
-  --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-awd-basic/scenario.yaml \
+python3 scripts/render_scenario.py \
+  --config examples/scenario-awd-basic/scenario.yaml \
   --output /tmp/scenario-awd-basic
 ```
 
 校验：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+python3 scripts/validate_scenario.py \
   --output /tmp/scenario-awd-basic \
   --config /tmp/scenario-awd-basic/scenario.yaml
 ```
@@ -231,7 +231,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 如需额外调用 `validate.sh` 校验每个服务目录，可追加：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+python3 scripts/validate_scenario.py \
   --output /tmp/scenario-awd-basic \
   --config /tmp/scenario-awd-basic/scenario.yaml \
   --validate-rendered
@@ -242,7 +242,7 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
 已有 `docker-compose.yml` 的目录可以先通过 `import_compose.py` 生成审计草案：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
+python3 scripts/import_compose.py \
   --compose docker-compose.yml \
   --output /tmp/compose-import \
   --scenario-name imported-scenario
@@ -259,11 +259,11 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/import_compose.py \
 Vulhub-like 示例渲染与校验：
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_scenario.py \
-  --config src/CloverSec-CTF-Build-Dockerizer/examples/scenario-vulhub-like-basic/scenario.yaml \
+python3 scripts/render_scenario.py \
+  --config examples/scenario-vulhub-like-basic/scenario.yaml \
   --output /tmp/scenario-vulhub-like
 
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/validate_scenario.py \
+python3 scripts/validate_scenario.py \
   --output /tmp/scenario-vulhub-like
 ```
 

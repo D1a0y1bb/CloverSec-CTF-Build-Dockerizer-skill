@@ -10,7 +10,7 @@ This example packages a minimal OpenSSH service directory with `stack=baseunit`.
 You can render a similar directory with:
 
 ```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py \
+python3 scripts/render_component.py \
   --component sshd \
   --variant bookworm \
   --output /tmp/baseunit-sshd-render

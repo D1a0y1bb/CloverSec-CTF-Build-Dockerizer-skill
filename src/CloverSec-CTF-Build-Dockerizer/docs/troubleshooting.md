@@ -23,7 +23,7 @@
 处理：
 
 ```bash
-python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt
+python3 -m pip install -r scripts/requirements.txt
 ```
 
 ### 1.2 报错：模板变量未替换
@@ -42,7 +42,7 @@ python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirement
 
 ## 2. 校验阶段
 
-完整校验规则、ERROR/WARN 语义、check-service 门禁和发布前检查见 `src/CloverSec-CTF-Build-Dockerizer/docs/validation_guide.md`。
+完整校验规则、ERROR/WARN 语义、check-service 门禁和发布前检查见 `docs/validation_guide.md`。
 
 ### 2.1 报错：/start.sh 未复制到根目录
 
@@ -203,7 +203,7 @@ python3 -m pip install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirement
 需要 full run：
 
 ```bash
-LAMP_RUN_MODE=full bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+LAMP_RUN_MODE=full bash scripts/smoke_test.sh
 ```
 
 ### 5.3 linux-qemu 示例默认不 build/run
@@ -216,13 +216,13 @@ LAMP_RUN_MODE=full bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
 需要构建真实资产后的镜像：
 
 ```bash
-LINUX_QEMU_RUN_MODE=build-only bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+LINUX_QEMU_RUN_MODE=build-only bash scripts/smoke_test.sh
 ```
 
 需要完整启动：
 
 ```bash
-LINUX_QEMU_RUN_MODE=full SMOKE_FORCE_RUN=linux-qemu-basic bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
+LINUX_QEMU_RUN_MODE=full SMOKE_FORCE_RUN=linux-qemu-basic bash scripts/smoke_test.sh
 ```
 
 ---
@@ -251,10 +251,10 @@ bash scripts/sync.sh --target-dir /tmp/skills
 
 ```bash
 # 1) 全量静态回归
-bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
+bash scripts/validate_examples.sh
 
 # 2) 单目录渲染+校验
-cd src/CloverSec-CTF-Build-Dockerizer/examples/node-basic
+cd examples/node-basic
 python3 ../../scripts/render.py --config challenge.yaml --output .
 bash ../../scripts/validate.sh Dockerfile start.sh challenge.yaml
 ```
