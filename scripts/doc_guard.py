@@ -298,6 +298,7 @@ def check_runtime_readmes(counter: Counter, root: Path) -> None:
         ),
         skill_dir / "scripts" / "README.md": (
             "verify_asset_manifest.py",
+            "smoke_test.sh --case python-flask-basic",
         ),
     }
     for path, terms in checks.items():
@@ -327,9 +328,6 @@ def check_runtime_docs_focus(counter: Counter, root: Path) -> None:
         "发布前检查",
         "维护本 Skill",
         "validate_examples.sh",
-        "smoke_test.sh",
-        "smoke_assert.sh",
-        "冒烟",
         "批量回归",
     )
     hits: list[str] = []

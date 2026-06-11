@@ -19,6 +19,7 @@
 - `render_scenario.py`：渲染多服务本地编排；用户确认后使用 `--accepted --reason`
 - `validate.sh`：执行硬规则与可配置规则校验，支持 `--json-summary`、`--static-only` 和动态 flag 校验层级标记
 - `validate_scenario.py`：校验 scenario 输出，支持 `--validate-rendered` 和 `--format text|json`
+- `smoke_test.sh`：构建并启动指定示例，执行 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 里的业务入口断言
 - `autofix.py`：`validate.sh --fix/--fix-write` 对应的安全自动修复执行器
 - `linux_qemu_manual_check.sh`：Linux-QEMU guest 启动、guest flag 和 PoC 验证入口，默认只执行 preflight
 - `verify_asset_manifest.py`：校验 Linux-QEMU 外部 VM 资产 manifest 的文件存在、大小和 SHA256
@@ -67,6 +68,7 @@ python3 scripts/import_compose.py --compose docker-compose.yml --output /tmp/com
 python3 scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path / --expect-status 200
 bash scripts/validate.sh --json-summary /tmp/validate-summary.json Dockerfile start.sh challenge.yaml
 bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
+bash scripts/smoke_test.sh --case python-flask-basic
 bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
 python3 scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
 ```
@@ -92,8 +94,9 @@ check-service 生成器说明：
 Validate 分层说明：
 
 - 默认 `validate.sh` 执行静态契约检查和动态 flag 写入检查，并在 `--json-summary` 中写入 `verification.level=contract+dynamic-flag`。
-- `validate.sh` 不证明题目业务可解；需要题目入口验证时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写 HTTP/TCP/container_exec 断言，并执行业务断言验证入口。
-- `challenge.flag.sync_paths` 由生成的 `/changeflag.sh` 同步。若平台只覆盖 `/flag` 后直接启动服务，业务路径不会自动得到动态 flag；真实交付前应执行 `/changeflag.sh` 或 smoke probe 验证。
+- `validate.sh` 不证明题目业务可解；需要题目入口验证时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写 HTTP/TCP/container_exec 断言，再执行 `bash scripts/smoke_test.sh --case <example-name>`。
+- 内置 `python-flask-basic` 已包含 `challenge.verification.solve_probe`，可用 `bash scripts/smoke_test.sh --case python-flask-basic` 直接验证该字段会被读取并执行。
+- `challenge.flag.sync_paths` 由生成的 `/changeflag.sh` 同步。若平台只覆盖 `/flag` 后直接启动服务，业务路径不会自动得到动态 flag；只有用户明确说明平台不会调用 `/changeflag.sh` 时，才把启动时同步写成题目特定兼容逻辑。
 - `--static-only` 只做静态契约检查，适合快速检查 Dockerfile/start.sh/challenge.yaml。
 - 核心校验脚本按 `0=通过、1=契约失败、2=配置/路径/环境错误` 返回。
 - Linux-QEMU boot、guest flag 写入和 PoC 复现使用 `linux_qemu_manual_check.sh`，默认不会在快速校验里自动执行。

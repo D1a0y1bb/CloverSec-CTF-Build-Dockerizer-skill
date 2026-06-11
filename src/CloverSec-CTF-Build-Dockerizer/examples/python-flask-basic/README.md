@@ -13,4 +13,10 @@ docker build -t ctf-python-flask-basic:latest .
 docker run -d -p 5001:5000 ctf-python-flask-basic:latest /start.sh
 ```
 
-只验证本示例时，执行仓库 README 中的单 case 业务入口验证命令。
+只验证本示例的业务入口断言时，在 Skill 根目录执行：
+
+```bash
+bash scripts/smoke_test.sh --case python-flask-basic
+```
+
+该命令会读取本目录 `challenge.yaml` 里的 `challenge.verification.solve_probe`，并检查 HTTP 响应包含 `hello from python-flask-basic`。

@@ -52,6 +52,20 @@ bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
 
 `validate.sh` 的通过结果只代表平台交付契约成立，不代表题目可解。历史题复刻、Pwn flag 路径、业务登录流、漏洞触发路径，需要通过 smoke 业务断言或 PoC 记录补充证明。
 
+执行 `challenge.verification.solve_probe` 的入口是：
+
+```bash
+bash scripts/smoke_test.sh --case <example-name>
+```
+
+内置示例 `python-flask-basic` 已写好 HTTP probe，可直接执行：
+
+```bash
+bash scripts/smoke_test.sh --case python-flask-basic
+```
+
+这个命令会构建并启动示例容器，然后读取 `challenge.yaml` 中的 `challenge.verification.solve_probe`。`validate.sh` 不会执行该 probe。
+
 `--json-summary` 会写入 `verification.level`，Agent 应根据该字段判断本次验证覆盖范围。
 
 Scenario：

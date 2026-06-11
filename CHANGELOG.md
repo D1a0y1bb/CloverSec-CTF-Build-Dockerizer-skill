@@ -4,6 +4,20 @@
 
 ## Unreleased
 
+## v2.2.0-r5 - 2026-06-11
+
+### 修复
+
+- 运行时文档明确 `challenge.verification.solve_probe` 的直接执行入口：`bash scripts/smoke_test.sh --case python-flask-basic`。此前 r4 已有正式 example，但真实 LLM A/B 仍会只给出 `render.py` / `validate.sh`，没有走到业务入口断言。
+- `examples/python-flask-basic/README.md` 不再让用户去仓库根 README 查命令，改为写出安装版 Skill 可直接执行的命令。
+- `SKILL.md`、scripts README 与 `validation_guide.md` 收紧 `flag.sync_paths` 说明：默认同步发生在平台调用 `/changeflag.sh` 时；只有用户明确说明平台不会调用 `/changeflag.sh`，才把启动时同步写成题目特定兼容逻辑。
+- `doc_guard.py` 允许运行时文档引用 `smoke_test.sh`，但继续阻断发布治理和源码维护说明进入 Skill 运行包。
+
+### 验证
+
+- `check_fast.sh` 通过；`smoke_test.sh --case python-flask-basic` 通过并执行 `challenge.verification.solve_probe`；`release_build.sh --with-smoke` 通过，`release_ready=true`。
+- 真实 LLM A/B 使用 `gpt-5.4`、`flag_sync_lifecycle` 和 `solve_probe_example` 两组输入：r4 为 0/2，r5 为 2/2。报告保存在 `开发文档（不同步）/llm_ab_v220_r5_explicit_context_retry_20260611_183710/REPORT.md`。
+
 ## v2.2.0-r4 - 2026-06-11
 
 ### 修复

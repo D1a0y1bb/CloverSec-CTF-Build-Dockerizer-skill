@@ -14,30 +14,30 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r4-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r5-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r4"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r5"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r4</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r5</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.2.0-r4 リリース修正
+## v2.2.0-r5 リリース修正
 
-`v2.2.0-r4` は `v2.2.0` の 4 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。r3 の利用フィードバックで残った、`solve_probe` の正式 example 不足と、`flag.sync_paths` が `/changeflag.sh` で同期されることの説明不足を扱います。
+`v2.2.0-r5` は `v2.2.0` の 5 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。実際の LLM A/B test で見つかった 2 つの Agent guidance 不足を修正します。installed Skill が `solve_probe` 実行コマンドを十分に示していなかった点と、startup-time flag sync を default behavior ではなく challenge-specific choice として説明すべき点です。
 
-この r4 release の主な修正点：
+この r5 release の主な修正点：
 
-- `python-flask-basic` に `challenge.verification.solve_probe` を追加し、examples 内に公式の business entry assertion 例を持たせました。
-- `smoke_test.sh --case python-flask-basic` は `challenge.yaml` から HTTP probe を読み取り、起動した container が `hello from python-flask-basic` を返すことを確認します。
-- `flag.sync_paths` は `/changeflag.sh` による同期機構であることを明記しました。任意の `start.sh` 起動時に `flag0/flag1` などを自動生成する意味ではありません。
-- 実際の Pwn/Web 問題では、ソースを読んで本当の flag path を確認する必要があります。`/flag` を読まない場合は `flag.sync_paths` を設定し、`solve_probe`、`smoke_assert.yaml`、または実際の solve path で検証してください。
+- installed Skill docs に、built-in `solve_probe` example の直接コマンド `bash scripts/smoke_test.sh --case python-flask-basic` を明記しました。
+- `doc_guard.py` は runtime docs の `smoke_test.sh` 記載を許可しつつ、release-governance scripts や source-maintenance notes が runtime package に入ることは引き続き止めます。
+- `flag.sync_paths` の表現をさらに限定しました。同期は platform が `/changeflag.sh` を呼ぶ時に発生します。startup-time sync は、user が platform will not call `/changeflag.sh` と明示した時だけ提案します。
+- publish 前に `flag_sync_lifecycle` と `solve_probe_example` の real LLM A/B を再実行します。
 
-r3 では Pwn/BOF の誤 routing、PHP 7.4 preservation、`accept --refresh`、`--pretty`、business flag path、`solve_probe` 主経路を修正済みです。r4 は公式 example と flag sync 境界を追加し、この挙動を維持しやすくします。
+r4 は official `solve_probe` example と dynamic flag boundary を追加しました。r5 は real use 中に Agent が正しい実行経路を見つけやすくします。
 
 ## v2.2.0 主な更新
 
@@ -819,7 +819,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r4
+bash scripts/publish_release.sh --version v2.2.0-r5
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。
