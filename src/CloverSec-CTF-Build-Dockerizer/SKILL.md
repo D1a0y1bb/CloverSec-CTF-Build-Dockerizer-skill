@@ -31,6 +31,8 @@ allowed-tools:
 
 本文中的 `scripts/`、`docs/`、`data/`、`templates/`、`examples/` 均相对于本 `SKILL.md` 所在目录。使用已安装 Skill 时，不要给这些路径加源码仓库前缀；先解析 Skill 根目录真实位置，再读取或执行对应文件。
 
+输入提示：可直接给 `<path/to/challenge.yaml>`，也可用 `--project-dir <path/to/challenge>` 指向题目目录。
+
 优先使用 `workflow.py`。确认前只执行输入审计、方案生成和状态查看：
 
 ```bash

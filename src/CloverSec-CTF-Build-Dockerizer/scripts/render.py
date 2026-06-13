@@ -273,6 +273,15 @@ def _clean_relpath(value: Any, field_name: str, default: str) -> str:
     return raw
 
 
+def _clean_optional_relpath(value: Any, field_name: str) -> str:
+    if value is None:
+        return ""
+    raw = str(value).strip()
+    if raw.lower() in {"", "none", "null", "false"}:
+        return ""
+    return _clean_relpath(raw, field_name, raw)
+
+
 def _clean_token(value: Any, field_name: str, default: str, *, lower: bool = False) -> str:
     raw = str(first_non_empty(value, default) or default).strip()
     if lower:
@@ -467,6 +476,11 @@ def _normalize_vm_config(vm_cfg: Dict[str, Any], expose_ports: List[str]) -> Dic
 
     guest_flag_path = _clean_guest_abs_path(vm_cfg.get("guest_flag_path"), "challenge.vm.guest_flag_path", "/root/flag")
 
+    if "initrd" in vm_cfg:
+        initrd = _clean_optional_relpath(vm_cfg.get("initrd"), "challenge.vm.initrd")
+    else:
+        initrd = _clean_relpath(None, "challenge.vm.initrd", "vm/initrd.img")
+
     normalized = {
         "arch": arch,
         "qemu_binary": qemu_binary,
@@ -477,7 +491,7 @@ def _normalize_vm_config(vm_cfg: Dict[str, Any], expose_ports: List[str]) -> Dic
         "memory": memory,
         "cpus": str(cpus),
         "kernel": _clean_relpath(vm_cfg.get("kernel"), "challenge.vm.kernel", "vm/vmlinuz"),
-        "initrd": _clean_relpath(vm_cfg.get("initrd"), "challenge.vm.initrd", "vm/initrd.img"),
+        "initrd": initrd,
         "rootfs": rootfs,
         "drive_format": drive_format,
         "append": str(

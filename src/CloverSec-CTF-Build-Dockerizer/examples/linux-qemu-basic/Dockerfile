@@ -31,7 +31,8 @@ RUN set -eux; \
       "/opt/linux-qemu/scripts/build-vm.sh"; \
     fi; \
     test -f "/opt/linux-qemu/vm/vmlinuz"; \
-    test -f "/opt/linux-qemu/vm/initrd.img"; \
+    VM_INITRD=""; \
+    if [ -n "$VM_INITRD" ]; then test -f "/opt/linux-qemu/$VM_INITRD"; fi; \
     test -f "/opt/linux-qemu/vm/rootfs.ext4"
 
 # no docker env

@@ -71,7 +71,7 @@ challenge:
     memory: "768M"
     cpus: 2
     kernel: "vm/vmlinuz"
-    initrd: "vm/initrd.img"
+    initrd: "vm/initrd.img"   # 不需要 initrd 时可显式写成空字符串
     rootfs: "vm/rootfs.ext4"
     drive_format: "raw"
     append: "console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1"

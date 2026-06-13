@@ -20,14 +20,19 @@ fi
 
 QEMU_BINARY="qemu-system-x86_64"
 VM_KERNEL="vm/vmlinuz"
-VM_INITRD="vm/initrd.img"
+VM_INITRD=""
 VM_ROOTFS="vm/rootfs.ext4"
 VM_ACCELERATOR="tcg"
 VM_REQUIRE_KVM="false"
 KERNEL_APPEND='console=ttyS0 root=/dev/vda rw init=/sbin/init panic=-1'
 QEMU_EXTRA_ARGS=""
 
-for required in "${QEMU_BINARY}" "${VM_KERNEL}" "${VM_INITRD}" "${VM_ROOTFS}"; do
+REQUIRED_VM_ASSETS=("${VM_KERNEL}" "${VM_ROOTFS}")
+if [[ -n "${VM_INITRD}" ]]; then
+  REQUIRED_VM_ASSETS+=("${VM_INITRD}")
+fi
+
+for required in "${QEMU_BINARY}" "${REQUIRED_VM_ASSETS[@]}"; do
   if [[ "${required}" == "${QEMU_BINARY}" ]]; then
     command -v "${required}" >/dev/null 2>&1 || {
       echo "[ERROR] QEMU binary 不存在: ${required}" >&2
@@ -75,7 +80,13 @@ QEMU_ARGS=(
   -m "768M"
   -smp "2"
   -kernel "${VM_KERNEL}"
-  -initrd "${VM_INITRD}"
+)
+
+if [[ -n "${VM_INITRD}" ]]; then
+  QEMU_ARGS+=(-initrd "${VM_INITRD}")
+fi
+
+QEMU_ARGS+=(
   -append "${KERNEL_APPEND}"
   -drive "file=${VM_ROOTFS},format=raw,if=virtio"
   -netdev "user,id=net0,hostfwd=tcp::22-:22"

@@ -27,7 +27,8 @@ RUN set -eux; \
       "{{WORKDIR}}/{{VM_BUILD_SCRIPT}}"; \
     fi; \
     test -f "{{WORKDIR}}/{{VM_KERNEL}}"; \
-    test -f "{{WORKDIR}}/{{VM_INITRD}}"; \
+    VM_INITRD="{{VM_INITRD}}"; \
+    if [ -n "$VM_INITRD" ]; then test -f "{{WORKDIR}}/$VM_INITRD"; fi; \
     test -f "{{WORKDIR}}/{{VM_ROOTFS}}"
 
 {{> snippets/env.tpl }}

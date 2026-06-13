@@ -1307,7 +1307,13 @@ run_dynamic_checks() {
     else
       local asset_missing=0
       local asset
-      for asset in "$VM_KERNEL_CFG" "$VM_INITRD_CFG" "$VM_ROOTFS_CFG"; do
+      local vm_assets=("$VM_KERNEL_CFG" "$VM_ROOTFS_CFG")
+      if [[ -n "$VM_INITRD_CFG" ]]; then
+        vm_assets+=("$VM_INITRD_CFG")
+      else
+        log_result INFO "challenge.vm.initrd 为空：按无 initrd 的 Linux-QEMU 配置校验"
+      fi
+      for asset in "${vm_assets[@]}"; do
         if [[ -f "${qemu_base_dir}/${asset}" ]]; then
           log_result INFO "VM 资产存在: ${asset}"
         else

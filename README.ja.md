@@ -14,30 +14,27 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r6-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r7-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r6"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r7"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r6</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r7</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.2.0-r6 リリース修正
+## v2.2.0-r7 リリース修正
 
-`v2.2.0-r6` は `v2.2.0` の 6 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。実利用の feedback で出た inference boundary、Pwn flag path review、低リスク設定向けの reviewed render path を改善します。
+`v2.2.0-r7` は `v2.2.0` の 7 回目のリリース修正版です。`challenge.yaml` contract と通常の単一問題レンダリング挙動は変更しません。公式 Skill validation との互換性、入力ヒントの配置、Docker artifact の archive field、サンプル大容量ファイル管理を扱います。
 
-この r6 release の主な修正点：
+この r7 release の主な修正点：
 
-- `smoke_test.sh` は macOS の `mktemp "...XXXXXX.yaml"` 問題を修正し、生成した `solve_probe` YAML をランダムな一時ディレクトリに書きます。
-- `derive_config.py` は `gates` と `manual_required` を一致させます。既存 `challenge.yaml` が stack、ports、start command を明示している場合、対応する gate を解除します。
-- `audit_input.py` は explicit config と automatic detection を分離します。`challenge.yaml` の stack を優先し、検出結果は `detected_stack_hint` として扱います。
-- Pwn project では source text から `flag0`、`flag1`、`flag.txt`、`/home/ctf/flag*` などを探し、`flag_path_hints` として `challenge.flag.sync_paths` の確認対象にします。
-- `workflow.py reviewed-render --reason "..."` は低リスク入力向けの reviewed render path を追加します。mixed/dirty/high_risk input は引き続き proposal/accept が必要です。
-- `src/CloverSec-CTF-Build-Dockerizer/docs/solve_probe_recipes.md` に HTTP、TCP、container_exec、Pwn nc、dynamic flag path probe の例を追加しました。
+- 公式 Skill validation に合わせ、非標準のトップレベル Skill field を削除しました。`challenge.yaml` と `--project-dir` の入力ヒントは `SKILL.md` と `agents/openai.yaml` に移しています。
+- Docker artifact workflow は引き続き `environment`、`docker_artifacts`、`xlsx_fields` を出力し、amd64 image tar archive と spreadsheet handoff に使えます。
+- Linux-QEMU sample の `initrd.img` を Git 管理対象から外し、`.gitignore` で大容量生成ファイルの再混入を防ぎます。
 
 ## v2.2.0 主な更新
 
@@ -819,7 +816,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r6
+bash scripts/publish_release.sh --version v2.2.0-r7
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

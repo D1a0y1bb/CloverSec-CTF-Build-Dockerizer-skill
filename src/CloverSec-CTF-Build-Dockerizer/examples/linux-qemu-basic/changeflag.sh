@@ -26,6 +26,7 @@ mkdir -p "$(dirname "${TARGET_PATH}")"
 printf '%s\n' "${TARGET_FLAG}" > "${TARGET_PATH}"
 chmod 444 "${TARGET_PATH}" || true
 
+
 if [[ "${FLAG_INJECTION}" == "none" ]]; then
   echo "[INFO] flag updated at ${TARGET_PATH}; guest flag injection disabled"
   exit 0

@@ -20,7 +20,12 @@ VM_REQUIRE_KVM="{{VM_REQUIRE_KVM}}"
 KERNEL_APPEND={{VM_APPEND_QUOTED}}
 QEMU_EXTRA_ARGS="{{VM_EXTRA_ARGS}}"
 
-for required in "${QEMU_BINARY}" "${VM_KERNEL}" "${VM_INITRD}" "${VM_ROOTFS}"; do
+REQUIRED_VM_ASSETS=("${VM_KERNEL}" "${VM_ROOTFS}")
+if [[ -n "${VM_INITRD}" ]]; then
+  REQUIRED_VM_ASSETS+=("${VM_INITRD}")
+fi
+
+for required in "${QEMU_BINARY}" "${REQUIRED_VM_ASSETS[@]}"; do
   if [[ "${required}" == "${QEMU_BINARY}" ]]; then
     command -v "${required}" >/dev/null 2>&1 || {
       echo "[ERROR] QEMU binary 不存在: ${required}" >&2
@@ -68,7 +73,13 @@ QEMU_ARGS=(
   -m "{{VM_MEMORY}}"
   -smp "{{VM_CPUS}}"
   -kernel "${VM_KERNEL}"
-  -initrd "${VM_INITRD}"
+)
+
+if [[ -n "${VM_INITRD}" ]]; then
+  QEMU_ARGS+=(-initrd "${VM_INITRD}")
+fi
+
+QEMU_ARGS+=(
   -append "${KERNEL_APPEND}"
   -drive "file=${VM_ROOTFS},format={{VM_DRIVE_FORMAT}},if=virtio"
   -netdev "{{VM_NETDEV}}"

@@ -14,30 +14,27 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r6-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r7-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r6"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r7"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r6</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r7</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.2.0-r6 Release Fix
+## v2.2.0-r7 Release Fix
 
-`v2.2.0-r6` is the sixth release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It focuses on real-use feedback around inference boundaries, Pwn flag-path review, and a faster reviewed path for low-risk explicit configs.
+`v2.2.0-r7` is the seventh release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract or core single-challenge rendering behavior. It focuses on official Skill validation compatibility, input hint placement, Docker artifact archive fields, and sample large-file management.
 
-This r6 release includes:
+This r7 release includes:
 
-- `smoke_test.sh` fixes the macOS `mktemp "...XXXXXX.yaml"` issue by writing generated `solve_probe` YAML into a random temporary directory.
-- `derive_config.py` keeps `gates` and `manual_required` consistent. When an existing `challenge.yaml` explicitly provides stack, ports, and start command, the matching gates are cleared.
-- `audit_input.py` separates explicit config from automatic detection. `challenge.yaml` stack wins; detector output is reported as `detected_stack_hint` only.
-- Pwn projects scan source text for `flag0`, `flag1`, `flag.txt`, `/home/ctf/flag*`, and similar clues, then emit `flag_path_hints` for user confirmation in `challenge.flag.sync_paths`.
-- `workflow.py reviewed-render --reason "..."` adds a faster reviewed render path for low-risk input; mixed/dirty/high_risk input still requires proposal/accept first.
-- `src/CloverSec-CTF-Build-Dockerizer/docs/solve_probe_recipes.md` adds HTTP, TCP, container_exec, Pwn nc, and dynamic flag-path probe snippets.
+- Non-standard top-level Skill fields were removed for official validation. The `challenge.yaml` and `--project-dir` usage hints now live in `SKILL.md` and `agents/openai.yaml`.
+- The Docker artifact workflow remains available and continues to emit `environment`, `docker_artifacts`, and `xlsx_fields` for amd64 image tar archives and spreadsheet handoff.
+- The Linux-QEMU sample `initrd.img` is removed from Git-managed source, with `.gitignore` preventing the large generated file from returning.
 
 ## v2.2.0 Major Updates
 
@@ -820,7 +817,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r6
+bash scripts/publish_release.sh --version v2.2.0-r7
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

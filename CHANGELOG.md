@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+## v2.2.0-r7 - 2026-06-13
+
+### 修复
+
+- 按官方 Skill 校验规则移除非标准顶层字段，把 `challenge.yaml` 与 `--project-dir` 的输入提示移入 `SKILL.md` 正文和 `agents/openai.yaml` 默认提示。
+- 保留 Docker artifact 工作流，继续输出 `environment`、`docker_artifacts` 与 `xlsx_fields`，用于归档阶段生成 amd64 镜像包、导出 tar 包和表格字段。
+- 删除已不适合随 Git 管理的 Linux-QEMU 示例 `initrd.img`，并通过 `.gitignore` 阻止该大文件再次进入源码提交。
+
+### 验证
+
+- 本版本发布前执行官方 Skill 校验、发布脚本校验与 release build。
+
 ## v2.2.0-r6 - 2026-06-11
 
 ### 修复

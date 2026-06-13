@@ -15,6 +15,18 @@ def pick_bool(source: dict, name: str, default: bool) -> str:
     return "true" if bool(value) else "false"
 
 
+def pick_optional_relpath(source: dict, name: str, default: str) -> str:
+    if name not in source:
+        return default
+    value = source.get(name)
+    if value is None:
+        return ""
+    raw = str(value).strip()
+    if raw.lower() in {"", "none", "null", "false"}:
+        return ""
+    return raw
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         return 0
@@ -107,7 +119,7 @@ def main() -> int:
         "VM_ACCELERATOR_CFG": str(vm.get("accelerator") or "tcg").strip().lower(),
         "VM_REQUIRE_KVM_CFG": pick_bool(vm, "require_kvm", False),
         "VM_KERNEL_CFG": str(vm.get("kernel") or "vm/vmlinuz").strip(),
-        "VM_INITRD_CFG": str(vm.get("initrd") or "vm/initrd.img").strip(),
+        "VM_INITRD_CFG": pick_optional_relpath(vm, "initrd", "vm/initrd.img"),
         "VM_ROOTFS_CFG": str(vm.get("rootfs") or "vm/rootfs.ext4").strip(),
         "VM_ASSET_MODE_CFG": str(vm.get("asset_mode") or "prebuilt").strip().lower(),
         "VM_FLAG_INJECTION_CFG": str(vm.get("flag_injection") or "debugfs").strip().lower(),

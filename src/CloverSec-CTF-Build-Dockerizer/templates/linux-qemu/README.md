@@ -1,6 +1,6 @@
 # linux-qemu 模板
 
-`linux-qemu` 用于 Linux kernel CVE/LPE 题目。外层容器仍按平台契约交付 `/start.sh`、`/changeflag.sh`、`/flag`；真实漏洞内核、initrd/rootfs 在 QEMU guest 中运行。
+`linux-qemu` 用于 Linux kernel CVE/LPE 题目。外层容器仍按平台契约交付 `/start.sh`、`/changeflag.sh`、`/flag`；真实漏洞内核和 rootfs 在 QEMU guest 中运行。需要 initrd 的内核可设置 `challenge.vm.initrd`，不需要时显式写成空字符串。
 
 默认行为：
 
@@ -31,6 +31,8 @@ vm:
   flag_injection: debugfs
   guest_flag_path: /root/flag
 ```
+
+如果内核不需要 initrd，可写 `initrd: ""`，模板会跳过 `-initrd` 参数和对应资产检查。
 
 `guest_forwards[*].proto` 当前版本仅支持 `tcp`（自 `v2.1.0` 起）；如果选择 `qemu-system-aarch64`，Dockerfile 需要包含 `qemu-system-arm` 包。
 
