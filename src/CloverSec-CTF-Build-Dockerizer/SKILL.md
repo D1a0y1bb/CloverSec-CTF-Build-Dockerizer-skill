@@ -3,7 +3,6 @@ name: cloversec-ctf-build-dockerizer
 description: 四叶草安全-创研中心竞赛专用题目容器构建 Skills，面向 Jeopardy/RDG/AWD/AWDP/SecOps/BaseUnit/Bundle/Linux-QEMU/Scenario 本地编排：自动探测、渲染 Dockerfile/start.sh/changeflag.sh/flag/check，并执行契约校验。用于把题目源码、历史 Dockerfile、compose/Vulhub-like 环境、Linux kernel QEMU 题目或 Bundle 老环境整理为可验证的容器交付件。
 metadata:
   short-description: 四叶草安全题目容器交付、BaseUnit/Bundle/Linux-QEMU 构建与 Scenario 编排
-argument-hint: "[path/to/challenge.yaml] 或 --project-dir path/to/challenge"
 allowed-tools:
   - Bash
   - Read
@@ -191,6 +190,40 @@ python3 scripts/generate_check_stub.py --type http --output check/check.sh --tar
 | 目录职责 | `docs/directory_guide.md` |
 
 读取原则：只读当前任务需要的文件，避免把 schema、栈手册和排障手册一次性全部读入上下文。
+
+## Docker Artifact 输出
+
+完成 `render.py` 和 `validate.sh` 后，需要为归档流程生成 Docker artifact 计划时，使用：
+
+```bash
+python3 scripts/docker_artifacts.py plan \
+  --project-dir <题目目录> \
+  --image-name cloversec/example:latest \
+  --tar-path archive/example.tar \
+  --port 18080:80 \
+  --output docker_artifacts.json
+```
+
+该脚本默认使用 `linux/amd64`，并输出：
+
+- `environment`
+- `docker_artifacts`
+- `xlsx_fields`
+
+需要真实执行 Docker 时，只在用户确认后运行：
+
+```bash
+python3 scripts/docker_artifacts.py execute --plan docker_artifacts.json --steps build,run,save_image_tar,inspect_image --output docker_artifacts.executed.json
+```
+
+需要检查镜像架构时，先导出 inspect JSON，再校验：
+
+```bash
+docker image inspect cloversec/example:latest > image.inspect.json
+python3 scripts/docker_artifacts.py validate-artifacts --plan docker_artifacts.executed.json --inspect-json image.inspect.json --output docker_artifacts.validated.json
+```
+
+不要把未执行的 Docker build/run/save/load 说成已验证。
 
 ## 输出汇报要求
 

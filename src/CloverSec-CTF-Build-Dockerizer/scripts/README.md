@@ -23,6 +23,7 @@
 - `autofix.py`：`validate.sh --fix/--fix-write` 对应的安全自动修复执行器
 - `linux_qemu_manual_check.sh`：Linux-QEMU guest 启动、guest flag 和 PoC 验证入口，默认只执行 preflight
 - `verify_asset_manifest.py`：校验 Linux-QEMU 外部 VM 资产 manifest 的文件存在、大小和 SHA256
+- `docker_artifacts.py`：生成 Docker build/run/save/load/import 计划，执行选定步骤，并输出 `environment`、`docker_artifacts`、`xlsx_fields`
 - `utils.py`：模板 include、变量渲染、推断与通用函数
 
 ## 常用命令
@@ -77,6 +78,7 @@ bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
 bash scripts/smoke_test.sh --case python-flask-basic
 bash scripts/linux_qemu_manual_check.sh --mode preflight --case-dir /path/to/linux-qemu/code --asset-manifest /path/to/asset_manifest.yaml
 python3 scripts/verify_asset_manifest.py --manifest /path/to/asset_manifest.yaml
+python3 scripts/docker_artifacts.py plan --project-dir . --image-name cloversec/example:latest --tar-path archive/example.tar --port 18080:80 --output docker_artifacts.json
 ```
 
 校验规则详解见 `docs/validation_guide.md`。
@@ -107,3 +109,11 @@ Validate 分层说明：
 - `--static-only` 只做静态契约检查，适合快速检查 Dockerfile/start.sh/challenge.yaml。
 - 核心校验脚本按 `0=通过、1=契约失败、2=配置/路径/环境错误` 返回。
 - Linux-QEMU boot、guest flag 写入和 PoC 复现使用 `linux_qemu_manual_check.sh`，默认不会在快速校验里自动执行。
+
+Docker artifact 说明：
+
+- 默认平台为 `linux/amd64`，计划中的 `docker build` 使用 `--platform linux/amd64`。
+- `plan` 只生成命令和元数据，不执行 Docker。
+- `execute` 会执行计划里的指定步骤，例如 `build,run,save_image_tar,inspect_image`。
+- `validate-artifacts` 可读取 `docker image inspect` 导出的 JSON，并检查平台是否等于 `linux/amd64`。
+- image tar 使用 `docker save` / `docker load`；如传入 `--container-tar-path`，同时生成 `docker export` / `docker import` 命令。
