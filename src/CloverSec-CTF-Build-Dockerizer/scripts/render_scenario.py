@@ -18,7 +18,7 @@ RENDER_COMPONENT_PY = SCRIPT_DIR / "render_component.py"
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from utils import ConfigError, ensure_dict, ensure_list, load_yaml_file  # noqa: E402
+from utils import ConfigError, ensure_dict, ensure_list, load_yaml_file, write_unix_text  # noqa: E402
 
 ALLOWED_PROFILES = {"jeopardy", "rdg", "awd", "awdp", "secops"}
 
@@ -41,7 +41,7 @@ def dump_yaml(data: Dict[str, Any], output: Path) -> None:
         import yaml
     except ModuleNotFoundError as exc:
         raise ConfigError("缺少 PyYAML，请先安装 requirements.txt") from exc
-    output.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    write_unix_text(output, yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
 
 
 def load_scenario(path: Path) -> Dict[str, Any]:

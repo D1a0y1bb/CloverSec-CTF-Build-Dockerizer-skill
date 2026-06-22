@@ -22,6 +22,7 @@ from utils import (  # noqa: E402
     load_profile_defs,
     load_stack_defs,
     normalize_ports,
+    write_unix_text,
 )
 
 ALLOWED_STACKS = {
@@ -485,8 +486,7 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
 
 def write_yaml(data: Dict[str, Any], output: Path) -> None:
     yaml_mod = _load_yaml_module()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(yaml_mod.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    write_unix_text(output, yaml_mod.safe_dump(data, sort_keys=False, allow_unicode=True))
 
 
 def main() -> int:

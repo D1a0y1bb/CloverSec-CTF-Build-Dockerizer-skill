@@ -30,11 +30,19 @@ from utils import (  # noqa: E402
     load_stack_defs,
     load_yaml_file,
     normalize_ports,
+    write_unix_text,
 )
 from audit_input import audit_project  # noqa: E402
 
 
 _DOCKER_FROM_RE = re.compile(r"^[ \t]*FROM[ \t]+(?:--platform=[^ \t\r\n]+[ \t]+)?([^ \t\r\n]+)", re.IGNORECASE | re.MULTILINE)
+SOURCE_BLOCKING_FINDINGS = {
+    "PYTHON_LOCAL_IMPORT_MISSING",
+    "FLASK_TEMPLATE_MISSING",
+    "PYTHON_DEPENDENCY_DECLARATION_MISSING",
+    "FLASK_START_COMMAND_UNCONFIRMED",
+    "FLAG_ENV_NEEDS_PLATFORM_SYNC",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -989,6 +997,16 @@ def derive(project_dir: Path) -> Dict[str, Any]:
             stack_guess=proposal["stack_guess"],
             config_proposal=proposal["config_proposal"],
         )
+    source_findings = [
+        item
+        for item in proposal["input_audit"].get("findings", [])
+        if isinstance(item, dict) and str(item.get("code") or "") in SOURCE_BLOCKING_FINDINGS
+    ]
+    proposal["source_integrity_findings"] = source_findings
+    proposal["blocking_source_findings_count"] = len(source_findings)
+    if source_findings:
+        proposal["gates"]["requires_start_cmd_confirm"] = True
+        proposal["input_audit"]["gates"] = proposal["gates"]
     effective_stack = str(proposal["input_audit"].get("stack_id") or stack_id)
     if challenge_doc and effective_stack:
         proposal["config_proposal"]["stack"] = effective_stack
@@ -1042,8 +1060,7 @@ def write_output(data: Dict[str, Any], fmt: str, output: str, pretty: bool) -> N
         return
 
     out_path = Path(output).resolve()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(rendered, encoding="utf-8")
+    write_unix_text(out_path, rendered)
 
 
 def main() -> int:

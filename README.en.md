@@ -14,17 +14,28 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r7-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r8-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r7"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r8"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r7</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r8</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
+
+## v2.2.0-r8 Release Fix
+
+`v2.2.0-r8` is the eighth release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract. It addresses real-use issues around Python Web source proposals, newline format, and dynamic flag validation.
+
+This r8 release includes:
+
+- Python Web source audit now reports missing local imports, Flask templates, dependency declarations, start-command evidence, and `FLAG` / `CTF_FLAG` environment-variable reads. Blocking findings stop `auto-render` and require manual confirmation.
+- Rendered and derived outputs use LF newlines for platform delivery scripts and generated config files.
+- `validate.sh` reports CRLF explicitly and validates dynamic flag updates through positional argument, `FLAG`, and `CTF_FLAG`.
+- `workflow.py auto-render` runs dynamic flag validation by default, reducing cases where static checks pass but platform flag updates fail.
 
 ## v2.2.0-r7 Release Fix
 
@@ -817,7 +828,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r7
+bash scripts/publish_release.sh --version v2.2.0-r8
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

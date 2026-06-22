@@ -259,6 +259,11 @@ contains_re() {
   grep -Eiq -- "$pattern" "$file"
 }
 
+file_has_crlf() {
+  local file="$1"
+  LC_ALL=C grep -q $'\r' "$file"
+}
+
 extract_base_image() {
   local from_line
   from_line="$(grep -Ei '^[[:space:]]*FROM[[:space:]]+' "$DOCKERFILE" | head -n1 || true)"
@@ -421,7 +426,9 @@ validate_changeflag_dynamic_write() {
     return
   fi
 
-  if contains_re "$changeflag_host" 'TARGET_FLAG=.*\$\{[^[:space:]]*flag\{'; then
+  if contains_re "$changeflag_host" 'TARGET_FLAG=.*\$\{[^[:space:]]*flag\{' \
+    || contains_re "$changeflag_host" '\$\{1:-\$\{(FLAG|CTF_FLAG):-' \
+    || contains_re "$changeflag_host" '\$\{(FLAG|CTF_FLAG):-[^}]*flag\{'; then
     log_result ERROR "changeflag.sh 使用嵌套参数展开直接包含 flag{...} 默认值，传入动态 flag 时可能产生多余字符。修复：改用 if/elif/else 明确赋值。"
   else
     log_result INFO "changeflag.sh 未检测到 flag{...} 嵌套参数展开风险"
@@ -434,29 +441,53 @@ validate_changeflag_dynamic_write() {
 
   local tmp_dir
   tmp_dir="$(mktemp -d "/tmp/ctf-changeflag-XXXXXX")"
-  local expected="flag{validate_dynamic_flag}"
-  local target="${tmp_dir}/flag"
-  local stdout_file="${tmp_dir}/stdout.txt"
-  local stderr_file="${tmp_dir}/stderr.txt"
+  local mode
+  for mode in arg FLAG CTF_FLAG; do
+    local expected="flag{validate_dynamic_flag_${mode}}"
+    local target="${tmp_dir}/flag-${mode}"
+    local stdout_file="${tmp_dir}/stdout-${mode}.txt"
+    local stderr_file="${tmp_dir}/stderr-${mode}.txt"
+    rm -f "$target"
 
-  if FLAG_PATH="$target" FLAG_INJECTION=none CTFBUILD_SKIP_SYNC_PATHS=1 bash "$changeflag_host" "$expected" >"$stdout_file" 2>"$stderr_file"; then
+    local ok="false"
+    case "$mode" in
+      arg)
+        if FLAG_PATH="$target" FLAG_INJECTION=none CTFBUILD_SKIP_SYNC_PATHS=1 bash "$changeflag_host" "$expected" >"$stdout_file" 2>"$stderr_file"; then
+          ok="true"
+        fi
+        ;;
+      FLAG)
+        if FLAG_PATH="$target" FLAG="$expected" FLAG_INJECTION=none CTFBUILD_SKIP_SYNC_PATHS=1 bash "$changeflag_host" >"$stdout_file" 2>"$stderr_file"; then
+          ok="true"
+        fi
+        ;;
+      CTF_FLAG)
+        if FLAG_PATH="$target" CTF_FLAG="$expected" FLAG_INJECTION=none CTFBUILD_SKIP_SYNC_PATHS=1 bash "$changeflag_host" >"$stdout_file" 2>"$stderr_file"; then
+          ok="true"
+        fi
+        ;;
+    esac
+
+    if [[ "$ok" != "true" ]]; then
+      log_result ERROR "changeflag.sh 动态 flag 写入测试执行失败：${mode}。"
+      if [[ -s "$stderr_file" ]]; then
+        sed -n '1,5p' "$stderr_file" >&2 || true
+      fi
+      continue
+    fi
+
     if [[ ! -f "$target" ]]; then
-      log_result ERROR "changeflag.sh 执行成功但没有写入 FLAG_PATH 指定文件。"
+      log_result ERROR "changeflag.sh 执行成功但没有写入 FLAG_PATH 指定文件：${mode}。"
     else
       local actual
       actual="$(tr -d '\r' < "$target" | sed -E 's/[[:space:]]+$//')"
       if [[ "$actual" == "$expected" ]]; then
-        log_result INFO "changeflag.sh 动态 flag 写入测试通过"
+        log_result INFO "changeflag.sh 动态 flag 写入测试通过：${mode}"
       else
-        log_result ERROR "changeflag.sh 动态 flag 写入不一致：期望 ${expected}，实际 ${actual}。"
+        log_result ERROR "changeflag.sh 动态 flag 写入不一致：${mode}，期望 ${expected}，实际 ${actual}。"
       fi
     fi
-  else
-    log_result ERROR "changeflag.sh 动态 flag 写入测试执行失败。"
-    if [[ -s "$stderr_file" ]]; then
-      sed -n '1,5p' "$stderr_file" >&2 || true
-    fi
-  fi
+  done
 
   rm -rf "$tmp_dir"
 }
@@ -767,6 +798,21 @@ rule_scope_file() {
 run_hard_rules() {
   echo "[A] 平台必需硬规则"
 
+  local newline_file
+  local newline_files=("$DOCKERFILE" "$START_SH")
+  local changeflag_for_newline
+  changeflag_for_newline="$(cd "$(dirname "$START_SH")" && pwd)/changeflag.sh"
+  if [[ -f "$changeflag_for_newline" ]]; then
+    newline_files+=("$changeflag_for_newline")
+  fi
+  for newline_file in "${newline_files[@]}"; do
+    if file_has_crlf "$newline_file"; then
+      log_result ERROR "$(basename "$newline_file") 使用 CRLF/Windows 换行，Linux Bash 可能解析失败。请转换为 LF。"
+    else
+      log_result INFO "$(basename "$newline_file") 使用 LF 换行"
+    fi
+  done
+
   local stack_cfg=""
   if [[ -n "$CHALLENGE_YAML" && -f "$CHALLENGE_YAML" ]]; then
     stack_cfg="$(parse_challenge_stack "$CHALLENGE_YAML" || true)"
@@ -826,6 +872,24 @@ run_hard_rules() {
     log_result INFO "start.sh 首行是 #!/bin/bash"
   else
     log_result ERROR "start.sh 首行必须是 #!/bin/bash。修复：将 shebang 改为 #!/bin/bash。"
+  fi
+  local start_syntax_error
+  if start_syntax_error="$(bash -n "$START_SH" 2>&1)"; then
+    log_result INFO "start.sh 通过 bash -n 语法检查"
+  else
+    start_syntax_error="${start_syntax_error//$'\n'/; }"
+    log_result ERROR "start.sh 存在 shell 语法错误：${start_syntax_error}"
+  fi
+  local changeflag_path
+  changeflag_path="$(dirname "$START_SH")/changeflag.sh"
+  if [[ -f "$changeflag_path" ]]; then
+    local changeflag_syntax_error
+    if changeflag_syntax_error="$(bash -n "$changeflag_path" 2>&1)"; then
+      log_result INFO "changeflag.sh 通过 bash -n 语法检查"
+    else
+      changeflag_syntax_error="${changeflag_syntax_error//$'\n'/; }"
+      log_result ERROR "changeflag.sh 存在 shell 语法错误：${changeflag_syntax_error}"
+    fi
   fi
 
   local unrendered_vars

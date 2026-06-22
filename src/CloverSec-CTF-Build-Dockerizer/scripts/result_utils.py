@@ -41,13 +41,22 @@ def dump_json(payload: Dict[str, Any], *, pretty: bool = False) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2 if pretty else None, sort_keys=pretty)
 
 
-def write_json(path: Path, payload: Dict[str, Any], *, pretty: bool = True) -> None:
+def normalize_unix_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def write_unix_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(dump_json(payload, pretty=pretty) + "\n", encoding="utf-8")
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(normalize_unix_newlines(text))
+
+
+def write_json(path: Path, payload: Dict[str, Any], *, pretty: bool = True) -> None:
+    write_unix_text(path, dump_json(payload, pretty=pretty) + "\n")
 
 
 def read_json(path: Path) -> Dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
 def sha256_file(path: Path) -> str:

@@ -19,6 +19,17 @@ class ConfigError(Exception):
     """用户输入或模板渲染相关错误。"""
 
 
+def normalize_unix_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def write_unix_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = normalize_unix_newlines(text)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(normalized)
+
+
 def load_yaml_file(path: Path) -> Any:
     """加载 YAML；若缺少 PyYAML，抛出带安装提示的异常。"""
     try:

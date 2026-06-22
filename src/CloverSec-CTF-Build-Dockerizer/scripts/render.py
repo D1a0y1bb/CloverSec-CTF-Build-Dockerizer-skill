@@ -67,6 +67,7 @@ from utils import (  # noqa: E402
     render_template,
     resolve_runtime_profile_base_image,
     validate_rendered,
+    write_unix_text,
 )
 from audit_input import audit_project, proposal_gate_required  # noqa: E402
 from result_utils import dump_json, read_json, sha256_file, structured_error, structured_ok  # noqa: E402
@@ -1247,14 +1248,15 @@ def render_files(context: Dict[str, Any]) -> None:
         os.chmod(changeflag_out, 0o644)
     flag_sync_block = _render_flag_sync_block(context.get("flag_sync_paths", []))
 
-    docker_out.write_text(rendered_docker.rstrip() + "\n", encoding="utf-8")
-    start_out.write_text(rendered_start.rstrip() + "\n", encoding="utf-8")
+    write_unix_text(docker_out, rendered_docker.rstrip() + "\n")
+    write_unix_text(start_out, rendered_start.rstrip() + "\n")
     if context.get("stack_id") == "linux-qemu":
         vm = context.get("vm", {}) if isinstance(context.get("vm"), dict) else {}
         rootfs_path = str(vm.get("rootfs", "vm/rootfs.ext4"))
         guest_flag_path = str(vm.get("guest_flag_path", "/root/flag"))
         flag_injection = str(vm.get("flag_injection", "debugfs"))
-        changeflag_out.write_text(
+        write_unix_text(
+            changeflag_out,
             "#!/bin/bash\n"
             "set -euo pipefail\n\n"
             "# linux-qemu 动态 flag 写入入口：保留外层 /flag，并按配置写入 guest rootfs。\n"
@@ -1306,14 +1308,14 @@ def render_files(context: Dict[str, Any]) -> None:
             "debugfs -w -R \"set_inode_field ${GUEST_FLAG_PATH} gid 0\" \"${VM_ROOTFS}\" >/dev/null || true\n"
             "rm -f \"${tmp_flag}\"\n"
             "echo \"[INFO] flag updated at ${TARGET_PATH} and guest:${GUEST_FLAG_PATH}\"\n",
-            encoding="utf-8",
         )
     else:
-        changeflag_out.write_text(
+        write_unix_text(
+            changeflag_out,
             "#!/bin/bash\n"
             "set -euo pipefail\n\n"
             "# 平台动态 flag 写入入口。优先使用 FLAG/CTF_FLAG 环境变量，"
-            "未提供时允许将第一个参数作为兜底值。\n"
+            "未提供时允许将第一个参数作为默认值。\n"
             "TARGET_PATH=\"${FLAG_PATH:-/flag}\"\n"
             "DEFAULT_FLAG=\"flag{dynamic_flag_placeholder}\"\n"
             "if [[ -n \"${FLAG:-}\" ]]; then\n"
@@ -1334,7 +1336,6 @@ def render_files(context: Dict[str, Any]) -> None:
             "chmod 444 \"${TARGET_PATH}\" || true\n"
             f"{flag_sync_block}"
             "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n",
-            encoding="utf-8",
         )
 
     os.chmod(start_out, 0o755)
@@ -1344,12 +1345,12 @@ def render_files(context: Dict[str, Any]) -> None:
     if include_flag_artifact:
         flag_default = "flag{static_test_flag}\n"
         if not flag_out.exists():
-            flag_out.write_text(flag_default, encoding="utf-8")
+            write_unix_text(flag_out, flag_default)
         else:
             current = flag_out.read_text(encoding="utf-8", errors="ignore")
             if not current.strip() or current.strip().lower() == "flag{}":
                 os.chmod(flag_out, 0o644)
-                flag_out.write_text(flag_default, encoding="utf-8")
+                write_unix_text(flag_out, flag_default)
         os.chmod(flag_out, 0o444)
 
     generated_check_script: str | None = None
@@ -1359,7 +1360,8 @@ def render_files(context: Dict[str, Any]) -> None:
         )
         if not check_path.exists():
             check_path.parent.mkdir(parents=True, exist_ok=True)
-            check_path.write_text(
+            write_unix_text(
+                check_path,
                 "#!/bin/bash\n"
                 "set -euo pipefail\n\n"
                 "# CHECK_IMPLEMENT_ME: replace this scaffold with real check-service logic.\n"
@@ -1374,7 +1376,6 @@ def render_files(context: Dict[str, Any]) -> None:
                 "echo \"[CHECK] CHECK_IMPLEMENT_ME: add service health + exploit-negative checks\"\n"
                 "echo \"[CHECK] target=${TARGET_IP}:${TARGET_PORT}\"\n"
                 "exit 1\n",
-                encoding="utf-8",
             )
         if check_path.is_file():
             os.chmod(check_path, 0o755)
@@ -1389,13 +1390,14 @@ def render_files(context: Dict[str, Any]) -> None:
         patch_src.mkdir(parents=True, exist_ok=True)
         readme = patch_src / "README.md"
         if not any(patch_src.iterdir()):
-            readme.write_text(
+            write_unix_text(
+                readme,
                 "# AWDP Patch Source\n\n"
                 "将需要替换的修复文件放到本目录中，保持相对业务目录结构。\n",
-                encoding="utf-8",
             )
         if not patch_script.exists():
-            patch_script.write_text(
+            write_unix_text(
+                patch_script,
                 "#!/bin/bash\n"
                 "set -euo pipefail\n\n"
                 "PATCH_ROOT=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n"
@@ -1408,7 +1410,6 @@ def render_files(context: Dict[str, Any]) -> None:
                 "mkdir -p \"${TARGET_DIR}\"\n"
                 "cp -a \"${PATCH_SRC}/.\" \"${TARGET_DIR}/\"\n"
                 "echo \"[INFO] patch files copied into ${TARGET_DIR}\"\n",
-                encoding="utf-8",
             )
         os.chmod(patch_script, 0o755)
         _build_deterministic_patch_bundle(patch_bundle, patch_script, patch_src)

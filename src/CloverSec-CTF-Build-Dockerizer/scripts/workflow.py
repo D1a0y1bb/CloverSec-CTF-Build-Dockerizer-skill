@@ -8,11 +8,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
-from audit_input import audit_project, proposal_gate_required
+from audit_input import audit_project, can_auto_proceed, proposal_gate_required
 from derive_config import derive
 from parse_config_block import _extract_proposal, _load_yaml_module, build_challenge, write_yaml
 from result_utils import dump_json, read_json, sha256_file, structured_error, structured_ok, write_json
-from utils import ConfigError
+from utils import ConfigError, write_unix_text
 
 
 SCHEMA_VERSION = "1.0"
@@ -119,10 +119,7 @@ def command_propose(args: argparse.Namespace) -> int:
     state_dir(project_dir).mkdir(parents=True, exist_ok=True)
     write_json(proposal_json_path(project_dir), proposal)
     yaml_mod = _load_yaml_module()
-    proposal_yaml_path(project_dir).write_text(
-        yaml_mod.safe_dump(proposal, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-    )
+    write_unix_text(proposal_yaml_path(project_dir), yaml_mod.safe_dump(proposal, sort_keys=False, allow_unicode=True))
     challenge_path = default_challenge_path(project_dir)
     audit = audit_project(project_dir, challenge_path=challenge_path) if challenge_path.exists() else proposal["input_audit"]
     write_session(project_dir, stage="proposal_ready", audit=audit, challenge_path=default_challenge_path(project_dir))
@@ -322,6 +319,174 @@ def command_reviewed_render(args: argparse.Namespace) -> int:
     return result.returncode
 
 
+def _derive_challenge_yaml(project_dir: Path, challenge_path: Path, *, name: str = "") -> Dict[str, Any]:
+    proposal = derive(project_dir)
+    state_dir(project_dir).mkdir(parents=True, exist_ok=True)
+    write_json(proposal_json_path(project_dir), proposal)
+    yaml_mod = _load_yaml_module()
+    write_unix_text(proposal_yaml_path(project_dir), yaml_mod.safe_dump(proposal, sort_keys=False, allow_unicode=True))
+    config_proposal = _extract_proposal(proposal)
+    challenge_doc = build_challenge(config_proposal, SimpleNamespace(name=name, output=str(challenge_path)))
+    write_yaml(challenge_doc, challenge_path)
+    return proposal
+
+
+def command_auto_render(args: argparse.Namespace) -> int:
+    project_dir = Path(args.project_dir).resolve()
+    challenge_path = Path(args.config).resolve() if args.config else default_challenge_path(project_dir)
+    output_dir = Path(args.output).resolve() if args.output else default_render_dir(project_dir)
+    json_summary = Path(args.json_summary).resolve() if args.json_summary else state_dir(project_dir) / "validate-summary.json"
+    state_dir(project_dir).mkdir(parents=True, exist_ok=True)
+
+    initial_audit = audit_project(project_dir, challenge_path=challenge_path if challenge_path.exists() else None)
+    can_auto, blockers = can_auto_proceed(initial_audit)
+    if not can_auto:
+        payload = structured_error(
+            "auto-render",
+            "AUTO_RENDER_BLOCKED",
+            "当前题目目录不适合自动生成平台交付件。",
+            file=str(project_dir),
+            hint="先人工处理阻塞项，再重新运行 auto-render。",
+        )
+        payload.update({"blockers": blockers, "input_audit": initial_audit})
+        write_session(project_dir, stage="auto_render_blocked", audit=initial_audit, challenge_path=challenge_path, last_result=payload)
+        emit(payload, args.format)
+        return 2
+
+    derived_proposal: Dict[str, Any] = {}
+    derived_challenge = False
+    if not challenge_path.exists():
+        try:
+            derived_proposal = _derive_challenge_yaml(project_dir, challenge_path, name=args.name or "")
+            derived_challenge = True
+        except ConfigError as exc:
+            payload = structured_error(
+                "auto-render",
+                "AUTO_RENDER_DERIVE_FAILED",
+                str(exc),
+                file=str(challenge_path),
+                hint="检查目录是否包含可推断的源码、端口和启动方式。",
+            )
+            payload.update({"input_audit": initial_audit})
+            write_session(project_dir, stage="auto_render_failed", audit=initial_audit, challenge_path=challenge_path, last_result=payload)
+            emit(payload, args.format)
+            return 2
+
+    audit = audit_project(project_dir, challenge_path=challenge_path)
+    can_auto, blockers = can_auto_proceed(audit)
+    if not can_auto:
+        payload = structured_error(
+            "auto-render",
+            "AUTO_RENDER_BLOCKED_AFTER_DERIVE",
+            "推导 challenge.yaml 后仍不适合自动生成平台交付件。",
+            file=str(challenge_path),
+            hint="保留已生成的 challenge.yaml，人工修订后重新运行 auto-render。",
+        )
+        payload.update({"blockers": blockers, "input_audit": audit})
+        write_session(project_dir, stage="auto_render_blocked", audit=audit, challenge_path=challenge_path, last_result=payload)
+        emit(payload, args.format)
+        return 2
+
+    render_cmd: List[str] = [
+        sys.executable,
+        str(RENDER_PY),
+        "--config",
+        str(challenge_path),
+        "--output",
+        str(output_dir),
+        "--format",
+        args.format,
+        "--manual",
+        "--reason",
+        "auto-render: Dockerizer handoff generated by CloverSec workflow",
+    ]
+    render_result = subprocess.run(render_cmd, cwd=str(project_dir), text=True, capture_output=True)
+    if render_result.stdout:
+        sys.stdout.write(render_result.stdout)
+    if render_result.stderr:
+        sys.stderr.write(render_result.stderr)
+    if render_result.returncode != 0:
+        payload = structured_error(
+            "auto-render",
+            "AUTO_RENDER_RENDER_FAILED",
+            "平台交付文件生成失败。",
+            file=str(challenge_path),
+        )
+        payload.update({"returncode": render_result.returncode, "stdout": render_result.stdout, "stderr": render_result.stderr})
+        write_session(project_dir, stage="auto_render_failed", audit=audit, challenge_path=challenge_path, last_result=payload)
+        emit(payload, args.format)
+        return render_result.returncode
+
+    validate_cmd = [
+        "bash",
+        str(VALIDATE_SH),
+        "--with-dynamic-flag",
+        "--json-summary",
+        str(json_summary),
+        str(output_dir / "Dockerfile"),
+        str(output_dir / "start.sh"),
+        str(challenge_path),
+    ]
+    validate_result = subprocess.run(validate_cmd, cwd=str(project_dir), text=True, capture_output=True)
+    if validate_result.stdout:
+        sys.stdout.write(validate_result.stdout)
+    if validate_result.stderr:
+        sys.stderr.write(validate_result.stderr)
+
+    stage = "auto_render_validated" if validate_result.returncode == 0 else "auto_render_failed"
+    last_result = {
+        "ok": validate_result.returncode == 0,
+        "returncode": validate_result.returncode,
+        "challenge_path": str(challenge_path),
+        "output_dir": str(output_dir),
+        "validate_summary": str(json_summary),
+        "derived_challenge": derived_challenge,
+        "assumptions": [
+            "auto-render 只完成平台交付文件生成和契约校验",
+            "真实 Docker build/run/export 仍需后续授权执行",
+        ],
+        "unconfirmed": [
+            "题目是否可解",
+            "动态 flag 是否被业务逻辑正确读取",
+            "运行时服务是否符合原题预期",
+        ],
+        "blockers": [] if validate_result.returncode == 0 else ["validate.sh 契约校验未通过"],
+    }
+    if derived_proposal:
+        last_result["proposal_path"] = str(proposal_yaml_path(project_dir))
+    write_session(project_dir, stage=stage, audit=audit, challenge_path=challenge_path, last_result=last_result)
+    if validate_result.returncode != 0:
+        payload = structured_error(
+            "auto-render",
+            "AUTO_RENDER_VALIDATE_FAILED",
+            "平台交付文件已生成，但契约校验未通过。",
+            file=str(json_summary),
+        )
+        payload.update(
+            {
+                "returncode": validate_result.returncode,
+                "output_dir": str(output_dir),
+                "validate_summary": str(json_summary),
+            }
+        )
+        emit(payload, args.format)
+        return validate_result.returncode
+    emit(
+        structured_ok(
+            "auto-render",
+            summary="auto-render completed and contract validation passed",
+            challenge_path=str(challenge_path),
+            output_dir=str(output_dir),
+            validate_summary=str(json_summary),
+            derived_challenge=derived_challenge,
+            assumptions=last_result["assumptions"],
+            unconfirmed=last_result["unconfirmed"],
+        ),
+        args.format,
+    )
+    return 0
+
+
 def command_validate(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
     challenge_path = Path(args.config).resolve() if args.config else default_challenge_path(project_dir)
@@ -424,6 +589,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--output", help="渲染目录，默认 .ctfbuild/rendered")
     p.add_argument("--reason", default="", help="人工审查原因，必填")
     p.set_defaults(func=command_reviewed_render)
+
+    p = sub.add_parser("auto-render", help="自动推导 challenge.yaml、渲染平台交付件并执行契约校验")
+    common(p)
+    p.add_argument("--config", help="challenge.yaml 路径")
+    p.add_argument("--output", help="渲染目录，默认 .ctfbuild/rendered")
+    p.add_argument("--json-summary", help="validate JSON 摘要路径")
+    p.add_argument("--name", default="", help="challenge.name 覆盖值")
+    p.set_defaults(func=command_auto_render)
 
     p = sub.add_parser("validate", help="校验渲染产物")
     common(p)

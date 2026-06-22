@@ -21,7 +21,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from result_utils import dump_json, structured_error, structured_ok  # noqa: E402
-from utils import ConfigError, ensure_dict, ensure_list, load_yaml_file  # noqa: E402
+from utils import ConfigError, ensure_dict, ensure_list, load_yaml_file, write_unix_text  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -39,7 +39,7 @@ def dump_yaml(data: Dict[str, Any], output: Path) -> None:
         import yaml
     except ModuleNotFoundError as exc:
         raise ConfigError("缺少 PyYAML，请先安装 scripts/requirements.txt") from exc
-    output.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    write_unix_text(output, yaml.safe_dump(data, sort_keys=False, allow_unicode=True))
 
 
 def load_recipes() -> Dict[str, Dict[str, Any]]:
@@ -212,17 +212,17 @@ def copy_app(bundle: Dict[str, Any], config_dir: Path | None, output: Path, reci
         raise ConfigError(f"bundle.app_src 不存在: {src}")
 
     if recipe.get("custom"):
-        (app_dir / "index.html").write_text(
+        write_unix_text(
+            app_dir / "index.html",
             f"bundle custom {recipe.get('id')}\n",
-            encoding="utf-8",
         )
     elif str(recipe.get("id")) == "tomcat85-jdk8-mysql57":
-        (app_dir / "index.jsp").write_text(
+        write_unix_text(
+            app_dir / "index.jsp",
             "<% out.println(\"bundle tomcat85-jdk8-mysql57\"); %>\n",
-            encoding="utf-8",
         )
     else:
-        (app_dir / "index.html").write_text("bundle legacy-centos7-python39-mysql57-redis5\n", encoding="utf-8")
+        write_unix_text(app_dir / "index.html", "bundle legacy-centos7-python39-mysql57-redis5\n")
 
 
 def dockerfile_text(recipe: Dict[str, Any]) -> str:
@@ -388,10 +388,10 @@ def render_bundle(bundle: Dict[str, Any], recipe: Dict[str, Any], config_dir: Pa
     ]
     output.mkdir(parents=True, exist_ok=True)
     copy_app(bundle, config_dir, output, recipe)
-    (output / "Dockerfile").write_text(dockerfile_text(recipe), encoding="utf-8")
-    (output / "start.sh").write_text(start_script_text(recipe), encoding="utf-8")
-    (output / "changeflag.sh").write_text(changeflag_text(), encoding="utf-8")
-    (output / "flag").write_text("flag{bundle_recipe_placeholder}\n", encoding="utf-8")
+    write_unix_text(output / "Dockerfile", dockerfile_text(recipe))
+    write_unix_text(output / "start.sh", start_script_text(recipe))
+    write_unix_text(output / "changeflag.sh", changeflag_text())
+    write_unix_text(output / "flag", "flag{bundle_recipe_placeholder}\n")
     dump_yaml(challenge_doc(bundle, recipe), output / "challenge.yaml")
     os.chmod(output / "start.sh", 0o755)
     os.chmod(output / "changeflag.sh", 0o755)

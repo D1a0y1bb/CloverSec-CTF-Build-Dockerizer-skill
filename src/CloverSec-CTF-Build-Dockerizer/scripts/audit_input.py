@@ -182,6 +182,37 @@ _SKIP_DIRS = {
     ".venv",
     "venv",
 }
+_PYTHON_DEP_FILES = {"requirements.txt", "pyproject.toml", "Pipfile", "setup.py", "setup.cfg", "poetry.lock"}
+_PYTHON_WEB_IMPORTS = {"flask", "fastapi", "django", "uvicorn", "gunicorn"}
+_COMMON_THIRD_PARTY_IMPORTS = {
+    "aiohttp",
+    "bs4",
+    "click",
+    "cryptography",
+    "cv2",
+    "dotenv",
+    "flask",
+    "gunicorn",
+    "jinja2",
+    "jwt",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "PIL",
+    "pwn",
+    "requests",
+    "scipy",
+    "sqlalchemy",
+    "torch",
+    "uvicorn",
+    "werkzeug",
+    "yaml",
+}
+_IMPORT_RE = re.compile(r"^\s*(?:import\s+([A-Za-z_][A-Za-z0-9_]*)|from\s+([A-Za-z_][A-Za-z0-9_]*)\s+import)\b", re.MULTILINE)
+_RENDER_TEMPLATE_RE = re.compile(r"render_template\(\s*[\"']([^\"']+)[\"']")
+_FLAG_ENV_RE = re.compile(r"(?:os\.)?environ(?:\.get)?\(\s*[\"']FLAG[\"']|(?:os\.)?environ\[\s*[\"']FLAG[\"']|os\.getenv\(\s*[\"']FLAG[\"']")
+_APP_RUN_RE = re.compile(r"\b(app|application)\.run\s*\(")
+_MAIN_GUARD_RE = re.compile(r"__name__\s*==\s*[\"']__main__[\"']")
 
 
 def _normalise_flag_hint(raw: str) -> str:
@@ -232,6 +263,120 @@ def _scan_pwn_flag_hints(project_dir: Path) -> List[Dict[str, Any]]:
                 if len(hints) >= 20:
                     return hints
     return hints
+
+
+def _iter_python_files(project_dir: Path) -> List[Path]:
+    files: List[Path] = []
+    for path in project_dir.rglob("*.py"):
+        try:
+            rel_parts = path.relative_to(project_dir).parts
+        except ValueError:
+            continue
+        if any(part in _SKIP_DIRS for part in rel_parts):
+            continue
+        try:
+            if path.stat().st_size > 512 * 1024:
+                continue
+        except OSError:
+            continue
+        files.append(path)
+        if len(files) >= 160:
+            break
+    return files
+
+
+def _has_python_dependency_file(project_dir: Path) -> bool:
+    return any((project_dir / name).is_file() for name in _PYTHON_DEP_FILES)
+
+
+def _module_exists(project_dir: Path, module: str) -> bool:
+    if (project_dir / f"{module}.py").is_file():
+        return True
+    package_init = project_dir / module / "__init__.py"
+    return package_init.is_file()
+
+
+def _stdlib_modules() -> set[str]:
+    return set(getattr(sys, "stdlib_module_names", set()))
+
+
+def _scan_python_source_findings(project_dir: Path, stack_id: str, start_cmd: str) -> List[Dict[str, Any]]:
+    python_files = _iter_python_files(project_dir)
+    if not python_files:
+        return []
+    if stack_id and stack_id != "python" and not (project_dir / "app.py").is_file():
+        return []
+
+    findings: List[Dict[str, Any]] = []
+    seen_codes: set[tuple[str, str]] = set()
+    imports: set[str] = set()
+    stdlib = _stdlib_modules()
+
+    def add(code: str, summary: str, *, file: str = "", hint: str = "") -> None:
+        key = (code, file or summary)
+        if key in seen_codes:
+            return
+        seen_codes.add(key)
+        findings.append({"code": code, "summary": summary, "file": file, "hint": hint})
+
+    for path in python_files:
+        rel = _rel_or_empty(path, project_dir)
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for match in _IMPORT_RE.finditer(text):
+            module = match.group(1) or match.group(2) or ""
+            if module:
+                imports.add(module)
+                if (
+                    module not in stdlib
+                    and module not in _COMMON_THIRD_PARTY_IMPORTS
+                    and not _module_exists(project_dir, module)
+                ):
+                    add(
+                        "PYTHON_LOCAL_IMPORT_MISSING",
+                        f"Python 源码引用 `{module}`，但项目目录中没有 `{module}.py` 或 `{module}/__init__.py`。",
+                        file=rel,
+                        hint="补齐本地模块，或在依赖文件中声明对应第三方包并人工确认启动方式。",
+                    )
+        for template in _RENDER_TEMPLATE_RE.findall(text):
+            candidates = [project_dir / "templates" / template, path.parent / "templates" / template]
+            if not any(candidate.is_file() for candidate in candidates):
+                add(
+                    "FLASK_TEMPLATE_MISSING",
+                    f"Flask render_template 引用了缺失模板 `{template}`。",
+                    file=rel,
+                    hint=f"补齐 templates/{template}，或确认题目运行时模板路径。",
+                )
+        if _FLAG_ENV_RE.search(text):
+            add(
+                "FLAG_ENV_NEEDS_PLATFORM_SYNC",
+                "源码读取 `FLAG` 环境变量；平台动态 flag 默认写文件，不会自动更新已启动进程环境变量。",
+                file=rel,
+                hint="确认题目是否改为读取 /flag，或补充平台调用 /changeflag.sh 后业务可读到动态 flag 的方案。",
+            )
+
+    if imports & _PYTHON_WEB_IMPORTS and not _has_python_dependency_file(project_dir):
+        add(
+            "PYTHON_DEPENDENCY_DECLARATION_MISSING",
+            "检测到 Python Web 依赖 import，但没有 requirements.txt/pyproject.toml/Pipfile/setup.py。",
+            file="",
+            hint="补充依赖声明，避免 Dockerfile 渲染后缺包启动失败。",
+        )
+
+    app_py = project_dir / "app.py"
+    if app_py.is_file() and start_cmd.strip() == "python app.py":
+        app_text = app_py.read_text(encoding="utf-8", errors="ignore")
+        if not _APP_RUN_RE.search(app_text) and not _MAIN_GUARD_RE.search(app_text):
+            add(
+                "FLASK_START_COMMAND_UNCONFIRMED",
+                "`python app.py` 缺少明确的 app.run 或 __main__ 启动证据。",
+                file="app.py",
+                hint="确认真实启动命令，例如 flask run、gunicorn、uvicorn，或在源码中补齐启动入口。",
+            )
+
+    return findings
 
 
 def _configured_flag_paths(challenge_doc: Dict[str, Any], config_proposal: Dict[str, Any]) -> set[str]:
@@ -510,6 +655,19 @@ def audit_project(
                 verify="rendered",
             )
 
+    for finding in _scan_python_source_findings(project_dir, stack_id, start_cmd):
+        add(
+            str(finding.get("code") or "PYTHON_SOURCE_REVIEW_REQUIRED"),
+            str(finding.get("summary") or "Python 源码需要人工复核。"),
+            level="error",
+            file=str(finding.get("file") or ""),
+            hint=str(finding.get("hint") or ""),
+            risk="mixed",
+            path="proposal_required",
+            support="partial",
+            verify="rendered",
+        )
+
     return {
         "schema_version": SCHEMA_VERSION,
         "project_dir": str(project_dir),
@@ -542,6 +700,40 @@ def audit_project(
 
 def proposal_gate_required(audit: Dict[str, Any]) -> bool:
     return bool(audit.get("manual_required")) or audit.get("risk_level") in {"mixed", "dirty", "high_risk"}
+
+
+def can_auto_proceed(audit: Dict[str, Any]) -> tuple[bool, List[str]]:
+    blockers: List[str] = []
+    risk_level = str(audit.get("risk_level") or "clean")
+    support_level = str(audit.get("support_level") or "supported")
+    recommended_path = str(audit.get("recommended_path") or "direct_render")
+    finding_codes = {str(item.get("code") or "") for item in audit.get("findings", []) if isinstance(item, dict)}
+
+    if risk_level == "high_risk":
+        blockers.append("输入风险等级为 high_risk")
+    if support_level == "unsupported":
+        blockers.append("当前输入不在自动渲染支持范围")
+    if recommended_path in {"scenario_draft", "bundle_recipe", "manual_review"}:
+        blockers.append(f"推荐路径为 {recommended_path}，需要人工整理后再生成平台交付件")
+    if any(code in finding_codes for code in {"INTAKE_COMPOSE_DETECTED", "INTAKE_VULHUB_LIKE_DETECTED"}):
+        blockers.append("检测到 compose/Vulhub-like 多服务结构")
+    if "INTAKE_CPANEL_WHM_DETECTED" in finding_codes:
+        blockers.append("检测到 cPanel/WHM 控制面板类输入")
+    if any(code.startswith("LINUX_QEMU_") for code in finding_codes):
+        blockers.append("Linux-QEMU 资产需要人工核对")
+    if any(
+        code in finding_codes
+        for code in {
+            "PYTHON_LOCAL_IMPORT_MISSING",
+            "FLASK_TEMPLATE_MISSING",
+            "PYTHON_DEPENDENCY_DECLARATION_MISSING",
+            "FLASK_START_COMMAND_UNCONFIRMED",
+            "FLAG_ENV_NEEDS_PLATFORM_SYNC",
+        }
+    ):
+        blockers.append("Python 源码存在缺失材料或启动方式风险")
+
+    return not blockers, blockers
 
 
 def parse_args() -> argparse.Namespace:

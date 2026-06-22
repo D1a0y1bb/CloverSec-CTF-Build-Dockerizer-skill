@@ -4,6 +4,20 @@
 
 ## Unreleased
 
+## v2.2.0-r8 - 2026-06-22
+
+### 修复
+
+- Python Web 源码审计增加本地 import、Flask template、依赖声明、启动命令和 `FLAG`/`CTF_FLAG` 环境变量线索检查；存在阻断项时 `workflow.py auto-render` 不再直接生成交付物。
+- 所有核心渲染输出统一写 LF 换行，避免 Windows CRLF 进入 `Dockerfile`、`start.sh`、`changeflag.sh`、`flag` 和派生配置文件。
+- `validate.sh` 增加 CRLF 明确报错，并把动态 flag 验证扩展为位置参数、`FLAG`、`CTF_FLAG` 三种调用方式。
+- `workflow.py auto-render` 改为执行动态 flag 校验，避免只做静态检查后误判交付物可用。
+
+### 验证
+
+- `scripts/check_fast.sh` 通过。
+- 插件仓库新增的 Dockerizer 回归测试覆盖 proposal 阻断、LF 输出、CRLF 报错和三种动态 flag 输入。
+
 ## v2.2.0-r7 - 2026-06-13
 
 ### 修复
