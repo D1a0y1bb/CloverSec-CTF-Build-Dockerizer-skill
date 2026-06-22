@@ -14,17 +14,27 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r8-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r9-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r8"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r9"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r8</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r9</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
+
+## v2.2.0-r9 リリース修正
+
+`v2.2.0-r9` は `v2.2.0` の 9 回目のリリース修正版です。`challenge.yaml` contract と core script behavior は変更しません。standalone GitHub skill、plugin-bundled skill、local installed skill の entry instructions を同期します。
+
+この r9 release の主な修正点：
+
+- `SKILL.md` と `agents/openai.yaml` は plugin-bundled Dockerizer behavior を基準にし、`workflow.py auto-render` を推奨します。
+- 通常の challenge は platform delivery files を生成し static validation を実行します。unknown container runtime、privileged execution、不明な business decision は user confirmation で停止します。
+- Java JAR sample の `build/` files を standalone repository に入れ、standalone release package と plugin-bundled skill の内容を一致させます。
 
 ## v2.2.0-r8 リリース修正
 
@@ -827,7 +837,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r8
+bash scripts/publish_release.sh --version v2.2.0-r9
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

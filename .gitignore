@@ -10,6 +10,8 @@ venv/
 env/
 dist/
 build/
+!src/CloverSec-CTF-Build-Dockerizer/examples/java-jar-basic/build/
+!src/CloverSec-CTF-Build-Dockerizer/examples/java-jar-basic/build/**
 *.pyc
 *.pyo
 *.pyd

@@ -208,18 +208,17 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
 
     required_terms = (
         "workflow.py",
-        "Proposal Gate",
+        "workflow.py auto-render",
         "validate.sh",
         "按需读取索引",
+        "人工判断边界",
+        "真实 Docker 操作仍需要用户授权",
         "docs/validation_guide.md",
         "docs/solve_probe_recipes.md",
         "docs/stack_cookbook.md",
         "docs/linux_qemu_manual_validation.md",
         "data/scenario_schema.md",
         "docs/bundle_design.md",
-        "CONFIG PROPOSAL",
-        "回复 `OK`",
-        "默认确认项固定为 5 个",
         "docs/orchestrated_workflow.md",
         "docs/beginner_guide.md",
         "parse_config_block.py",
@@ -360,11 +359,12 @@ def check_agent_metadata(counter: Counter, root: Path) -> None:
         "default_prompt:",
         "allow_implicit_invocation:",
         "$cloversec-ctf-build-dockerizer",
-        "OK",
+        "auto-render",
+        "真实启动未知容器",
     )
     missing = [term for term in required_terms if term not in text]
     if missing:
-        counter.log_error(f"agents/openai.yaml 缺少关键字段或确认门槛描述：{', '.join(missing)}")
+        counter.log_error(f"agents/openai.yaml 缺少关键字段或自动生成边界描述：{', '.join(missing)}")
     else:
         counter.log_info("agents/openai.yaml 关键字段检查通过")
 

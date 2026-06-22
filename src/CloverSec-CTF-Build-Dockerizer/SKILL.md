@@ -33,23 +33,22 @@ allowed-tools:
 
 输入提示：可直接给 `<path/to/challenge.yaml>`，也可用 `--project-dir <path/to/challenge>` 指向题目目录。
 
-优先使用 `workflow.py`。确认前只执行输入审计、方案生成和状态查看：
+优先使用 `workflow.py auto-render`。它会审计输入、必要时推导 `challenge.yaml`、生成平台交付文件，并执行静态契约校验：
+
+```bash
+python3 scripts/workflow.py auto-render --project-dir <题目目录>
+```
+
+需要先看输入审计或状态时使用：
 
 ```bash
 python3 scripts/workflow.py intake --project-dir <题目目录>
-python3 scripts/workflow.py propose --project-dir <题目目录>
 python3 scripts/workflow.py status --project-dir <题目目录>
 ```
 
-用户回复 `OK` 或返回修改后的 proposal 后，再进入生成和校验：
+`auto-render` 只代表平台文件生成和静态契约检查通过，不代表题目已经可解，也不代表 Docker build/run/export 已执行。真实 Docker 操作仍需要用户授权。
 
-```bash
-python3 scripts/workflow.py accept --project-dir <题目目录>
-python3 scripts/workflow.py render --project-dir <题目目录>
-python3 scripts/workflow.py validate --project-dir <题目目录>
-```
-
-低风险且字段明确的 `challenge.yaml` 仍要先输出方案摘要。用户 `OK` 后再调用 `render.py`：
+熟练用户已经确认 `challenge.yaml` 时，可以直接调用底层脚本：
 
 ```bash
 python3 scripts/render.py --config challenge.yaml --output .
@@ -76,24 +75,27 @@ bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 
 | 输入状态 | 推荐路径 | 读取资料 |
 |---|---|---|
-| 明确 `challenge.yaml`，低风险 | 输出方案摘要，用户 `OK` 后执行 `render.py` -> `validate.sh`；熟练用户可用 `workflow.py reviewed-render --reason "..."` 记录审查原因 | `data/schema.md`、`docs/stack_cookbook.md` |
-| 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | `workflow.py intake/propose/accept/render/validate` | `scripts/README.md`、`docs/troubleshooting.md` |
+| 明确 `challenge.yaml`，低风险 | `workflow.py auto-render --project-dir <题目目录>` | `data/schema.md`、`docs/stack_cookbook.md` |
+| 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | 先执行 `workflow.py intake` 看风险；未触发阻塞时执行 `workflow.py auto-render` | `scripts/README.md`、`docs/troubleshooting.md` |
 | compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `data/scenario_schema.md` |
-| Scenario 正向编排 | 输出服务清单和端口摘要，用户 `OK` 后执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `data/scenario_schema.md` |
-| Bundle 老环境组合 | 输出 Recipe/custom 摘要，用户 `OK` 后执行 `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `docs/bundle_design.md`、`data/bundle_recipes.yaml` |
+| Scenario 正向编排 | 输出服务清单和端口摘要，低风险场景继续执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `data/scenario_schema.md` |
+| Bundle 老环境组合 | 输出 Recipe/custom 摘要，低风险组合继续执行 `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `docs/bundle_design.md`、`data/bundle_recipes.yaml` |
 | Linux kernel CVE/LPE | `stack=linux-qemu`，需要启动 guest、写入 guest flag 或复现 PoC 时再跑 `linux_qemu_manual_check.sh` | `docs/linux_qemu_manual_validation.md` |
 | RDG/SecOps 需要 check 脚本 | `generate_check_stub.py` 生成骨架，人工确认后移除 `CHECK_REVIEW_REQUIRED` | `docs/validation_guide.md` |
 
-## Proposal Gate
+## 自动生成门
 
-以下情况不能直接渲染，必须先生成 proposal 并接受：
+普通源码题、已有 Dockerfile、单服务 Web/Pwn 服务题默认允许 `auto-render`。缺少端口、Flag 路径这类信息时，脚本会写入 `unconfirmed` 和校验摘要，不把它当成题目已通过。
 
-- mixed/dirty/high_risk 输入
-- `audit_input.py` 或 `derive_config.py` 输出 `gates=true`
+以下情况不能自动生成，需要把问题列给用户判断：
+
+- high_risk 输入
+- unsupported 输入
 - compose/Vulhub-like 结构
+- Scenario、本地多服务编排或 Bundle 老环境组合
 - Linux-QEMU VM 资产缺失或疑似占位
 - cPanel/WHM 控制面板类输入
-- 启动命令、端口、WORKDIR 缺少可靠证据
+- 完全没有启动方式证据
 
 保留手动模式：
 
@@ -107,20 +109,19 @@ python3 scripts/render.py \
 
 使用 `--manual` 时必须写明原因，并在结果中保留 manual override 记录。
 
-确认后如果人工修改了 `challenge.yaml`，使用 `workflow.py accept --refresh --notes "..."` 更新 accepted hash，再执行 `workflow.py render`，不要直接跳到 `render.py --manual`。
+如果人工修改了 `challenge.yaml`，可以重新执行 `workflow.py auto-render --project-dir <题目目录>`，让静态校验重新生成摘要。
 
-## 交互确认规则
+## 人工判断边界
 
-凡是会生成、覆盖或修改交付件的动作，都必须先给用户输出 proposal 或方案摘要，不得直接 render。明确、低风险的 `challenge.yaml` 也要先列出 stack/profile、端口、WORKDIR、启动命令和文件映射摘要，用户确认后再执行 `render.py` 或 `validate.sh`。
+本 Skill 会主动生成平台交付文件，但不会替用户判断题目业务质量。以下内容要在输出里写清楚：
 
-只读动作可以先执行，例如 `workflow.py intake`、`audit_input.py`、`derive_config.py`、读取配置和检查目录；一旦进入 `render.py`、`render_scenario.py`、`render_bundle.py`、`workflow.py render` 或会改写文件的命令，必须先取得确认。
+- 端口和启动命令来自哪里
+- 上游 Dockerfile/compose 只作为迁移输入
+- `validate.sh` 通过只代表平台文件契约通过
+- 真实 Docker build/run/export 未执行时必须明说
+- 题目是否可解、动态 Flag 是否真的进入业务逻辑，需要后续验证
 
-用户确认方式只接受两种：
-
-- 回复 `OK`
-- 返回修改后的 `CONFIG PROPOSAL` YAML
-
-用户未确认前，不得执行 `render.py`、`render_scenario.py`、`render_bundle.py` 或 `workflow.py render`。默认确认项固定为 5 个：
+Scenario、Bundle、Linux-QEMU、高风险依赖、多服务拆分、需要 privileged/eBPF/tc/KVM/jail 的题目，要先把问题列给用户，不自动执行高风险运行。普通源码题、已有 Dockerfile/compose 题默认直接生成平台交付件并做静态校验。
 
 1. 技术栈 + profile / runtime profile
 2. 容器端口
@@ -130,17 +131,15 @@ python3 scripts/render.py \
 
 详细提案格式读取 `docs/orchestrated_workflow.md`，新手说明读取 `docs/beginner_guide.md`，解析使用 `parse_config_block.py`。
 
-## 用户确认后的运行顺序
+## 默认运行顺序
 
-本节命令只在用户已经确认 proposal 或方案摘要后执行。
+本节命令用于普通容器题的自动处理。只有真实启动未知容器、高权限运行、外部网络访问或题目取舍无法判断时，才停下让用户决定。
 
 常规题目：
 
 ```bash
 python3 scripts/derive_config.py --project-dir <题目目录> --format json --pretty
 ```
-
-确认后：
 
 ```bash
 python3 scripts/render.py --config <题目目录>/challenge.yaml --output <题目目录>
@@ -149,16 +148,16 @@ bash scripts/validate.sh <题目目录>/Dockerfile <题目目录>/start.sh <题�
 
 Scenario：
 
-先输出服务清单、端口和交付目录摘要；确认后：
+先输出服务清单、端口和交付目录摘要；低风险场景可继续生成，涉及高风险运行时再停下：
 
 ```bash
-python3 scripts/render_scenario.py --config scenario.yaml --output /tmp/scenario --accepted --reason "user accepted scenario proposal"
+python3 scripts/render_scenario.py --config scenario.yaml --output /tmp/scenario --accepted --reason "low-risk scenario render"
 python3 scripts/validate_scenario.py --output /tmp/scenario --validate-rendered
 ```
 
 Bundle：
 
-先输出 recipe/custom、端口、服务列表和支持等级；确认后：
+先输出 recipe/custom、端口、服务列表和支持等级；低风险组合可继续生成，涉及高风险运行时再停下：
 
 ```bash
 python3 scripts/render_bundle.py --recipe legacy-centos7-python39-mysql57-redis5 --output /tmp/bundle
@@ -172,7 +171,7 @@ Check-service 骨架：
 python3 scripts/generate_check_stub.py --type http --output check/check.sh --target-port 80 --path /
 ```
 
-生成脚本默认带 `CHECK_REVIEW_REQUIRED`，必须人工确认检查逻辑后移除。
+生成脚本默认带 `CHECK_REVIEW_REQUIRED`，健康检查和业务断言审查后才能移除。
 
 ## 按需读取索引
 
@@ -183,7 +182,7 @@ python3 scripts/generate_check_stub.py --type http --output check/check.sh --tar
 | 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `docs/platform_contract.md` |
 | 校验项、错误码、check-service 门禁 | `docs/validation_guide.md` |
 | 题目入口业务断言、动态 flag 路径和 smoke probe 示例 | `docs/solve_probe_recipes.md` |
-| 交互确认、`CONFIG PROPOSAL` 和 `OK` 流程 | `docs/orchestrated_workflow.md` |
+| 自动推导、方案摘要和高风险确认边界 | `docs/orchestrated_workflow.md` |
 | 脚本入口和常用命令 | `scripts/README.md` |
 | Scenario schema 和 compose import 边界 | `data/scenario_schema.md` |
 | Bundle/Recipe 边界 | `docs/bundle_design.md` |

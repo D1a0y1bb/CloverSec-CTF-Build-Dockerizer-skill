@@ -4,6 +4,18 @@
 
 ## Unreleased
 
+## v2.2.0-r9 - 2026-06-22
+
+### 变更
+
+- 以 CloverSec CTF For Example 插件内置 Dockerizer 为准，同步 `SKILL.md` 与 `agents/openai.yaml`。独立 GitHub skill、插件内置 skill、本机安装 skill 的运行入口说明现在一致。
+- 入口默认推荐 `workflow.py auto-render`：普通题目直接生成平台交付文件并执行静态校验；真实启动未知容器、高权限运行或业务取舍不清楚时再停止询问。
+- 为了和插件内置 skill 完整一致，Java JAR 示例的 `build/` 文件纳入独立仓库版本管理。
+
+### 验证
+
+- 发布前执行 `check_fast.sh`、`release_build.sh --with-smoke` 和 tag CI。
+
 ## v2.2.0-r8 - 2026-06-22
 
 ### 修复
