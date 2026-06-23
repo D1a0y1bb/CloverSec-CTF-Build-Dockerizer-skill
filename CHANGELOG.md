@@ -4,6 +4,19 @@
 
 ## Unreleased
 
+## v2.2.0-r10 - 2026-06-23
+
+### 修复
+
+- `workflow.py auto-render` 和 `workflow.py validate` 共用 validate 命令构造函数，避免两处路径处理不一致。
+- Windows 通过 WSL `bash.exe` 执行 `validate.sh` 时，`validate.sh`、输出 JSON、`Dockerfile`、`start.sh`、`challenge.yaml` 和项目目录会转换成 `/mnt/...` 路径。
+- 非 WSL bash 保持原有命令行为，不改变 macOS/Linux 与 Git Bash 路径处理。
+
+### 验证
+
+- 插件仓库新增纯函数回归测试覆盖 Windows/WSL 路径转换。
+- 发布前执行 `check_fast.sh`、release build、tag CI 和 release 资产复核。
+
 ## v2.2.0-r9 - 2026-06-22
 
 ### 变更

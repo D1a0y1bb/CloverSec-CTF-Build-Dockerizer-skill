@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import os
+import re
+import shlex
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -47,6 +51,82 @@ def default_render_dir(project_dir: Path) -> Path:
 
 def default_challenge_path(project_dir: Path) -> Path:
     return project_dir / "challenge.yaml"
+
+
+def windows_drive_to_wsl_path(value: str) -> str:
+    text = str(value).replace("\\", "/")
+    if text.startswith("/mnt/"):
+        return text
+    match = re.match(r"^([A-Za-z]):/?(.*)$", text)
+    if not match:
+        return text
+    drive = match.group(1).lower()
+    rest = match.group(2).lstrip("/")
+    return f"/mnt/{drive}/{rest}" if rest else f"/mnt/{drive}"
+
+
+def is_wsl_bash(bash_path: str) -> bool:
+    text = str(bash_path or "").replace("\\", "/").lower()
+    return text.endswith("/windows/system32/bash.exe") or text.endswith("/windows/sysnative/bash.exe")
+
+
+def build_validate_command(
+    *,
+    project_dir: Path,
+    validate_sh: Path,
+    dockerfile: Path,
+    start_sh: Path,
+    challenge_path: Path,
+    json_summary: Path,
+    with_dynamic_flag: bool = False,
+    platform_name: str | None = None,
+    bash_executable: str | None = None,
+) -> tuple[List[str], str | None]:
+    platform_name = platform_name or os.name
+    bash_executable = bash_executable or shutil.which("bash") or "bash"
+    args = [
+        str(validate_sh),
+        "--json-summary",
+        str(json_summary),
+        str(dockerfile),
+        str(start_sh),
+        str(challenge_path),
+    ]
+    if with_dynamic_flag:
+        args.insert(1, "--with-dynamic-flag")
+    if platform_name == "nt" and is_wsl_bash(bash_executable):
+        wsl_args = [windows_drive_to_wsl_path(item) if looks_like_windows_path(item) else item for item in args]
+        shell = "cd " + shlex.quote(windows_drive_to_wsl_path(str(project_dir))) + " && bash " + " ".join(
+            shlex.quote(item) for item in wsl_args
+        )
+        return [bash_executable, "-lc", shell], None
+    return [bash_executable, *args], str(project_dir)
+
+
+def looks_like_windows_path(value: str) -> bool:
+    return bool(re.match(r"^[A-Za-z]:[\\/]", str(value)))
+
+
+def run_validate_command(
+    *,
+    project_dir: Path,
+    dockerfile: Path,
+    start_sh: Path,
+    challenge_path: Path,
+    json_summary: Path,
+    with_dynamic_flag: bool = False,
+    capture_output: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    cmd, cwd = build_validate_command(
+        project_dir=project_dir,
+        validate_sh=VALIDATE_SH,
+        dockerfile=dockerfile,
+        start_sh=start_sh,
+        challenge_path=challenge_path,
+        json_summary=json_summary,
+        with_dynamic_flag=with_dynamic_flag,
+    )
+    return subprocess.run(cmd, cwd=cwd, text=True, capture_output=capture_output)
 
 
 def write_session(
@@ -417,17 +497,15 @@ def command_auto_render(args: argparse.Namespace) -> int:
         emit(payload, args.format)
         return render_result.returncode
 
-    validate_cmd = [
-        "bash",
-        str(VALIDATE_SH),
-        "--with-dynamic-flag",
-        "--json-summary",
-        str(json_summary),
-        str(output_dir / "Dockerfile"),
-        str(output_dir / "start.sh"),
-        str(challenge_path),
-    ]
-    validate_result = subprocess.run(validate_cmd, cwd=str(project_dir), text=True, capture_output=True)
+    validate_result = run_validate_command(
+        project_dir=project_dir,
+        dockerfile=output_dir / "Dockerfile",
+        start_sh=output_dir / "start.sh",
+        challenge_path=challenge_path,
+        json_summary=json_summary,
+        with_dynamic_flag=True,
+        capture_output=True,
+    )
     if validate_result.stdout:
         sys.stdout.write(validate_result.stdout)
     if validate_result.stderr:
@@ -494,16 +572,13 @@ def command_validate(args: argparse.Namespace) -> int:
     dockerfile = output_dir / "Dockerfile"
     start_sh = output_dir / "start.sh"
     json_summary = Path(args.json_summary).resolve() if args.json_summary else state_dir(project_dir) / "validate-summary.json"
-    cmd = [
-        "bash",
-        str(VALIDATE_SH),
-        "--json-summary",
-        str(json_summary),
-        str(dockerfile),
-        str(start_sh),
-        str(challenge_path),
-    ]
-    result = subprocess.run(cmd, cwd=str(project_dir), text=True)
+    result = run_validate_command(
+        project_dir=project_dir,
+        dockerfile=dockerfile,
+        start_sh=start_sh,
+        challenge_path=challenge_path,
+        json_summary=json_summary,
+    )
     audit = audit_project(project_dir, challenge_path=challenge_path if challenge_path.exists() else None)
     write_session(
         project_dir,
