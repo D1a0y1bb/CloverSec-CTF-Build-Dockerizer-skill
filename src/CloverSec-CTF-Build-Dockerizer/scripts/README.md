@@ -7,7 +7,7 @@
 ## 脚本列表
 
 - `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh。旧 helper 合同才额外渲染 changeflag.sh。
-- `ctfctl.py`：统一执行输入审计、干净脚手架、Docker 运行验证和交付打包。`inspect`/`audit` 只读取事实；`scaffold`/`prepare` 默认使用 `clean` profile，把新生成的源码放到 `src/`，把合同证据放到 `.ctfbuild/`；`verify` 执行真实 Docker build/run、Flag 回读和入口探测。
+- `ctfctl.py`：统一执行输入审计、干净脚手架、镜像构建、Docker 运行验证和交付打包。`inspect`/`audit` 只读取事实；`scaffold`/`prepare` 默认使用 `clean` profile，把新生成的源码放到 `src/`，把合同证据放到 `.ctfbuild/`；`build` 只构建镜像；`verify` 执行真实 Docker build/run、Flag 回读、入口探测和可选 smoke 断言。
 - `render_bundle.py`：根据固定 Bundle/Recipe 渲染单容器多服务交付目录
 - `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `import_compose.py`：将 compose/Vulhub-like 输入转换为 scenario draft、renderable subset 和 import report
@@ -34,6 +34,7 @@
 ```bash
 python3 scripts/ctfctl.py inspect --project-dir <题目目录> --format json
 python3 scripts/ctfctl.py scaffold --project-dir <题目目录> --output <题目目录>/dist --profile clean
+python3 scripts/ctfctl.py build --project-dir <题目目录>/dist --image cloversec/local-challenge:dev
 python3 scripts/ctfctl.py verify --project-dir <题目目录>/dist --format json
 python3 scripts/ctfctl.py package --project-dir <题目目录>/dist --output <题目目录>/challenge.tar.gz
 ```

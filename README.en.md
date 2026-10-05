@@ -14,17 +14,31 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r12-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r12"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r12</code></p>
+<p align="center"><code><strong>VERSION</strong>: v3.0.0</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its default job is to turn an idea, partial source tree, or historical delivery into a clean, readable, buildable, and verifiable CTF container directory.
 
 It reads the runtime facts, preserves the challenge semantics, generates the minimum delivery files, and verifies the image when Docker is available. Scenario, Bundle, Linux-QEMU, RDG/SecOps, and release workflows remain available through explicit routing.
+
+## v3.0.0 Default Product Refactor
+
+`v3.0.0` makes the ordinary single-service delivery path the only default model workflow:
+
+```text
+idea or partial source
+        ↓
+inspect → scaffold clean → build → verify → package
+        ↓
+clean src/Dockerfile/start.sh/challenge.yaml directory
+```
+
+This major release adds the `ctfctl.py build` entry, generates a minimal `challenge.yaml` when Docker facts are available, removes unreferenced authoring files from clean output, and verifies container state, multiple ports, solve probes, and optional `smoke_assert.sh`. A non-direct Flag update is reported as unverified until its challenge-specific command runs. Advanced Scenario, Bundle, QEMU, and repository maintenance documents remain on-demand.
 
 ## v2.2.0-r12 Default Delivery Refactor
 
@@ -99,7 +113,7 @@ This release covers:
 
 | Capability | Entry Script | Purpose | Output |
 |---|---|---|---|
-| Default clean delivery | `src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py` | Inspect, scaffold, verify, and package an ordinary challenge | clean directory + `.ctfbuild/` evidence |
+| Default clean delivery | `src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py` | Inspect, scaffold, build, verify, and package an ordinary challenge | clean directory + `.ctfbuild/` evidence |
 | Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate advanced or historical analysis, confirmation, rendering, validation, and status tracking | `.ctfbuild/session.json` |
 | Input audit and proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | Infer stack, ports, start command, runtime, profile, and risk level | audit result / build plan |
 | Build-plan parsing | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert the confirmed plan into `challenge.yaml` | normalized config |
@@ -163,7 +177,7 @@ Standard prompt template:
 ```text
 Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory.
 Read the startup command, ports, dependencies, and real Flag path first.
-Run `ctfctl.py inspect`, `scaffold --profile clean`, and `verify`.
+Run `ctfctl.py inspect`, `scaffold --profile clean`, `build`, `verify`, and `package`.
 Keep ordinary direct-exec output free of `changeflag.sh` and root-level machine reports.
 ```
 
@@ -183,7 +197,9 @@ Ordinary challenge:
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py inspect --project-dir . --format json
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py scaffold --project-dir . --output ./dist --profile clean
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py build --project-dir ./dist --image cloversec/local-challenge:dev
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py verify --project-dir ./dist --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py package --project-dir ./dist --output ./challenge.tar.gz
 ```
 
 Advanced or historical workflow:
@@ -865,7 +881,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r12
+bash scripts/publish_release.sh --version v3.0.0
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

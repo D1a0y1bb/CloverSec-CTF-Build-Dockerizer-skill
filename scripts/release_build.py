@@ -343,6 +343,9 @@ def main() -> int:
             # py_compile 会在源码树写入 __pycache__，其中可能包含绝对路径信息，
             # 需要在私有信息扫描前清理，避免误报。
             cleanup_python_cache([root / "scripts", src_skill_dir / "scripts"])
+            regression_test = root / "tests" / "ctfctl_v3_test.py"
+            if regression_test.is_file():
+                run_check(status, "ctfctl_v3_tests", [sys.executable, str(regression_test)])
             shell_syntax_check(root, src_skill_dir)
             record_check(status, "shell_syntax", True)
             env = os.environ.copy()

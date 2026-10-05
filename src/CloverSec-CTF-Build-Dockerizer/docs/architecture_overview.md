@@ -19,12 +19,17 @@ ctfctl.py scaffold --profile clean
   └── challenge.yaml
   │
   ▼
+ctfctl.py build
+  │
+  └── Docker image + build.json
+  │
+  ▼
 ctfctl.py verify
   │
-  ├── 静态合同
-  ├── Docker build/run
+  ├── container state
   ├── Flag 回读
-  └── HTTP/TCP 入口探测
+  ├── solve probe
+  └── smoke_assert.sh
 ```
 
 `ctfctl.py` 是普通题目的模型入口。
@@ -38,7 +43,7 @@ ctfctl.py verify
 
 ## 生成层
 
-- `scripts/ctfctl.py`：审计、脚手架、真实验证和归档。
+- `scripts/ctfctl.py`：审计、脚手架、镜像构建、真实验证和归档。
 - `scripts/render.py`：已确认合同的底层渲染入口。
 - `templates/<stack>/`：栈模板。
 - `templates/snippets/`：Flag、healthcheck 和防御片段。

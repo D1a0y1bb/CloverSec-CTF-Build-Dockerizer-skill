@@ -14,17 +14,31 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r12-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r12"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r12</code></p>
+<p align="center"><code><strong>VERSION</strong>: v3.0.0</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。既定の役割は、アイデア、未完成のソース、参考ディレクトリ、過去の配布物を、読みやすく検証可能な CTF コンテナディレクトリへ整理することです。
 
 実行方式、Flag パス、依存関係、Docker 契約を先に確認し、最小の配布ディレクトリを生成します。Scenario、Bundle、Linux-QEMU、RDG/SecOps、Release の機能は明示的な入力または要求がある場合だけ読み込みます。
+
+## v3.0.0 既定製品の再設計
+
+`v3.0.0` は通常の単一サービス配布を 1 つの既定モデルフローに統一します。
+
+```text
+idea または部分ソース
+        ↓
+inspect → scaffold clean → build → verify → package
+        ↓
+clean src/Dockerfile/start.sh/challenge.yaml directory
+```
+
+この大版本では `ctfctl.py build` を追加し、Docker facts がある場合に最小 `challenge.yaml` を生成します。clean output から未参照の compose、停止スクリプト、作者ツールを除去し、container state、複数 port、solve probe、任意の `smoke_assert.sh` を検証します。direct-exec 以外の Flag 更新は、問題専用コマンドを実行するまで未検証として扱います。Scenario、Bundle、QEMU と repository maintenance の資料は必要な場合だけ読み込みます。
 
 ## v2.2.0-r12 既定配布の再設計
 
@@ -99,7 +113,7 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 | 機能 | エントリスクリプト | 目的 | 出力 |
 |---|---|---|---|
-| 既定 clean 配布 | `src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py` | 通常問題を inspect、scaffold、verify、package する | clean directory + `.ctfbuild/` evidence |
+| 既定 clean 配布 | `src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py` | 通常問題を inspect、scaffold、build、verify、package する | clean directory + `.ctfbuild/` evidence |
 | 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | 高度または歴史問題の分析、確認、生成、検証、状態確認を編成 | `.ctfbuild/session.json` |
 | 入力監査と提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | スタック、ポート、起動方法、実行環境、profile、リスクを推定 | 監査結果 / 構築案 |
 | 構築案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | 確認済みの構築案を `challenge.yaml` 化 | 正規化設定 |
@@ -163,7 +177,7 @@ interface:
 ```text
 CloverSec-CTF-Build-Dockerizer を使って現在の問題ディレクトリを処理してください。
 起動方法、port、依存関係、実際の Flag path を先に確認してください。
-`ctfctl.py inspect`、`scaffold --profile clean`、`verify` を実行してください。
+`ctfctl.py inspect`、`scaffold --profile clean`、`build`、`verify`、`package` を実行してください。
 通常の direct-exec 配布物には `changeflag.sh` とルートの機械レポートを作らないでください。
 ```
 
@@ -183,7 +197,9 @@ CloverSec-CTF-Build-Dockerizer を使って現在の問題ディレクトリを�
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py inspect --project-dir . --format json
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py scaffold --project-dir . --output ./dist --profile clean
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py build --project-dir ./dist --image cloversec/local-challenge:dev
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py verify --project-dir ./dist --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py package --project-dir ./dist --output ./challenge.tar.gz
 ```
 
 高度または歴史問題：
@@ -863,7 +879,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r12
+bash scripts/publish_release.sh --version v3.0.0
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

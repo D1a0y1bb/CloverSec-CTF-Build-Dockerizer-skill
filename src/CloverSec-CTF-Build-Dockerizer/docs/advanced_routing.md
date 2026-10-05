@@ -15,6 +15,8 @@
 | 题目需要指定 Linux 内核或 guest rootfs | `render.py`、`linux_qemu_manual_check.sh` | `docs/linux_qemu_manual_validation.md` |
 | 用户要导出 amd64 镜像、image tar 或表格字段 | `docker_artifacts.py` | `scripts/README.md` 中的 Docker artifact 章节 |
 
+`ctfctl.py inspect` 会把 compose、Scenario 和 Bundle 文件列入 `advanced_inputs`。看到这些字段时，不要把它们静默当作普通单服务输入。先保留原始目录，再选择对应入口或使用 `preserve`。
+
 ## 高级模式边界
 
 - 高级模式不会改变普通题目的 direct-exec 默认合同。
@@ -23,6 +25,7 @@
 - Linux-QEMU 的 guest Flag 写入必须使用 guest 专用合同。
 - check-service 生成器只生成待审查骨架，不把 `CHECK_REVIEW_REQUIRED` 当成通过。
 - Release、SBOM 和 GitHub 发布脚本属于仓库维护流程，不属于题目构建默认流程。
+- `clean` 只移除未被 Dockerfile、start.sh 或 challenge.yaml 引用的明确作者辅助文件。它不会删除高级模式需要的运行资产。
 
 ## 结果
 

@@ -11,19 +11,42 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r12-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r12</code></p>
+<p align="center"><code><strong>VERSION</strong>: v3.0.0</code></p>
 
 四叶草安全-创研中心竞赛 x Docker 环境专用容器构建 Skill。默认工作是把题目想法、半成品源码、参考目录或历史交付件整理成干净、可读、可构建、可验证的 CTF 题目目录。
 
 它优先处理源码目录、Dockerfile、start.sh、challenge.yaml、依赖和真实 Flag 路径。它先生成最小目录，再执行合同检查和可用的 Docker 验证。Scenario、Bundle、Linux-QEMU、RDG/SecOps 和 Release 仍然支持，但只在输入事实或用户请求触发时读取。
 
 现在的默认形态是“模型理解输入，脚本生成目录，验证命令证明结果”。Skill 入口只保留普通题目所需的合同。高级模式通过路由资料按需展开。机器报告写入 `.ctfbuild/`，不污染题目根目录。
+
+## V3.0.0 默认产品重构
+
+`v3.0.0` 把默认产品收敛为一个清晰的单服务交付链路：
+
+```text
+题目想法或半成品源码
+        ↓
+inspect → scaffold clean → build → verify → package
+        ↓
+干净的 src/Dockerfile/start.sh/challenge.yaml 目录
+```
+
+本次大版本完成以下变化：
+
+- `ctfctl.py` 成为普通题目的唯一模型入口，并新增 `build` 命令。
+- `clean` 模式移除未被运行入口引用的 compose、停止脚本、作者工具和旧 helper。
+- 输入只有 Dockerfile 和启动脚本时，自动生成最小 `challenge.yaml`。
+- `verify` 等待真实容器状态，支持多端口、solve probe 和 `smoke_assert.sh`。
+- 非 direct-exec Flag 更新没有真实复现时，不再报告为 `passed`。
+- Skill 入口只保留默认产品合同。高级 Scenario、Bundle、QEMU 和仓库维护资料按需读取。
+
+普通题目仍然不生成通用 `changeflag.sh`。旧 helper 和 Linux-QEMU 只在对应合同下出现。
 
 ## V2.2.0-R12 默认交付重构
 
@@ -164,8 +187,9 @@ flowchart LR
 |---|---|---|---|
 | 1. 事实审计 | `ctfctl.py inspect` | 读取源码、Dockerfile、启动方式、端口和 Flag 路径 | 审计结果 |
 | 2. 干净脚手架 | `ctfctl.py scaffold --profile clean` | 生成 `src/`、Dockerfile、start.sh 和 challenge.yaml | 干净交付目录 |
-| 3. 合同验证 | `ctfctl.py verify` | 执行静态检查、Docker build/run、Flag 回读和入口探测 | 结构化验证结果 |
-| 4. 归档打包 | `ctfctl.py package` | 生成发布归档并计算 SHA256 | `challenge.tar.gz` |
+| 3. 镜像构建 | `ctfctl.py build` | 只构建镜像并保存构建证据 | 镜像标签和 build.json |
+| 4. 合同验证 | `ctfctl.py verify` | 启动容器、回读 Flag、执行入口探测和 smoke 断言 | 结构化验证结果 |
+| 5. 归档打包 | `ctfctl.py package` | 生成交付归档并计算 SHA256 | `challenge.tar.gz` |
 
 `workflow.py`、`render.py` 和 `validate.sh` 仍然保留为兼容和高级入口。普通题目不需要先读取完整 workflow 手册。
 
@@ -233,7 +257,7 @@ npx -y skills add \
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
   short_description: "把 CTF 想法或源码整理为干净、可验证的 Docker 题目目录"
-  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录或参考源码。先读取运行事实，再用 ctfctl.py inspect、scaffold --profile clean 和 verify 生成干净目录；普通题目使用 direct-exec，不生成 changeflag.sh 或根目录机器报告。"
+  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录或参考源码。先读取运行事实，再用 ctfctl.py inspect、scaffold --profile clean、build、verify 和 package 生成干净目录；普通题目使用 direct-exec，不生成 changeflag.sh 或根目录机器报告。"
 ```
 
 ## 如何快速开始
@@ -245,7 +269,7 @@ interface:
 ```text
 请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录或参考源码。
 先读取启动方式、端口、Flag 路径和依赖。
-然后使用 ctfctl.py inspect、scaffold --profile clean、verify，生成干净的 src/Dockerfile/start.sh/challenge.yaml 目录。
+然后使用 ctfctl.py inspect、scaffold --profile clean、build、verify、package，生成干净的 src/Dockerfile/start.sh/challenge.yaml 目录。
 ```
 
 快捷业务提示词（懒人版）：
@@ -264,7 +288,9 @@ interface:
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py inspect --project-dir . --format json
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py scaffold --project-dir . --output ./dist --profile clean
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py build --project-dir ./dist --image cloversec/local-challenge:dev
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py verify --project-dir ./dist --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py package --project-dir ./dist --output ./challenge.tar.gz
 ```
 
 需要历史 workflow 或复杂输入时：
@@ -814,7 +840,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r12
+bash scripts/publish_release.sh --version v3.0.0
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

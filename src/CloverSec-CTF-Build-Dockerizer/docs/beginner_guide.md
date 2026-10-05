@@ -18,6 +18,7 @@
 ```bash
 python3 scripts/ctfctl.py inspect --project-dir <题目目录> --format json
 python3 scripts/ctfctl.py scaffold --project-dir <题目目录> --output <题目目录>/dist --profile clean
+python3 scripts/ctfctl.py build --project-dir <题目目录>/dist --image cloversec/local-challenge:dev
 python3 scripts/ctfctl.py verify --project-dir <题目目录>/dist --format json
 python3 scripts/ctfctl.py package --project-dir <题目目录>/dist --output <题目目录>/challenge.tar.gz
 ```
@@ -26,7 +27,9 @@ python3 scripts/ctfctl.py package --project-dir <题目目录>/dist --output <�
 
 `scaffold` 生成交付目录。
 
-`verify` 执行 Docker build、run、Flag 回读和入口探测。
+`build` 只执行 Docker build，并把结果写入 `.ctfbuild/build.json`。
+
+`verify` 执行 Docker run、Flag 回读、声明的入口探测和可选 `smoke_assert.sh`。
 
 `package` 生成发布归档。
 

@@ -4,7 +4,7 @@
 
 ## `challenge.yaml` 单题示例
 
-这些目录以 `challenge.yaml` 为主输入。普通题目优先使用 `ctfctl.py inspect/scaffold/verify`，底层兼容入口仍是 `render.py` / `validate.sh`：
+这些目录以 `challenge.yaml` 为主输入。普通题目优先使用 `ctfctl.py inspect/scaffold/build/verify/package`，底层兼容入口仍是 `render.py` / `validate.sh`：
 
   - `node-basic/`
   - `php-apache-basic/`

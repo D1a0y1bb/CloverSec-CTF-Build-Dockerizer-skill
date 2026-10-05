@@ -4,6 +4,23 @@
 
 ## Unreleased
 
+## v3.0.0 - 2026-10-06
+
+### 变更
+
+- 重定义默认产品为“题目想法或半成品源码 → 干净、易读、可构建、可验证的单服务题目目录”。
+- 新增统一 `ctfctl.py build` 入口，默认链路收敛为 `inspect → scaffold → build → verify → package`。
+- `clean` 模式移除未被运行入口引用的 compose、停止脚本、作者工具和旧 helper，保留真实运行源码。
+- 输入只有 Dockerfile 和启动脚本时，自动生成最小 `challenge.yaml`，不再交付缺少平台合同的目录。
+- `verify` 改为等待容器状态，支持多端口、声明的 solve probe 和可选 `smoke_assert.sh`。
+- 非 direct-exec Flag 模式未执行题目专用更新命令时，只报告 `not_reproduced` 或 `partial`，不再误报通过。
+- 重写 Skill 入口，普通题目不再加载高级模式和仓库维护流程，保留用户原有 description 的职责范围。
+
+### 验证
+
+- 新增 `tests/ctfctl_v3_test.py`，覆盖无 challenge.yaml 生成合同和 clean 辅助文件清理。
+- 完成 Skill 官方快速校验、文档治理、源码回归和真实 Docker 题目验证。
+
 ## v2.2.0-r12 - 2026-10-06
 
 ### 变更
