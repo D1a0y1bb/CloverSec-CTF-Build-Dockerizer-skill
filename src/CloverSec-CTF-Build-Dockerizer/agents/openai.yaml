@@ -1,8 +1,8 @@
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "将 CTF 题目整理为可验证的 Docker 交付件，支持内核题与多服务场景"
+  short_description: "把 CTF 想法或源码整理为干净、可验证的 Docker 题目目录"
   brand_color: "#2563EB"
-  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录；可直接给 path/to/challenge.yaml，也可用 --project-dir path/to/challenge。读取题目结构、已有 Dockerfile/compose、源码、flag 逻辑和启动线索后，优先用 workflow.py auto-render 生成 CloverSec 平台 Docker 交付件并执行可做的静态校验；只有真实启动未知容器、高权限运行或无法判断的业务取舍需要停下让用户决定。"
+  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录或参考源码。先读取运行事实，再用 scripts/ctfctl.py inspect、scripts/ctfctl.py scaffold --profile clean 和 scripts/ctfctl.py verify 生成干净的 src/Dockerfile/start.sh/challenge.yaml 目录；普通题目使用 direct-exec，不生成 changeflag.sh、FLAG_UPDATE.md 或根目录机器报告。只有输入明确属于旧 helper、Scenario、Bundle、RDG/SecOps 或 Linux-QEMU 时，才读取对应高级资料。"
 
 policy:
   allow_implicit_invocation: true

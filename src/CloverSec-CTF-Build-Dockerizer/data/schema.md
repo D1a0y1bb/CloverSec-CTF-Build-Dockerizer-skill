@@ -148,8 +148,8 @@ challenge:
 
 - `challenge.flag.mode`
   - `direct_exec`：平台通过 `docker exec` 写入 `flag.path`。
-  - `file_replace`：在 `FLAG_UPDATE.md` 输出 `sed` 或 `echo` 命令。
-  - `database`：在 `FLAG_UPDATE.md` 输出等待条件和 SQL 命令。
+  - `file_replace`：在 `flag.update.command` 保存 `sed` 或 `echo` 命令。交付脚本把说明写入 `.ctfbuild/flag-update.md`。
+  - `database`：在 `flag.update.wait_for` 和 `flag.update.command` 保存等待条件和 SQL 命令。交付脚本把说明写入 `.ctfbuild/flag-update.md`。
   - `helper_script`：显式生成 `/changeflag.sh`。
   - `qemu_guest`：使用 guest rootfs 注入流程。
 

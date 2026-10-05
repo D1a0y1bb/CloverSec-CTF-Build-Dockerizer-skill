@@ -9,6 +9,7 @@ default, and reports static, build, runtime and business evidence separately.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import os
@@ -42,7 +43,44 @@ IGNORED_NAMES = {
     "题目手册",
     "附件",
 }
-IGNORED_SCAN_FILES = {"delivery-manifest.json", "FLAG_UPDATE.md", "VERIFY.md"}
+IGNORED_SCAN_FILES = {
+    "delivery-manifest.json",
+    "FLAG_UPDATE.md",
+    "VERIFY.md",
+    "flag-update.md",
+    "verification.md",
+}
+OUTPUT_PROFILES = ("clean", "preserve", "legacy")
+CLEAN_NON_RUNTIME_NAMES = {
+    *IGNORED_NAMES,
+    ".github",
+    "README.md",
+    "README.en.md",
+    "README.ja.md",
+    "README.zh-CN.md",
+    "docs",
+    "doc",
+    "题目附件",
+    "说明",
+    "文档",
+    "__MACOSX",
+    "*.zip",
+    "*.tar",
+    "*.tar.gz",
+    "*.7z",
+    "*.rar",
+    "*.log",
+    "delivery-manifest.json",
+    "FLAG_UPDATE.md",
+    "VERIFY.md",
+    "flag-update.md",
+    "verification.md",
+    "smoke_assert.sh",
+    "smoke_assert.yaml",
+    "solve_probe.yaml",
+    "asset_manifest.yaml",
+    "*.inspect.ndjson",
+}
 PATH_RE = re.compile(r"(?<![A-Za-z0-9_])/(?:home/ctf/|var/www/html/|challenge/|data/)?[A-Za-z0-9_.@+/-]*(?:flag|secret)[A-Za-z0-9_.@+/-]*")
 FROM_RE = re.compile(r"^\s*FROM(?:\s+--platform=\S+)?\s+(\S+)", re.I)
 WORKDIR_RE = re.compile(r"^\s*WORKDIR\s+(\S+)", re.I)
@@ -275,14 +313,19 @@ def audit(project: Path) -> Dict[str, Any]:
     }
 
 
-def copy_tree(source: Path, output: Path) -> None:
+def copy_tree(source: Path, output: Path, ignored_names: set[str] | None = None) -> None:
+    ignored = ignored_names or IGNORED_NAMES
+
+    def ignored_item(name: str) -> bool:
+        return name in ignored or any(fnmatch.fnmatch(name, pattern) for pattern in ignored)
+
     output.mkdir(parents=True, exist_ok=True)
     for item in source.iterdir():
-        if item.name in IGNORED_NAMES or item.name == output.name:
+        if ignored_item(item.name) or item.name == output.name:
             continue
         target = output / item.name
         if item.is_dir():
-            shutil.copytree(item, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*IGNORED_NAMES))
+            shutil.copytree(item, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*ignored))
         else:
             shutil.copy2(item, target)
 
@@ -297,7 +340,13 @@ def shell_quote(value: str) -> str:
     return shlex.quote(value)
 
 
-def minimal_dockerfile(challenge: Dict[str, Any], contract: Dict[str, Any], has_flag: bool, has_requirements: bool = False) -> str:
+def minimal_dockerfile(
+    challenge: Dict[str, Any],
+    contract: Dict[str, Any],
+    has_flag: bool,
+    has_requirements: bool = False,
+    source_dir: str = "src",
+) -> str:
     base = str(challenge.get("base_image") or "")
     workdir = str(challenge.get("workdir") or "/app")
     ports = challenge.get("expose_ports") or []
@@ -305,7 +354,7 @@ def minimal_dockerfile(challenge: Dict[str, Any], contract: Dict[str, Any], has_
     command = str(start.get("cmd") or "")
     if not base or not command:
         raise RuntimeError("缺少 challenge.base_image 或 challenge.start.cmd，无法安全生成最小交付件")
-    lines = [f"FROM {base}", "", f"WORKDIR {workdir}", "", "COPY app/ ."]
+    lines = [f"FROM {base}", "", f"WORKDIR {workdir}", "", f"COPY {source_dir}/ ."]
     if has_requirements:
         lines += ["RUN pip install --no-cache-dir -r requirements.txt"]
     if has_flag:
@@ -357,8 +406,24 @@ def compact_entrypoint_text(text: str, kind: str) -> str:
                 lines.append(line.rstrip())
             continue
         if re.fullmatch(r"\s*:\s*(#.*)?", line):
+            if kind == "docker" and lines and lines[-1].rstrip().endswith("\\"):
+                lines.append(line.rstrip())
             continue
         lines.append(line.rstrip())
+
+    if kind == "docker":
+        compacted_lines: List[str] = []
+        index = 0
+        while index < len(lines):
+            current = lines[index].strip()
+            if re.match(r"^RUN\s+set\s+-eux;\s*\\$", current) and index + 1 < len(lines):
+                next_line = lines[index + 1].strip()
+                if re.fullmatch(r":\s*\\?", next_line):
+                    index += 2
+                    continue
+            compacted_lines.append(lines[index])
+            index += 1
+        lines = compacted_lines
 
     compact: List[str] = []
     blank = False
@@ -508,7 +573,82 @@ def manifest_for(directory: Path, audit_result: Dict[str, Any]) -> Dict[str, Any
     return {"schema_version": "3.0", "status": "prepared", "audit": audit_result, "files": files}
 
 
-def prepare(project: Path, output: Path, force: bool = False) -> Dict[str, Any]:
+def metadata_root(output: Path, profile: str) -> Path:
+    """Keep generated evidence out of the clean source tree by default."""
+    if profile == "legacy":
+        return output
+    return output / ".ctfbuild"
+
+
+def ensure_clean_dockerignore(output: Path, profile: str) -> None:
+    if profile != "clean":
+        return
+    path = output / ".dockerignore"
+    required = [
+        ".ctfbuild",
+        "dist",
+        "*.zip",
+        "*.tar",
+        "*.tar.gz",
+        "*.7z",
+        "*.rar",
+        "*.log",
+        "题目手册",
+        "题目附件",
+        "附件",
+    ]
+    existing = path.read_text(encoding="utf-8", errors="replace").splitlines() if path.exists() else []
+    lines = list(existing)
+    for item in required:
+        if item not in lines:
+            lines.append(item)
+    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+
+def write_metadata(
+    output: Path,
+    audit_result: Dict[str, Any],
+    contract: Dict[str, Any],
+    profile: str,
+) -> Dict[str, str]:
+    root = metadata_root(output, profile)
+    root.mkdir(parents=True, exist_ok=True)
+    legacy_names = profile == "legacy"
+    verification_name = "VERIFY.md" if legacy_names else "verification.md"
+    manifest_name = "delivery-manifest.json"
+    paths: Dict[str, str] = {}
+
+    verification = root / verification_name
+    verification.write_text(
+        "# Verification\n\n"
+        "Run `python3 scripts/ctfctl.py verify --project-dir <delivery>` after Docker is available.\n"
+        "The structured result is saved as `.ctfbuild/verify.json`.\n",
+        encoding="utf-8",
+    )
+    paths["verification"] = str(verification)
+
+    audit_path = root / "audit.json"
+    audit_path.write_text(json.dumps(audit_result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    paths["audit"] = str(audit_path)
+
+    if profile == "legacy" or contract["flag"]["mode"] != "direct_exec":
+        runbook_name = "FLAG_UPDATE.md" if legacy_names else "flag-update.md"
+        runbook = root / runbook_name
+        runbook.write_text(update_runbook(contract), encoding="utf-8")
+        paths["flag_update"] = str(runbook)
+
+    manifest = manifest_for(output, audit_result)
+    manifest["status"] = str(audit_result.get("status") or "partial")
+    manifest["profile"] = profile
+    manifest_path = root / manifest_name
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    paths["manifest"] = str(manifest_path)
+    return paths
+
+
+def prepare(project: Path, output: Path, force: bool = False, profile: str = "clean") -> Dict[str, Any]:
+    if profile not in OUTPUT_PROFILES:
+        raise ValueError(f"不支持的输出 profile: {profile}，可选值：{', '.join(OUTPUT_PROFILES)}")
     if output.exists() and any(output.iterdir()) and not force:
         raise RuntimeError(f"输出目录非空，请使用 --force: {output}")
     if force and output.exists():
@@ -526,29 +666,55 @@ def prepare(project: Path, output: Path, force: bool = False) -> Dict[str, Any]:
     )
 
     if not dockerfile and not audit_result["start"].get("path") and not can_generate_container:
-        copy_tree(project, output)
-        (output / "VERIFY.md").write_text(
-            "# Verification\n\n该目录没有服务入口。当前交付类型是 attachment-only。\n",
-            encoding="utf-8",
-        )
-        manifest = manifest_for(output, audit_result)
-        manifest["status"] = prepared_status
-        (output / "delivery-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        return {"status": prepared_status, "output": str(output), "contract": contract, "manifest": str(output / "delivery-manifest.json"), "audit": audit_result}
+        ignored = CLEAN_NON_RUNTIME_NAMES | {
+            "challenge.yaml",
+            "Dockerfile",
+            "dockerfile",
+            "start.sh",
+            "entrypoint.sh",
+            "docker-entrypoint.sh",
+            "flag",
+        }
+        copy_tree(project, output, ignored if profile == "clean" else None)
+        metadata = write_metadata(output, audit_result, contract, profile)
+        return {
+            "status": prepared_status,
+            "output": str(output),
+            "profile": profile,
+            "contract": contract,
+            "metadata": metadata,
+            "manifest": metadata["manifest"],
+            "audit": audit_result,
+        }
 
     if dockerfile:
-        copy_tree(build_root, output)
+        copy_tree(build_root, output, CLEAN_NON_RUNTIME_NAMES if profile == "clean" else None)
         # A project-level challenge configuration remains useful in the manifest.
         config_path = Path(audit_result["challenge_config"]) if audit_result.get("challenge_config") else None
         if config_path and config_path.is_file() and not (output / "challenge.yaml").exists():
             shutil.copy2(config_path, output / "challenge.yaml")
     else:
         source = project / "src" if (project / "src").is_dir() else project
-        app = output / "app"
-        shutil.copytree(source, app, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*IGNORED_NAMES))
+        source_dir = output / "src"
+        source_ignored = CLEAN_NON_RUNTIME_NAMES | {
+            "challenge.yaml",
+            "Dockerfile",
+            "dockerfile",
+            "start.sh",
+            "entrypoint.sh",
+            "docker-entrypoint.sh",
+            "flag",
+        }
+        copy_tree(source, source_dir, source_ignored if profile == "clean" else IGNORED_NAMES)
         has_flag = bool(contract["flag"]["initial_file"] and (project / "flag").is_file())
         (output / "Dockerfile").write_text(
-            minimal_dockerfile(challenge, contract, has_flag, (source / "requirements.txt").is_file()),
+            minimal_dockerfile(
+                challenge,
+                contract,
+                has_flag,
+                (source / "requirements.txt").is_file(),
+                source_dir="src",
+            ),
             encoding="utf-8",
         )
         config_path = Path(audit_result["challenge_config"]) if audit_result.get("challenge_config") else None
@@ -585,16 +751,17 @@ def prepare(project: Path, output: Path, force: bool = False) -> Dict[str, Any]:
     if audit_result.get("migrations"):
         audit_result["migrations"] = list(dict.fromkeys(audit_result["migrations"]))
 
-    (output / "FLAG_UPDATE.md").write_text(update_runbook(contract), encoding="utf-8")
-    (output / "VERIFY.md").write_text(
-        "# Verification\n\n"
-        "Run `python3 scripts/ctfctl.py verify --project-dir <delivery>` after Docker is available.\n",
-        encoding="utf-8",
-    )
-    manifest = manifest_for(output, audit_result)
-    manifest["status"] = prepared_status
-    (output / "delivery-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return {"status": prepared_status, "output": str(output), "contract": contract, "manifest": str(output / "delivery-manifest.json"), "audit": audit_result}
+    ensure_clean_dockerignore(output, profile)
+    metadata = write_metadata(output, audit_result, contract, profile)
+    return {
+        "status": prepared_status,
+        "output": str(output),
+        "profile": profile,
+        "contract": contract,
+        "metadata": metadata,
+        "manifest": metadata["manifest"],
+        "audit": audit_result,
+    }
 
 
 def docker_available() -> bool:
@@ -626,18 +793,27 @@ def probe_tcp(host: str, port: int) -> Dict[str, Any]:
 def verify(project: Path, image: str, keep: bool = False) -> Dict[str, Any]:
     audit_result = audit(project)
     challenge, _ = read_challenge(project)
+
+    def finish(payload: Dict[str, Any]) -> Dict[str, Any]:
+        metadata_root_path = project / ".ctfbuild"
+        if metadata_root_path.is_dir():
+            evidence_path = metadata_root_path / "verify.json"
+            payload["evidence"] = str(evidence_path)
+            evidence_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return payload
+
     if not docker_available():
-        return {"status": "environment_failed", "verification": "runtime", "reason": "Docker daemon unavailable", "audit": audit_result}
+        return finish({"status": "environment_failed", "verification": "runtime", "reason": "Docker daemon unavailable", "audit": audit_result})
     dockerfile = project / "Dockerfile"
     if not dockerfile.exists():
-        return {"status": "failed", "verification": "build", "reason": "Dockerfile missing", "audit": audit_result}
+        return finish({"status": "failed", "verification": "build", "reason": "Dockerfile missing", "audit": audit_result})
     project_key = hashlib.sha1(str(project).encode("utf-8")).hexdigest()[:8]
     tag = image or f"ctfbuild-{re.sub(r'[^a-z0-9_.-]+', '-', project.name.lower()).strip('-') or 'challenge'}-{project_key}:verify"
     build = run(["docker", "build", "-t", tag, "."], cwd=project, timeout=900)
     result: Dict[str, Any] = {"status": "failed", "image": tag, "build": {"returncode": build.returncode, "stdout": build.stdout[-4000:], "stderr": build.stderr[-4000:]}, "audit": audit_result}
     if build.returncode != 0:
         result["verification"] = "build"
-        return result
+        return finish(result)
     name = f"ctfverify-{os.getpid()}-{int(time.time())}"
     ports = [int(value) for value in (audit_result["runtime"].get("ports") or []) if str(value).isdigit()]
     run_cmd = ["docker", "run", "-d", "--name", name]
@@ -648,7 +824,7 @@ def verify(project: Path, image: str, keep: bool = False) -> Dict[str, Any]:
     result["run"] = {"returncode": started.returncode, "stdout": started.stdout.strip(), "stderr": started.stderr[-3000:]}
     if started.returncode != 0:
         result["verification"] = "runtime"
-        return result
+        return finish(result)
     container = started.stdout.strip()
     try:
         time.sleep(2)
@@ -657,7 +833,7 @@ def verify(project: Path, image: str, keep: bool = False) -> Dict[str, Any]:
         if not result["running"]:
             result["status"] = "failed"
             result["verification"] = "runtime"
-            return result
+            return finish(result)
         contract = audit_result["contract"]
         flag = contract["flag"]
         if flag["mode"] == "direct_exec":
@@ -687,12 +863,20 @@ def verify(project: Path, image: str, keep: bool = False) -> Dict[str, Any]:
     finally:
         if not keep:
             run(["docker", "rm", "-f", container], timeout=30)
-    return result
+    return finish(result)
 
 
 def package(project: Path, output: Path) -> Dict[str, Any]:
     if not project.is_dir():
         raise RuntimeError(f"交付目录不存在: {project}")
+    project = project.resolve()
+    output = output.resolve()
+    try:
+        output.relative_to(project)
+    except ValueError:
+        pass
+    else:
+        raise RuntimeError("归档输出不能放在交付目录内，请放在其父目录或独立目录")
     output.parent.mkdir(parents=True, exist_ok=True)
     with tarfile.open(output, "w:gz") as archive:
         archive.add(project, arcname=project.name, recursive=True, filter=lambda info: None if any(part in IGNORED_NAMES for part in Path(info.name).parts) else info)
@@ -703,12 +887,14 @@ def package(project: Path, output: Path) -> Dict[str, Any]:
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Evidence-first CTF delivery compiler")
     sub = p.add_subparsers(dest="command", required=True)
-    for name in ("audit", "prepare", "verify"):
+    for name in ("audit", "inspect", "prepare", "scaffold", "verify"):
         item = sub.add_parser(name)
         item.add_argument("--project-dir", required=True)
         item.add_argument("--format", choices=("text", "json"), default="text")
-    sub.choices["prepare"].add_argument("--output", default="")
-    sub.choices["prepare"].add_argument("--force", action="store_true")
+    for name in ("prepare", "scaffold"):
+        sub.choices[name].add_argument("--output", default="")
+        sub.choices[name].add_argument("--force", action="store_true")
+        sub.choices[name].add_argument("--profile", choices=OUTPUT_PROFILES, default="clean")
     sub.choices["verify"].add_argument("--image", default="")
     sub.choices["verify"].add_argument("--keep", action="store_true")
     item = sub.add_parser("package")
@@ -723,9 +909,12 @@ def emit(payload: Dict[str, Any], fmt: str) -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"status: {payload.get('status')}")
-        for key in ("output", "archive", "verification", "reason", "manifest"):
+        for key in ("output", "archive", "profile", "verification", "reason", "manifest"):
             if payload.get(key):
                 print(f"{key}: {payload[key]}")
+        metadata = payload.get("metadata")
+        if isinstance(metadata, dict):
+            print(f"metadata: {metadata.get('manifest', '')}")
     return 0 if payload.get("status") in {"passed", "partial"} else 1
 
 
@@ -733,11 +922,11 @@ def main() -> int:
     args = parser().parse_args()
     try:
         project = Path(args.project_dir).resolve()
-        if args.command == "audit":
+        if args.command in {"audit", "inspect"}:
             return emit(audit(project), args.format)
-        if args.command == "prepare":
+        if args.command in {"prepare", "scaffold"}:
             output = Path(args.output).resolve() if args.output else project / "dist"
-            return emit(prepare(project, output, args.force), args.format)
+            return emit(prepare(project, output, args.force, args.profile), args.format)
         if args.command == "verify":
             return emit(verify(project, args.image, args.keep), args.format)
         return emit(package(project, Path(args.output).resolve()), args.format)

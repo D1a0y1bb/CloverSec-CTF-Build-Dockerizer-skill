@@ -7,12 +7,12 @@
 ## 脚本列表
 
 - `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh。旧 helper 合同才额外渲染 changeflag.sh。
-- `ctfctl.py`：统一执行审计、最小交付、Docker 运行验证和交付打包。`prepare` 会把合同事实写入 staged `challenge.yaml`，清理交付入口的说明注释，并在 direct-exec 下删除旧 helper 引用和空 Flag 初始化。
+- `ctfctl.py`：统一执行输入审计、干净脚手架、Docker 运行验证和交付打包。`inspect`/`audit` 只读取事实；`scaffold`/`prepare` 默认使用 `clean` profile，把新生成的源码放到 `src/`，把合同证据放到 `.ctfbuild/`；`verify` 执行真实 Docker build/run、Flag 回读和入口探测。
 - `render_bundle.py`：根据固定 Bundle/Recipe 渲染单容器多服务交付目录
 - `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `import_compose.py`：将 compose/Vulhub-like 输入转换为 scenario draft、renderable subset 和 import report
 - `generate_check_stub.py`：生成 RDG/SecOps check-service 可编辑脚本骨架，默认带人工确认标记
-- `workflow.py`：推荐工作流入口，依次完成题目分析、方案生成、确认、交付生成、验证和状态查看，并记录 `.ctfbuild/` 状态文件
+- `workflow.py`：历史题目和复杂输入的兼容入口。普通题目不需要先进入 proposal workflow。
 - `audit_input.py`：输入审计，输出风险等级、推荐处理路径、支持等级、验证等级、是否需要人工确认和发现项
 - `derive_config.py`：自动探测并输出 ProposedConfig（AI 编排模式专用）
 - `parse_config_block.py`：解析方案确认 YAML（stdin）并生成标准 challenge.yaml
@@ -29,7 +29,18 @@
 
 运行依赖：`PyYAML`。缺少依赖时，`ctfctl.py` 返回 `environment_failed`，示例回归入口会在循环前停止并给出安装命令。
 
-## 常用命令
+## 普通题目常用命令
+
+```bash
+python3 scripts/ctfctl.py inspect --project-dir <题目目录> --format json
+python3 scripts/ctfctl.py scaffold --project-dir <题目目录> --output <题目目录>/dist --profile clean
+python3 scripts/ctfctl.py verify --project-dir <题目目录>/dist --format json
+python3 scripts/ctfctl.py package --project-dir <题目目录>/dist --output <题目目录>/challenge.tar.gz
+```
+
+`audit` 等价于 `inspect`。`prepare` 等价于 `scaffold`。`clean` profile 不在题目根目录生成 `FLAG_UPDATE.md`、`VERIFY.md` 或 `delivery-manifest.json`；这些文件只在 `.ctfbuild/` 中保存，非 direct-exec 的 Flag 更新说明保存为 `.ctfbuild/flag-update.md`。
+
+## 兼容和高级入口
 
 ```bash
 python3 scripts/derive_config.py --project-dir .

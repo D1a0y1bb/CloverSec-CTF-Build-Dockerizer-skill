@@ -26,6 +26,7 @@ ALLOWED_PATTERNS = [
     ".gitignore",
     "scripts/*",
     "src/CloverSec-CTF-Build-Dockerizer/*",
+    "tests/golden/*",
     "docs/assets/readme/*",
     "Build_test/*",
     ".github/*",

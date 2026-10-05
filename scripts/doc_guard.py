@@ -207,21 +207,22 @@ def check_skill_progressive_disclosure(counter: Counter, root: Path) -> None:
         counter.log_info(f"SKILL.md 渐进加载行数检查通过（{len(lines)} <= {max_lines}）")
 
     required_terms = (
-        "workflow.py",
-        "workflow.py auto-render",
-        "validate.sh",
-        "按需读取索引",
-        "人工判断边界",
-        "真实 Docker 操作仍需要用户授权",
+        "ctfctl.py",
+        "ctfctl.py inspect",
+        "ctfctl.py scaffold",
+        "ctfctl.py verify",
+        "clean",
+        "direct-exec",
+        "changeflag.sh",
+        "按需路由高级模式",
+        "docs/core_contract.md",
+        "docs/advanced_routing.md",
         "docs/validation_guide.md",
         "docs/solve_probe_recipes.md",
         "docs/stack_cookbook.md",
         "docs/linux_qemu_manual_validation.md",
         "data/scenario_schema.md",
         "docs/bundle_design.md",
-        "docs/orchestrated_workflow.md",
-        "docs/beginner_guide.md",
-        "parse_config_block.py",
     )
     for term in required_terms:
         if term not in text:
@@ -359,8 +360,9 @@ def check_agent_metadata(counter: Counter, root: Path) -> None:
         "default_prompt:",
         "allow_implicit_invocation:",
         "$cloversec-ctf-build-dockerizer",
-        "auto-render",
-        "真实启动未知容器",
+        "ctfctl.py inspect",
+        "ctfctl.py scaffold",
+        "direct-exec",
     )
     missing = [term for term in required_terms if term not in text]
     if missing:

@@ -11,19 +11,32 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r11-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r12-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r11</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r12</code></p>
 
-四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario/Vulhub-like / Bundle/Recipe / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
+四叶草安全-创研中心竞赛 x Docker 环境专用容器构建 Skill。默认工作是把题目想法、半成品源码、参考目录或历史交付件整理成干净、可读、可构建、可验证的 CTF 题目目录。
 
-如果你经历过赛前通宵补 Dockerfile、线上临时修 start.sh、打包后才发现平台契约不满足、客户临时需求改题目、收集漏洞题目镜像、转化外部仅有源码的历史CTF题目或CVE漏洞镜像，四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill 就是为这种场景而生的。让AI更高效更规范的去完成：安装、提案确认、单题渲染、场景编排、本地回归、发布打包。大幅度减少Agent工具自由发挥、浪费Token的行为、提高AI时代下的工作流质量对齐水平。
+它优先处理源码目录、Dockerfile、start.sh、challenge.yaml、依赖和真实 Flag 路径。它先生成最小目录，再执行合同检查和可用的 Docker 验证。Scenario、Bundle、Linux-QEMU、RDG/SecOps 和 Release 仍然支持，但只在输入事实或用户请求触发时读取。
 
-如果用一句话概括现在这个 Skill 的工作形态，那就是：从“让模型阅读一份巨大的操作手册并自己决定怎么做”，变成了“由 Workflow 控制执行阶段，模型只在当前阶段获取需要的信息并完成对应任务”。旧版本本质上是把 Docker 构建规范、题目规范、交付标准、验收规则、交互要求等全部塞进 SKILL.md，每次执行任务都让模型重新阅读和理解一遍，所以输入 Token 很大，而且很多规则实际上是在不断重复发送。新版本则把这些内容拆解成状态化流程，用户提交任务后先进入 Intake 阶段识别题目类型和基本信息，然后进入 Proposal 阶段生成构建方案，用户确认后再进入 Render 阶段生成 Dockerfile、start.sh、challenge.yaml 等交付物，最后进入 Validate 阶段执行验收检查。每个阶段只读取当前需要的文档和规则，而不是加载整个知识体系，因此模型不再承担“记住所有规则”的职责，而是通过 Workflow 决定当前应该执行什么、读取什么、输出什么。这样做带来的收益并不只是 Token 下降，而是将原本依赖 Prompt 和记忆维持的流程约束转移到了 Workflow 本身，复杂能力仍然保留，但只在需要的时候展开。模型负责理解和生成，Workflow 负责阶段控制和行为约束，Knowledge 负责提供对应阶段所需的规范和模板。最终形成的是一种按需加载、状态驱动、渐进式披露的 Skill 运行模式，在保持原有构建能力和交付标准的前提下，大幅降低上下文负担和无效推理开销，这也是为什么在真实 API 调用记录中能够看到输入 Token 降低 96.2%、总 Token 降低 72.3%、费用降低 47.5% 和耗时降低 27.9% 的根本原因。
+现在的默认形态是“模型理解输入，脚本生成目录，验证命令证明结果”。Skill 入口只保留普通题目所需的合同。高级模式通过路由资料按需展开。机器报告写入 `.ctfbuild/`，不污染题目根目录。
+
+## V2.2.0-R12 默认交付重构
+
+`v2.2.0-r12` 重新定义普通题目的默认交付。Skill 默认只负责“想法或半成品源码 → 干净题目目录 → 镜像验证结果”。
+
+本次 r12 变更覆盖：
+
+- `SKILL.md` 改为产品合同，只保留普通题目输入、输出、Flag 合同、验证结果和高级路由。
+- `ctfctl.py inspect`、`scaffold --profile clean` 和 `verify` 成为默认入口；`audit` 和 `prepare` 保留兼容别名。
+- `clean` profile 默认使用 `src/`、最小 Dockerfile、最小 `start.sh` 和 `.dockerignore`，机器证据写入 `.ctfbuild/`。
+- 普通 direct-exec 题目不生成 `changeflag.sh`、`FLAG_UPDATE.md`、`VERIFY.md` 或根目录清单；legacy、helper 和 Linux-QEMU 仍按合同生成。
+- 高级 Scenario、Bundle、RDG/SecOps、Linux-QEMU 和镜像归档能力改为按证据路由，不再进入普通题目的默认上下文。
+- 示例快照、真实 Docker 回归和本地安装副本继续使用同一份 Skill 真源。
 
 ## V2.2.0-R11 发布修复
 
@@ -33,7 +46,7 @@
 
 - 普通题目默认使用 `direct-exec-v1`，平台直接写入 `challenge.flag.path`，不再生成无用的 `changeflag.sh`。
 - 文件替换题和数据库题通过 `flag.update` 记录真实更新命令，保留等待服务和业务路径信息。
-- 新增 `ctfctl.py audit/prepare/verify/package`，统一目录整理、启动契约检查、真实 Docker 验证和交付打包。
+- 新增 `ctfctl.py audit/prepare/verify/package`，统一目录整理、启动契约检查、真实 Docker 验证和交付打包；r12 增加 `inspect`、`scaffold` 兼容别名。
 - `render.py` 的默认输出移除模板废话和空占位逻辑；旧 helper 与 Linux-QEMU 仍可显式生成 `changeflag.sh`。
 - 示例、平台契约和迁移文档全部按 direct-exec、legacy-helper、Linux-QEMU 三类合同更新。
 
@@ -76,7 +89,7 @@ v2.2.0 是 历时几个月来我们对广泛的使用问题和 Agent 工作流�
 
 1、真实比赛场景构建覆盖更全
 
-v2.2.0 覆盖 Jeopardy、Web、Pwn、AI、RDG、AWD、AWDP、SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU 等场景。面向比赛平台的最终交付件仍保持单服务 Dockerfile + start.sh + changeflag.sh 格式，多服务编排主要用于本地验证、迁移和整理复杂题目
+v2.2.0 覆盖 Jeopardy、Web、Pwn、AI、RDG、AWD、AWDP、SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU 等场景。普通题目的默认交付件是 `Dockerfile + start.sh + challenge.yaml`，只有旧 helper 或 Linux-QEMU 合同才附带 `changeflag.sh`。
 
 2、Linux kernel CVE / LPE 题目有了专门交付方式
 
@@ -108,11 +121,10 @@ SKILL.md 从 1089 行降到 206 行，入口减少约 81.1%；字节数从 39254
 flowchart LR
     subgraph Main["主链路（默认交付流程）"]
         direction LR
-        A["workflow.py\n状态化工作流"] --> B["audit_input.py / derive_config.py\n输入审计与提案"]
-        B --> C["parse_config_block.py\n提案解析"]
-        C --> D["render.py\n单题渲染"]
-        D --> E["validate.sh\n合规校验"]
-        E --> K["validate_examples.sh / smoke_test.sh\n回归验收"]
+        A["ctfctl.py inspect\n事实审计"] --> B["ctfctl.py scaffold\nclean 目录"]
+        B --> C["ctfctl.py verify\n镜像与入口验证"]
+        C --> D["ctfctl.py package\n归档打包"]
+        D --> K["validate_examples.sh / smoke_test.sh\n回归验收"]
     end
 
     subgraph Ext["扩展链路（按需启用）"]
@@ -121,8 +133,8 @@ flowchart LR
         G["render_bundle.py\nBundle Recipe 渲染"] --> L["validate_bundle.py\nBundle 校验"]
         M["import_compose.py\ncompose 导入草案"] --> N["render_scenario.py\nScenario 场景渲染"]
         N --> H["validate_scenario.py\n场景合规校验"]
-        O["generate_check_stub.py\ncheck-service 骨架"] --> E
-        P["linux_qemu_manual_check.sh\nLinux-QEMU 手动验收"] --> E
+        O["generate_check_stub.py\ncheck-service 骨架"] --> C
+        P["linux_qemu_manual_check.sh\nLinux-QEMU 手动验收"] --> C
     end
 
     K --> I["scripts/release_build.sh\n构建发布资产"]
@@ -136,7 +148,7 @@ flowchart LR
     classDef rel  fill:#fffbeb,stroke:#d97706,stroke-width:2px,color:#713f12,font-weight:bold
     classDef title fill:none,stroke:none,color:#111827,font-size:15px,font-weight:600
 
-    class A,B,C,D,E,K main
+    class A,B,C,D,K main
     class F,G,H,L,M,N,O,P ext
     class I,J rel
 
@@ -146,16 +158,32 @@ flowchart LR
     linkStyle default stroke:#6b7280,stroke-width:1.5px
 ```
 
-### 主链路（按顺序执行）
+### 默认链路（按顺序执行）
 
 | 阶段 | 入口 | 作用 | 产出 |
 |---|---|---|---|
-| 1. 状态化工作流 | `workflow.py` | 依次完成题目分析、方案生成、确认、交付生成和验证 | `.ctfbuild/session.json` |
-| 2. 输入审计与提案 | `audit_input.py` / `derive_config.py` | 推断栈、端口、启动命令、运行环境和风险等级 | 风险审计结果 / 构建方案 |
-| 3. 提案解析 | `parse_config_block.py` | 把方案确认内容转成规范 `challenge.yaml` | 标准化配置 |
-| 4. 单题渲染 | `render.py` | 生成平台交付物 | `Dockerfile` `start.sh` `challenge.yaml`；helper/QEMU 才有 `changeflag.sh` |
-| 5. 合规校验 | `validate.sh` | 执行平台契约与风险规则检查 | `ERROR/WARN/INFO` / JSON summary |
-| 6. 回归验收 | `validate_examples.sh` / `smoke_test.sh` | 批量回归与构建级冒烟 | 回归汇总 / pass-fail |
+| 1. 事实审计 | `ctfctl.py inspect` | 读取源码、Dockerfile、启动方式、端口和 Flag 路径 | 审计结果 |
+| 2. 干净脚手架 | `ctfctl.py scaffold --profile clean` | 生成 `src/`、Dockerfile、start.sh 和 challenge.yaml | 干净交付目录 |
+| 3. 合同验证 | `ctfctl.py verify` | 执行静态检查、Docker build/run、Flag 回读和入口探测 | 结构化验证结果 |
+| 4. 归档打包 | `ctfctl.py package` | 生成发布归档并计算 SHA256 | `challenge.tar.gz` |
+
+`workflow.py`、`render.py` 和 `validate.sh` 仍然保留为兼容和高级入口。普通题目不需要先读取完整 workflow 手册。
+
+### 默认 clean 交付
+
+普通题目的可见根目录保持简洁：
+
+```text
+challenge/
+├── src/
+├── Dockerfile
+├── start.sh
+├── challenge.yaml
+├── .dockerignore
+└── flag                    # 只有启动前需要初始文件时保留
+```
+
+`changeflag.sh` 只在旧平台 helper 或 Linux-QEMU 合同中生成。`FLAG_UPDATE.md`、`VERIFY.md` 和 `delivery-manifest.json` 由 `ctfctl.py` 写入 `.ctfbuild/`，不进入 clean profile 的可见根目录。
 
 ### 扩展链路（按场景启用）
 
@@ -197,15 +225,15 @@ npx -y skills add \
 - `default_prompt`：点击试用或直接调用时的默认提示词
 - `allow_implicit_invocation`：允许模型在匹配场景下隐式触发该 Skill
 
-当前默认提示词策略是：先分析题目目录，整理证据、风险点和缺失信息，给出构建方案；用户确认后，再生成 Docker 交付件并执行验证。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变 `workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` 的运行时逻辑。
+当前默认提示词策略是：先读取运行事实，再生成 clean profile 的最小目录，并执行可用验证。这一层只影响 Codex UI 中“技能怎么展示、怎么起手”，不改变高级入口的运行时逻辑。
 
 如果后续你想调整 Codex 里的卡片标题、简介文案或试用提示词，优先改这里，而不是去改 `README` 正文：
 
 ```yaml
 interface:
   display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "将 CTF 题目整理为可验证的 Docker 交付件，支持内核题与多服务场景"
-  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录。先分析题目结构、风险点和缺失信息，给出构建方案；用户确认后，再生成 Docker 交付件并执行验证。"
+  short_description: "把 CTF 想法或源码整理为干净、可验证的 Docker 题目目录"
+  default_prompt: "使用 $cloversec-ctf-build-dockerizer 处理当前题目目录或参考源码。先读取运行事实，再用 ctfctl.py inspect、scaffold --profile clean 和 verify 生成干净目录；普通题目使用 direct-exec，不生成 changeflag.sh 或根目录机器报告。"
 ```
 
 ## 如何快速开始
@@ -215,36 +243,35 @@ interface:
 标准提示词（建议直接复制）：
 
 ```text
-请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。
-先分析题目结构、风险点和缺失信息，给出构建方案。
-我确认后，再生成 Docker 交付件并执行验证。
+请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录或参考源码。
+先读取启动方式、端口、Flag 路径和依赖。
+然后使用 ctfctl.py inspect、scaffold --profile clean、verify，生成干净的 src/Dockerfile/start.sh/challenge.yaml 目录。
 ```
 
 快捷业务提示词（懒人版）：
 
 ```text
-当前 src 是我的 CTF 题目源码，请先按平台交付规范分析目录并给出构建方案。
-我确认后，再生成完整容器交付件并完成校验。
+当前 src 是我的 CTF 题目源码，请整理成干净的容器交付目录。
+保留原始源码，普通题目不要生成 changeflag.sh、FLAG_UPDATE.md 或根目录机器报告。
 ```
 
 ### 手动命令链（源码仓库环境）
 
 以下命令适用于源码仓库目录。已安装 Skill 由 Agent 自动解析 Skill 根目录，不需要加 `src/CloverSec-CTF-Build-Dockerizer/` 前缀。
 
-确认前：
+普通题目：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py inspect --project-dir . --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py scaffold --project-dir . --output ./dist --profile clean
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py verify --project-dir ./dist --format json
+```
+
+需要历史 workflow 或复杂输入时：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py status --project-dir .
-```
-
-用户确认方案后：
-
-```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
 ```
 
 ### 运行时基座选择（PHP/Node/Java）
@@ -718,6 +745,8 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 | 文件 | 作用 |
 |---|---|
 | `architecture_overview.md` | 架构总览 |
+| `core_contract.md` | 默认 clean profile 的输入、输出和交付卡 |
+| `advanced_routing.md` | Scenario、Bundle、RDG/SecOps、Linux-QEMU 和归档路由 |
 | `platform_contract.md` | 平台硬契约说明 |
 | `orchestrated_workflow.md` | 方案确认、确认门槛和 5 项确认协议 |
 | `stack_cookbook.md` | 各栈构建建议 |
@@ -785,7 +814,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r11
+bash scripts/publish_release.sh --version v2.2.0-r12
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

@@ -4,6 +4,25 @@
 
 ## Unreleased
 
+## v2.2.0-r12 - 2026-10-06
+
+### 变更
+
+- 将 Skill 主入口收敛为普通题目的产品合同：想法或半成品源码整理为干净、可读、可构建、可验证的题目目录。
+- 新增 `ctfctl.py inspect`、`scaffold --profile clean` 默认链路，保留 `audit`、`prepare` 兼容别名。
+- `clean` profile 默认生成 `src/`、最小 Dockerfile、最小 `start.sh`、`challenge.yaml` 和 `.dockerignore`，不生成根目录机器报告。
+- 将审计、验证和归档清单写入 `.ctfbuild/`，并保存结构化 `audit.json`、`verify.json` 和 `delivery-manifest.json`。
+- 普通 direct-exec 输入会清理旧 `changeflag.sh` 引用；文件替换题和数据库题只在 `.ctfbuild/flag-update.md` 保存真实业务更新命令。
+- 将 Scenario、Bundle、RDG/SecOps、Linux-QEMU 和镜像归档入口移到按需路由文档，减少普通题目的默认上下文。
+
+### 验证
+
+- `scripts/check_fast.sh` 通过。
+- `skill-creator` 官方快速校验通过。
+- 39 个示例和场景回归通过，0 个失败。
+- Golden snapshot 通过，clean/preserve/legacy 和 direct-exec helper 清理行为通过。
+- `python-flask-basic` 真实 Docker build/run、direct-exec Flag 回读和 HTTP 入口探测通过。
+
 ## v2.2.0-r11 - 2026-10-05
 
 ### 变更

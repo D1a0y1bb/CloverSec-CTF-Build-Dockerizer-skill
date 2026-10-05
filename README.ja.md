@@ -14,17 +14,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r11-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r12-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r11"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r12"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r11</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r12</code></p>
 
-CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
+CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。既定の役割は、アイデア、未完成のソース、参考ディレクトリ、過去の配布物を、読みやすく検証可能な CTF コンテナディレクトリへ整理することです。
 
-大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
+実行方式、Flag パス、依存関係、Docker 契約を先に確認し、最小の配布ディレクトリを生成します。Scenario、Bundle、Linux-QEMU、RDG/SecOps、Release の機能は明示的な入力または要求がある場合だけ読み込みます。
+
+## v2.2.0-r12 既定配布の再設計
+
+`v2.2.0-r12` は通常問題の配布ディレクトリを既定の成果物にします。既定の流れは `idea または部分ソース -> clean ディレクトリ -> image 検証結果` です。
+
+この版では次を変更します。
+
+- 通常のモデル入口を `ctfctl.py inspect`、`scaffold --profile clean`、`verify` に統一します。
+- `audit` と `prepare` は互換 alias として残します。
+- 監査、検証、manifest の証拠を `.ctfbuild/` に保存します。
+- 通常の direct-exec 配布物には `changeflag.sh` とルートの機械レポートを生成しません。
+- Scenario、Bundle、RDG/SecOps、Linux-QEMU、image archive は入力事実または明示要求がある場合だけ route します。
 
 ## v2.2.0-r11 リリース修正
 
@@ -34,7 +46,7 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 - 通常問題は `direct-exec-v1` を使い、platform が `challenge.flag.path` に書き込みます。不要な `changeflag.sh` は生成しません。
 - file replacement と database 問題は、実際の更新コマンドを `flag.update` に記録します。
-- `ctfctl.py audit/prepare/verify/package` が整理、起動契約、Docker 検証、配布梱包を統一します。
+- `ctfctl.py audit/prepare/verify/package` が整理、起動契約、Docker 検証、配布梱包を統一します。r12 では `inspect` と `scaffold` alias を追加します。
 - `render.py` の既定出力から template 説明コメントと空 placeholder を削除し、legacy helper と Linux-QEMU は明示選択に残します。
 - examples、platform contract、migration 文書を direct-exec、legacy-helper、Linux-QEMU の分離へ更新します。
 
@@ -75,7 +87,7 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 この版の内容：
 
-1. 実競技シーンの対応範囲を拡大：Jeopardy、Web、Pwn、AI、RDG、AWD、AWDP、SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU を対象化。競技プラットフォーム向けの最終成果物は単一サービスの `Dockerfile + start.sh + changeflag.sh` 形式を維持し、複数サービス編成は主にローカル検証、移行、複雑な問題整理に使います。
+1. 実競技シーンの対応範囲を拡大：Jeopardy、Web、Pwn、AI、RDG、AWD、AWDP、SecOps、BaseUnit、Scenario/Vulhub-like、Bundle/Recipe、Linux-QEMU を対象化。通常問題の配布物は `Dockerfile + start.sh + challenge.yaml` で、旧 helper または Linux-QEMU の契約だけ `changeflag.sh` を追加します。
 2. Linux kernel CVE / LPE 専用の配布方式：プラットフォームから見ると 1 つの Docker 成果物ですが、コンテナ内部で QEMU による独立 Linux guest 環境を起動し、指定 kernel、rootfs、問題サービスを載せます。これにより Docker の配布形式を維持しながら、kernel 問題を実際の脆弱環境に近い形で動かせます。
 3. 複雑な入力は先に proposal confirmation：mixed input、dirty directory、high-risk input、compose/Vulhub-like project、Linux-QEMU missing assets、cPanel/WHM 系入力は proposal confirmation に入ります。人工確認で進める場合は理由を記録し、text / JSON output に残します。
 4. 実プロジェクトに近いサンプル検証：`validate_examples.sh` は既定で read-only、`Build_test/` は expected pass / expected fail を扱える実例プール、Scenario は service ごとの検証、Linux-QEMU は preflight から full validation まで段階的に使えます。
@@ -87,7 +99,8 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 
 | 機能 | エントリスクリプト | 目的 | 出力 |
 |---|---|---|---|
-| 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | 分析、確認、生成、検証、状態確認を編成 | `.ctfbuild/session.json` |
+| 既定 clean 配布 | `src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py` | 通常問題を inspect、scaffold、verify、package する | clean directory + `.ctfbuild/` evidence |
+| 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | 高度または歴史問題の分析、確認、生成、検証、状態確認を編成 | `.ctfbuild/session.json` |
 | 入力監査と提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | スタック、ポート、起動方法、実行環境、profile、リスクを推定 | 監査結果 / 構築案 |
 | 構築案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | 確認済みの構築案を `challenge.yaml` 化 | 正規化設定 |
 | 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/challenge.yaml`；helper/QEMU のみ `changeflag.sh` を追加 |
@@ -130,7 +143,7 @@ Codex UI における Skill カードの表示内容は `src/CloverSec-CTF-Build
 - `default_prompt`：試用・起動時に入る既定プロンプト
 - `allow_implicit_invocation`：条件一致時にモデルが暗黙起動できるか
 
-現在の既定プロンプト戦略は、まず問題ディレクトリを確認し、証拠、リスク、不足情報を整理して構築案を提示する流れです。ユーザー確認後に Docker 配布物を生成し、検証を実行します。この層は Codex UI での見え方と起動方法だけに影響し、`workflow.py`、`render.py`、`validate.sh`、`render_component.py`、`render_scenario.py` の実行時挙動は変えません。
+現在の既定プロンプト戦略は、実行事実を読み、clean ディレクトリを生成し、実行可能な検証を行う流れです。この層は Codex UI での見え方と起動方法だけに影響します。高度な script は routing 後に利用します。
 
 後で Codex 上のカード名、短い説明、試用プロンプトを調整したい場合は、README 本文より先にこのファイルを編集してください。
 
@@ -149,35 +162,35 @@ interface:
 
 ```text
 CloverSec-CTF-Build-Dockerizer を使って現在の問題ディレクトリを処理してください。
-まず問題構成、リスク、不足情報を確認し、構築案を提示してください。
-私が確認した後に Docker 配布物を生成し、検証してください。
+起動方法、port、依存関係、実際の Flag path を先に確認してください。
+`ctfctl.py inspect`、`scaffold --profile clean`、`verify` を実行してください。
+通常の direct-exec 配布物には `changeflag.sh` とルートの機械レポートを作らないでください。
 ```
 
 ショートプロンプト：
 
 ```text
-この src は CTF 問題のソースです。まず構成を確認し、プラットフォーム契約準拠の構築案を提示してください。
-私が確認した後に Docker 配布物を生成し、検証してください。
+この src は CTF 問題のソースです。読みやすく、build 可能で、検証可能な clean 配布ディレクトリに整理してください。
+元のソースを保持し、通常問題は direct-exec を使い、実際に検証した証拠だけを報告してください。
 ```
 
 ### ソースリポジトリ用の手動コマンド
 
 以下はこのソースリポジトリで使うコマンドです。インストール済み Skill は Agent が Skill root から解決するため、`src/CloverSec-CTF-Build-Dockerizer/` prefix は付けません。
 
-確認前：
+通常問題：
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py inspect --project-dir . --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py scaffold --project-dir . --output ./dist --profile clean
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py verify --project-dir ./dist --format json
+```
+
+高度または歴史問題：
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py status --project-dir .
-```
-
-ユーザー確認後：
-
-```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
 ```
 
 ### ランタイムプロファイル選択（PHP/Node/Java）
@@ -197,14 +210,14 @@ python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py \
 
 ### Codex
 
-呼び出し方：リポジトリルートで「提案 -> 確認 -> レンダリング -> 検証」の順序を明示。
+呼び出し方：通常問題ではリポジトリルートで「inspect -> scaffold clean -> verify」の順序を明示。
 
 推奨プロンプト：
 
 ```text
 現在のディレクトリを CloverSec-CTF-Build-Dockerizer で処理してください。
-まず問題構成、リスク、不足情報を確認してください。
-私が構築案を確認した後に、配布物生成と必要な検証コマンドを実行してください。
+起動方法、port、依存関係、実際の Flag path を先に確認してください。
+clean 配布物を生成し、必要な検証コマンドを実行してください。
 対象モード: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>
 ```
 
@@ -229,9 +242,9 @@ bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
 推奨プロンプト：
 
 ```text
-既存スクリプト（workflow.py/render.py/validate.sh）を必ず利用し、手書き置換をしないでください。
-まず問題内容を確認し、ユーザー確認後にレンダリングへ進んでください。
-最終的に Dockerfile/start.sh/changeflag.sh 契約を満たしてください。
+既存スクリプトを利用し、通常問題では `ctfctl.py` を使用してください。
+direct-exec 配布物には `changeflag.sh` とルートの機械レポートを入れないでください。
+Scenario、Bundle、RDG/SecOps、Linux-QEMU は専用 script に route してください。
 ```
 
 再試行プロンプト：
@@ -850,7 +863,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r11
+bash scripts/publish_release.sh --version v2.2.0-r12
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

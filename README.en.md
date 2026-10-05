@@ -14,17 +14,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r11-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r12-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r11"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r12"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r11</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r12</code></p>
 
-CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
+CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its default job is to turn an idea, partial source tree, or historical delivery into a clean, readable, buildable, and verifiable CTF container directory.
 
-If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
+It reads the runtime facts, preserves the challenge semantics, generates the minimum delivery files, and verifies the image when Docker is available. Scenario, Bundle, Linux-QEMU, RDG/SecOps, and release workflows remain available through explicit routing.
+
+## v2.2.0-r12 Default Delivery Refactor
+
+`v2.2.0-r12` makes the ordinary challenge directory the default product. The default path is `idea or partial source -> clean directory -> image verification result`.
+
+This release:
+
+- Uses `ctfctl.py inspect`, `scaffold --profile clean`, and `verify` as the default model entry points.
+- Keeps `audit` and `prepare` as compatibility aliases.
+- Places audit, verification, and manifest evidence under `.ctfbuild/`.
+- Keeps `changeflag.sh` and legacy report files out of ordinary direct-exec deliveries.
+- Routes Scenario, Bundle, RDG/SecOps, Linux-QEMU, and image archive work only when input evidence or the user request requires it.
 
 ## v2.2.0-r11 Release Fix
 
@@ -34,7 +46,7 @@ This r11 release includes:
 
 - Ordinary challenges now use `direct-exec-v1`; the platform writes to `challenge.flag.path` and does not generate `changeflag.sh`.
 - File replacement and database challenges record real update commands in `flag.update`.
-- `ctfctl.py audit/prepare/verify/package` now unifies directory cleanup, startup contract checks, Docker verification, and delivery packaging.
+- `ctfctl.py audit/prepare/verify/package` now unifies directory cleanup, startup contract checks, Docker verification, and delivery packaging; r12 adds the `inspect` and `scaffold` aliases.
 - Default `render.py` output removes template narration and empty placeholder logic; legacy helper and Linux-QEMU remain explicit options.
 - Examples, platform contracts, and migration documents now use the direct-exec, legacy-helper, and Linux-QEMU contract split.
 
@@ -75,7 +87,7 @@ This r7 release includes:
 
 This release covers:
 
-1. Broader real competition coverage: Jeopardy, Web, Pwn, AI, RDG, AWD, AWDP, SecOps, BaseUnit, Scenario/Vulhub-like, Bundle/Recipe, and Linux-QEMU. Platform delivery still uses the single-service `Dockerfile + start.sh + changeflag.sh` format, while multi-service orchestration is mainly for local validation, migration, and organizing complex challenges.
+1. Broader real competition coverage: Jeopardy, Web, Pwn, AI, RDG, AWD, AWDP, SecOps, BaseUnit, Scenario/Vulhub-like, Bundle/Recipe, and Linux-QEMU. Ordinary delivery uses `Dockerfile + start.sh + challenge.yaml`; only legacy helper or Linux-QEMU contracts add `changeflag.sh`.
 2. Dedicated Linux kernel CVE / LPE delivery: the platform still sees one Docker artifact, but the container starts an independent Linux guest environment through QEMU to carry the target kernel, rootfs, and challenge service. This keeps the platform delivery shape while giving kernel challenges a runtime closer to the real vulnerable environment.
 3. Proposal confirmation for complex input: mixed input, dirty directories, high-risk input, compose/Vulhub-like projects, missing Linux-QEMU assets, and cPanel/WHM-like inputs enter proposal confirmation. Manual continuation records the reason in text or JSON output.
 4. Example validation closer to real projects: `validate_examples.sh` is read-only by default, `Build_test/` supports expected pass and expected fail cases, Scenario validates each rendered service, and Linux-QEMU provides validation levels from preflight to full checks.
@@ -87,7 +99,8 @@ This release covers:
 
 | Capability | Entry Script | Purpose | Output |
 |---|---|---|---|
-| Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate analysis, confirmation, rendering, validation, and status tracking | `.ctfbuild/session.json` |
+| Default clean delivery | `src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py` | Inspect, scaffold, verify, and package an ordinary challenge | clean directory + `.ctfbuild/` evidence |
+| Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate advanced or historical analysis, confirmation, rendering, validation, and status tracking | `.ctfbuild/session.json` |
 | Input audit and proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | Infer stack, ports, start command, runtime, profile, and risk level | audit result / build plan |
 | Build-plan parsing | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert the confirmed plan into `challenge.yaml` | normalized config |
 | Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/challenge.yaml`; helper/QEMU only adds `changeflag.sh` |
@@ -130,7 +143,7 @@ Skill card presentation in Codex UI is controlled by `src/CloverSec-CTF-Build-Do
 - `default_prompt`: the prefilled prompt used for try/run actions
 - `allow_implicit_invocation`: whether the model may invoke the skill implicitly when the task matches
 
-The current default prompt strategy is: inspect the challenge directory first, summarize evidence, risks, and missing information, then ask the user to confirm the build plan. After confirmation, the skill generates the Docker delivery files and runs validation. This layer only affects how the skill is presented and started in Codex UI. It does not change the runtime behavior of `workflow.py`, `render.py`, `validate.sh`, `render_component.py`, or `render_scenario.py`.
+The current default prompt strategy is: read the runtime facts, scaffold the clean directory, and run the available verification. This layer only affects how the skill is presented and started in Codex UI. Advanced scripts remain available through routing.
 
 If you want to adjust the Codex card title, subtitle, or trial prompt later, edit this file first instead of rewriting the README body:
 
@@ -149,35 +162,35 @@ Standard prompt template:
 
 ```text
 Please use CloverSec-CTF-Build-Dockerizer for the current challenge directory.
-Inspect the challenge structure, risks, and missing information first.
-After I confirm the build plan, generate the Docker delivery files and run validation.
+Read the startup command, ports, dependencies, and real Flag path first.
+Run `ctfctl.py inspect`, `scaffold --profile clean`, and `verify`.
+Keep ordinary direct-exec output free of `changeflag.sh` and root-level machine reports.
 ```
 
 Shortcut prompt:
 
 ```text
-The src folder is my CTF challenge source. Inspect it first and propose a platform-compliant delivery plan.
-After I confirm, generate the Docker delivery files and run validation.
+The src folder is my CTF challenge source. Turn it into a clean, readable, buildable, and verifiable challenge directory.
+Keep the original source, use direct-exec for an ordinary challenge, and report only the evidence that was actually verified.
 ```
 
 ### Manual command chain for the source repository
 
 The following commands are for this source repository. Installed skills are resolved by the agent from the skill root; do not add the `src/CloverSec-CTF-Build-Dockerizer/` prefix there.
 
-Before confirmation:
+Ordinary challenge:
+
+```bash
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py inspect --project-dir . --format json
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py scaffold --project-dir . --output ./dist --profile clean
+python3 src/CloverSec-CTF-Build-Dockerizer/scripts/ctfctl.py verify --project-dir ./dist --format json
+```
+
+Advanced or historical workflow:
 
 ```bash
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py intake --project-dir .
 python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py propose --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py status --project-dir .
-```
-
-After the user confirms the plan:
-
-```bash
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py accept --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py render --project-dir .
-python3 src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py validate --project-dir .
 ```
 
 ### Runtime profile selection (PHP/Node/Java)
@@ -197,14 +210,14 @@ This section is intentionally operational. Each tool includes: call pattern, rec
 
 ### Codex
 
-Call pattern: work in repository root and enforce "proposal -> confirm -> render -> validate".
+Call pattern: work in repository root and enforce "inspect -> scaffold clean -> verify" for ordinary challenges.
 
 Recommended prompt:
 
 ```text
 Use CloverSec-CTF-Build-Dockerizer for the current directory.
-Inspect the challenge structure, risks, and missing information first.
-After I confirm the build plan, generate the delivery files and run the relevant validation command.
+Read the startup command, ports, dependencies, and real Flag path first.
+Generate the clean delivery files and run the relevant verification command.
 Target mode: <jeopardy|rdg|awd|awdp|secops|baseunit|scenario|bundle|linux-qemu|compose-import>.
 ```
 
@@ -229,9 +242,9 @@ Call pattern: ask Cursor to read `challenge.yaml`/`scenario.yaml` before editing
 Recommended prompt:
 
 ```text
-Use existing repository scripts only; do not replace workflow.py/render.py/validate.sh with handwritten logic.
-Inspect the challenge first, then wait for confirmation before rendering.
-Final artifacts must pass Dockerfile/start.sh/changeflag.sh contract checks.
+Use existing repository scripts only; use `ctfctl.py` for ordinary challenges.
+Keep direct-exec output free of `changeflag.sh` and root-level machine reports.
+Route Scenario, Bundle, RDG/SecOps, or Linux-QEMU inputs to their dedicated scripts.
 ```
 
 Retry prompt:
@@ -852,7 +865,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r11
+bash scripts/publish_release.sh --version v2.2.0-r12
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

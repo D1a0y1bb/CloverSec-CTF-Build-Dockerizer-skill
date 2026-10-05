@@ -22,8 +22,8 @@ docker exec <container> sh -c 'printf "%s\n" "$1" > "$2"' sh "$new_flag" "$flag_
 | 模式 | 用途 | 默认行为 |
 |---|---|---|
 | `direct_exec` | 平台直接写文件 | 不生成 `changeflag.sh` |
-| `file_replace` | PHP、配置文件等替换 | 输出 `FLAG_UPDATE.md` 命令 |
-| `database` | MySQL、MariaDB、Redis 等 | 输出等待命令和 SQL |
+| `file_replace` | PHP、配置文件等替换 | 在 `flag.update` 保存真实更新命令 |
+| `database` | MySQL、MariaDB、Redis 等 | 在 `flag.update` 保存等待条件和 SQL |
 | `helper_script` | 旧平台兼容 | 生成并验证 `changeflag.sh` |
 | `qemu_guest` | Linux-QEMU guest rootfs | 使用专用 guest 注入流程 |
 
@@ -38,20 +38,19 @@ docker exec <container> sh -c 'printf "%s\n" "$1" > "$2"' sh "$new_flag" "$flag_
 
 ## 交付目录
 
-普通题目可以只包含：
+普通题目的可见根目录可以只包含：
 
 ```text
 Dockerfile
 start.sh
-src/ 或 app/
+src/ 或现有源码根
 flag                    # 仅在初始文件需要时存在
 challenge.yaml          # 可选，但推荐保留
-FLAG_UPDATE.md
-VERIFY.md
-delivery-manifest.json
 ```
 
 `changeflag.sh` 只在合同明确要求时存在。
+
+`FLAG_UPDATE.md`、`VERIFY.md` 和 `delivery-manifest.json` 不属于 clean profile 的可见根目录。`ctfctl.py` 会把它们写入 `.ctfbuild/`，非 direct-exec 的 Flag 更新说明使用 `.ctfbuild/flag-update.md`。
 
 ## 结果状态
 

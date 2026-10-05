@@ -4,7 +4,7 @@
 
 ## `challenge.yaml` 单题示例
 
-这些目录以 `challenge.yaml` 为主输入。普通题目优先使用 `ctfctl.py audit/prepare/verify`，底层兼容入口仍是 `render.py` / `validate.sh`：
+这些目录以 `challenge.yaml` 为主输入。普通题目优先使用 `ctfctl.py inspect/scaffold/verify`，底层兼容入口仍是 `render.py` / `validate.sh`：
 
   - `node-basic/`
   - `php-apache-basic/`
@@ -66,6 +66,7 @@
 - `README.md`：本目录的快速运行说明
 - 可选渲染产物：`Dockerfile`、`start.sh`、`flag`
 - `changeflag.sh` 仅出现在 `linux-qemu-basic/` 或显式 helper 合同
+- `ctfctl.py scaffold --profile clean` 生成的机器报告位于输出目录 `.ctfbuild/`，不进入普通题目根目录
 - 可选业务入口断言：`challenge.verification.solve_probe` 或 `smoke_assert.yaml`
 - RDG 示例额外包含：`check/check.sh`（check-service 真实检查脚本）
 - `linux-qemu-basic/` 默认只用于渲染与静态校验；完整 QEMU boot 需要替换真实 VM 资产后单独执行。
