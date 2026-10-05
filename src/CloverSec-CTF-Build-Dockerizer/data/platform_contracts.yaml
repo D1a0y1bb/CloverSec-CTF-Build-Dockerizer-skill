@@ -1,0 +1,16 @@
+contracts:
+  - id: direct-exec-v1
+    default: true
+    entrypoint: /start.sh
+    flag_mode: direct_exec
+    description: 平台启动 /start.sh，并通过 docker exec 写入题目指定的 Flag 目标。
+  - id: legacy-helper-v2
+    default: false
+    entrypoint: /start.sh
+    flag_mode: helper_script
+    description: 兼容旧平台调用 /changeflag.sh 的历史题目。
+  - id: linux-qemu-v1
+    default: false
+    entrypoint: /start.sh
+    flag_mode: qemu_guest
+    description: Linux-QEMU 通过 guest rootfs 注入 Flag。

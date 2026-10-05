@@ -14,6 +14,7 @@ challenge:
   runtime_deps:
     - openssh-server
   platform:
+    contract: direct-exec-v1
     entrypoint: /start.sh
     require_bash: true
     allow_loopback_bind: false

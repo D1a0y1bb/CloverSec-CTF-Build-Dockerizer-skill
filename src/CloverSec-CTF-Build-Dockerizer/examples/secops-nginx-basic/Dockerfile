@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM nginx:1.27-bookworm
 
-
-# SecOps 强化模板：面向安全运维/配置加固题目，默认 check-service 判定。
-# 运行时链路与 RDG 类似，但以安全运维语义对外暴露。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates curl sudo shadow procps openssh; \
@@ -17,15 +14,12 @@ RUN set -eux; \
 RUN set -eux; \
     apt-get update && apt-get install -y --no-install-recommends procps && rm -rf /var/lib/apt/lists/*
 
-# 统一工作目录：start.sh 会切换到该目录
 WORKDIR /app
-
 
 COPY public /usr/share/nginx/html
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
 
 ENV SECOPS_MODE="nginx-hardening"
-
 
 RUN set -eux; \
     CTF_USER="ctf"; \
@@ -99,15 +93,9 @@ RUN set -eux; \
       > /etc/ssh/sshd_config; \
     fi
 
-# defense block disabled
-# profile allow flag_optional：跳过 /flag 产物拷贝。
 COPY start.sh /start.sh
-COPY changeflag.sh /changeflag.sh
 RUN chmod 555 /start.sh
-RUN chmod 555 /changeflag.sh
-# 对外暴露端口（至少一个）
 EXPOSE 80 22 8022
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/80'
-# 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

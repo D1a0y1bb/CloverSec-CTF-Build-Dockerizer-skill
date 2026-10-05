@@ -1,6 +1,6 @@
-# 技术栈手册（v2.2.0）
+# 技术栈手册（v3.0）
 
-本手册给出各栈最小配置与 V2 使用建议。
+本手册给出各栈最小配置与 V3 使用建议。
 
 ## 目录
 
@@ -19,8 +19,9 @@
 
 ## 全局规则
 
-- 所有栈最终交付都必须包含：`Dockerfile/start.sh/changeflag.sh`
-- 默认要求 `/flag`；仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行
+- 默认交付包含：`Dockerfile/start.sh`。
+- 平台使用 direct-exec 写入 `challenge.flag.path`，默认路径是 `/flag`。
+- `changeflag.sh` 只在 `flag.mode=helper_script`、`flag.mode=qemu_guest` 或显式旧合同中生成。
 - profile 推荐通过 `challenge.profile` 显式声明
 - 防御配置使用 `challenge.defense`；`challenge.rdg` 仅兼容输入
 
@@ -99,8 +100,9 @@
 - 默认启动命令：`/usr/sbin/xinetd -dontfork`。
 - Alpine 可回退 `tcpserver`，缺失时回退 `socat`。
 - 默认建议设置 `platform.docker_platform: linux/amd64`，避免在 arm64 主机上生成架构不符合原题的镜像。
-- 可通过 `flag.sync_paths` 把平台动态 flag 同步到题目业务路径，例如 `/home/ctf/flag`、`/home/ctf/flag0`、`/home/ctf/flag1`。
-- `sync_paths` 需要平台调用 `/changeflag.sh` 后生效；源码里读 `flag0/flag1`、数据库或环境变量时，仍要人工确认真实路径和验证方式。
+- 旧 helper 合同可通过 `flag.sync_paths` 同步多个业务路径。direct-exec 题目直接配置 `flag.path`，例如 `/home/ctf/flag`、`/home/ctf/flag0` 或 `/home/ctf/flag1`。
+- direct-exec 题目不使用 `sync_paths` 伪装业务同步。题目应在 `flag.path` 或 `flag.update` 中声明真实写入方式。
+- 只有旧平台调用 `/changeflag.sh` 时，才使用 `sync_paths` 和 `helper_script` 合同。
 - 模板：`templates/pwn/Dockerfile.tpl`、`templates/pwn/start.sh.tpl`。
 
 ### Linux-QEMU

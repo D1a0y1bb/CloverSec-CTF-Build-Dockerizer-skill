@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
-
-# RDG 强化模板：ttyd + sshd 双通道，默认 check-service 判定链路。
-# 平台契约与 RDG 依赖：bash/ca-certificates + sshd + 用户管理工具。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates curl sudo shadow procps openssh; \
@@ -14,22 +11,12 @@ RUN set -eux; \
       exit 1; \
     fi
 
-# 可选运行时依赖安装。
-RUN set -eux; \
-    :
-
-# 统一工作目录：start.sh 会切换到该目录
 WORKDIR /app
 
-
-# 复制题目业务文件。
 COPY . /app
-# no extra copy
 
 ENV PYTHONUNBUFFERED="1"
 
-
-# RDG 默认用户：ctf/123456，可按题目需求加入 root 组。
 RUN set -eux; \
     CTF_USER="ctf"; \
     CTF_PASS="123456"; \
@@ -50,7 +37,6 @@ RUN set -eux; \
       fi; \
     fi
 
-# RDG ttyd 要求：最终必须有 /ttyd（可执行）。优先题目目录，缺失时可回退安装。
 RUN set -eux; \
     if [ "true" = "true" ]; then \
       TTYD_SRC="/app/ttyd"; \
@@ -89,7 +75,6 @@ RUN set -eux; \
       chmod 755 /ttyd; \
     fi
 
-# RDG sshd 链路：默认端口 22，默认禁止 root 密码登录。
 RUN set -eux; \
     if [ "true" = "true" ]; then \
       mkdir -p /var/run/sshd /etc/ssh; \
@@ -107,15 +92,9 @@ RUN set -eux; \
       > /etc/ssh/sshd_config; \
     fi
 
-# defense block disabled
-# profile allow flag_optional：跳过 /flag 产物拷贝。
 COPY start.sh /start.sh
-COPY changeflag.sh /changeflag.sh
 RUN chmod 555 /start.sh
-RUN chmod 555 /changeflag.sh
-# 对外暴露端口（至少一个）
 EXPOSE 80 22 8022
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/80'
-# 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

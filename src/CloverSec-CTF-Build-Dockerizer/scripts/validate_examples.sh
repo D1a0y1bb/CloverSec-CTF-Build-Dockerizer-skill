@@ -61,6 +61,15 @@ if [[ ! -d "$EXAMPLES_DIR" ]]; then
   exit 2
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[ENVIRONMENT_FAILED] 未找到 python3。" >&2
+  exit 2
+fi
+if ! python3 -c 'import yaml' >/dev/null 2>&1; then
+  echo "[ENVIRONMENT_FAILED] 缺少 PyYAML。请先执行：python3 -m pip install -r scripts/requirements.txt" >&2
+  exit 2
+fi
+
 if [[ ! -x "$VALIDATE_SH" ]]; then
   # 允许用户直接 bash validate_examples.sh 时自动补权限
   chmod +x "$VALIDATE_SH" 2>/dev/null || true

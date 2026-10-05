@@ -183,14 +183,17 @@ def load_bundle_request(config_path: Path | None, recipe_id: str | None, recipes
     if recipe_id:
         if recipe_id not in recipes:
             raise ConfigError(f"BUNDLE_UNSUPPORTED_COMBINATION: unknown recipe {recipe_id}")
-        return {"name": recipe_id, "recipe": recipe_id}, recipes[recipe_id], None
+        recipe = dict(recipes[recipe_id])
+        recipe.setdefault("flag_mode", "direct_exec")
+        return {"name": recipe_id, "recipe": recipe_id}, recipe, None
 
     assert config_path is not None
     raw = load_yaml_file(config_path) or {}
     if not isinstance(raw, dict):
         raise ConfigError("bundle.yaml 顶层必须是对象")
     bundle = ensure_dict(raw.get("bundle"), "bundle")
-    recipe = match_recipe(bundle, recipes)
+    recipe = dict(match_recipe(bundle, recipes))
+    recipe["flag_mode"] = str(bundle.get("flag_mode") or recipe.get("flag_mode") or "direct_exec").strip().lower()
     return bundle, recipe, config_path.parent
 
 
@@ -231,19 +234,23 @@ def dockerfile_text(recipe: Dict[str, Any]) -> str:
     expose_ports = " ".join(str(port) for port in ensure_list(recipe.get("expose_ports"), "recipe.expose_ports"))
     healthcheck_cmd = str(recipe.get("healthcheck_cmd") or "bash -lc 'true'")
     app_dst = str(recipe.get("app_dst") or recipe.get("workdir") or "/app")
-    return (
-        f"FROM {recipe['base_image']}\n\n"
-        "ENV DEBIAN_FRONTEND=noninteractive\n\n"
-        f"RUN set -eux; \\\n    {run_lines}\n\n"
-        f"WORKDIR {recipe['workdir']}\n\n"
-        f"COPY app {app_dst}\n"
-        "COPY flag /flag\n"
-        "COPY changeflag.sh /changeflag.sh\n"
-        "COPY start.sh /start.sh\n\n"
-        "RUN chmod 555 /start.sh /changeflag.sh && chmod 444 /flag\n\n"
-        f"EXPOSE {expose_ports}\n\n"
-        f"HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=20s CMD {healthcheck_cmd}\n\n"
-        "ENTRYPOINT [\"/start.sh\"]\n"
+    flag_mode = str(recipe.get("flag_mode") or "direct_exec").strip().lower()
+    helper_copy = "COPY changeflag.sh /changeflag.sh\n" if flag_mode == "helper_script" else ""
+    helper_chmod = " /changeflag.sh" if flag_mode == "helper_script" else ""
+    copy_block = "COPY flag /flag\n" + helper_copy + "COPY start.sh /start.sh\n\n"
+    return "".join(
+        [
+            f"FROM {recipe['base_image']}\n\n",
+            "ENV DEBIAN_FRONTEND=noninteractive\n\n",
+            f"RUN set -eux; \\\n    {run_lines}\n\n",
+            f"WORKDIR {recipe['workdir']}\n\n",
+            f"COPY app {app_dst}\n",
+            copy_block,
+            f"RUN chmod 555 /start.sh{helper_chmod} && chmod 444 /flag\n\n",
+            f"EXPOSE {expose_ports}\n\n",
+            f"HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=20s CMD {healthcheck_cmd}\n\n",
+            "ENTRYPOINT [\"/start.sh\"]\n",
+        ]
     )
 
 
@@ -364,6 +371,15 @@ def challenge_doc(bundle: Dict[str, Any], recipe: Dict[str, Any]) -> Dict[str, A
                 "enabled": True,
                 "cmd": str(recipe.get("healthcheck_cmd") or "bash -lc 'true'"),
             },
+            "platform": {
+                "entrypoint": "/start.sh",
+                "contract": "legacy-helper-v2" if str(recipe.get("flag_mode") or "direct_exec") == "helper_script" else "direct-exec-v1",
+            },
+            "flag": {
+                "mode": str(recipe.get("flag_mode") or "direct_exec"),
+                "path": "/flag",
+                "initial_file": True,
+            },
             "bundle": {
                 "recipe_id": str(recipe["id"]),
                 "mode": str(recipe.get("mode") or "single_container"),
@@ -377,7 +393,10 @@ def challenge_doc(bundle: Dict[str, Any], recipe: Dict[str, Any]) -> Dict[str, A
 
 
 def render_bundle(bundle: Dict[str, Any], recipe: Dict[str, Any], config_dir: Path | None, output: Path) -> Dict[str, Any]:
-    planned = ["Dockerfile", "start.sh", "changeflag.sh", "flag", "challenge.yaml", "app/"]
+    flag_mode = str(recipe.get("flag_mode") or "direct_exec").strip().lower()
+    planned = ["Dockerfile", "start.sh", "flag", "challenge.yaml", "app/"]
+    if flag_mode == "helper_script":
+        planned.insert(2, "changeflag.sh")
     file_plan = [
         {
             "path": item,
@@ -390,18 +409,20 @@ def render_bundle(bundle: Dict[str, Any], recipe: Dict[str, Any], config_dir: Pa
     copy_app(bundle, config_dir, output, recipe)
     write_unix_text(output / "Dockerfile", dockerfile_text(recipe))
     write_unix_text(output / "start.sh", start_script_text(recipe))
-    write_unix_text(output / "changeflag.sh", changeflag_text())
+    if flag_mode == "helper_script":
+        write_unix_text(output / "changeflag.sh", changeflag_text())
     write_unix_text(output / "flag", "flag{bundle_recipe_placeholder}\n")
     dump_yaml(challenge_doc(bundle, recipe), output / "challenge.yaml")
     os.chmod(output / "start.sh", 0o755)
-    os.chmod(output / "changeflag.sh", 0o755)
+    if flag_mode == "helper_script":
+        os.chmod(output / "changeflag.sh", 0o755)
     os.chmod(output / "flag", 0o444)
     return structured_ok(
         "bundle",
         recipe_id=str(recipe["id"]),
         output=str(output),
         support_level=str(recipe.get("support_level") or "partial"),
-        files=["Dockerfile", "start.sh", "changeflag.sh", "flag", "challenge.yaml"],
+        files=[item for item in planned if item != "app/"],
         file_plan=file_plan,
     )
 

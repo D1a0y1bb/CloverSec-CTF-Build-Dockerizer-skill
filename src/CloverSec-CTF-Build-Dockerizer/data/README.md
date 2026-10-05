@@ -1,6 +1,7 @@
-# data 目录（v2.2.0）
+# data 目录（v3.0）
 
-- `schema.md`：`challenge.yaml` v2 输入契约
+- `schema.md`：`challenge.yaml` v3 输入契约
+- `platform_contracts.yaml`：direct-exec、legacy-helper 和 Linux-QEMU 合同
 - `stacks.yaml`：12 栈默认值与探测规则（含 `linux-qemu`）
 - `patterns.yaml`：端口/启动命令推断规则
 - `profiles.yaml`：profile 默认防御行为
@@ -15,8 +16,9 @@
 
 说明：
 
-- 平台硬约束由渲染与校验链路强制执行（`/start.sh`、`/changeflag.sh`、`/bin/bash`、`EXPOSE`）。
-- `/flag` 默认必须存在，仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行。
+- 平台硬约束由渲染与校验链路强制执行（`/start.sh`、`flag.path`、`EXPOSE`）。
+- direct-exec 默认不生成 `/changeflag.sh`。helper 和 Linux-QEMU 合同才检查该入口。
+- `/flag` 可以由平台运行时注入。初始 flag 文件只在题目启动前需要时保留。
 - scenario 生成的 compose 为本地验证用途，不改变平台单服务交付模型。
 - bundle 覆盖固定 Recipe 和显式 custom 组合；custom 组合必须提供安装命令、启动命令、端口和服务清单，不做自动版本求解。
 - `linux-qemu` 使用 `challenge.vm` 描述 QEMU guest、VM 资产、hostfwd 和 guest flag 注入策略。

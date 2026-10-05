@@ -13,6 +13,7 @@ challenge:
     cmd: redis-server --protected-mode no --bind 0.0.0.0
   runtime_deps: []
   platform:
+    contract: direct-exec-v1
     entrypoint: /start.sh
     require_bash: true
     allow_loopback_bind: false

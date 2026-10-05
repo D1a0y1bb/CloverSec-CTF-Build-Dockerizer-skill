@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM nginx:1.27-bookworm
 
-
-# SecOps 强化模板：面向安全运维/配置加固题目，默认 check-service 判定。
-# 运行时链路与 RDG 类似，但以安全运维语义对外暴露。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates curl sudo shadow procps openssh; \
@@ -14,18 +11,9 @@ RUN set -eux; \
       exit 1; \
     fi
 
-RUN set -eux; \
-    :
-
-# 统一工作目录：start.sh 会切换到该目录
 WORKDIR /usr/share/nginx/html
 
-
 COPY . /usr/share/nginx/html
-# no extra copy
-
-# no docker env
-
 
 RUN set -eux; \
     CTF_USER="ctf"; \
@@ -99,17 +87,11 @@ RUN set -eux; \
       > /etc/ssh/sshd_config; \
     fi
 
-# defense block disabled
-# ---- 平台硬约束：/start.sh /changeflag.sh 与 /flag 必须位于容器根目录 ----
 COPY start.sh /start.sh
-COPY changeflag.sh /changeflag.sh
+RUN chmod 555 /start.sh
 COPY flag /flag
-
-# /start.sh 与 /changeflag.sh 必须可执行；/flag 必须可读（平台启动后会写入动态 flag）
-RUN chmod 555 /start.sh && chmod 555 /changeflag.sh && chmod 444 /flag
-# 对外暴露端口（至少一个）
+RUN chmod 444 /flag
 EXPOSE 80 22 8022
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/80'
-# 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

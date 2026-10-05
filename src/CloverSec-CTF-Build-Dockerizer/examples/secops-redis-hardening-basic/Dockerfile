@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM redis:7.2-alpine@sha256:5f8bafd0669a697ee564ad825c2a63e6b60b0a67c02b0089f8a250051ab6fe85
 
-
-# SecOps 强化模板：面向安全运维/配置加固题目，默认 check-service 判定。
-# 运行时链路与 RDG 类似，但以安全运维语义对外暴露。
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates curl sudo shadow procps openssh; \
@@ -14,18 +11,9 @@ RUN set -eux; \
       exit 1; \
     fi
 
-RUN set -eux; \
-    :
-
-# 统一工作目录：start.sh 会切换到该目录
 WORKDIR /app
 
-
 COPY . /app
-# no extra copy
-
-# no docker env
-
 
 RUN set -eux; \
     CTF_USER="ctf"; \
@@ -99,15 +87,9 @@ RUN set -eux; \
       > /etc/ssh/sshd_config; \
     fi
 
-# defense block disabled
-# profile allow flag_optional：跳过 /flag 产物拷贝。
 COPY start.sh /start.sh
-COPY changeflag.sh /changeflag.sh
 RUN chmod 555 /start.sh
-RUN chmod 555 /changeflag.sh
-# 对外暴露端口（至少一个）
 EXPOSE 6379 22
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/6379'
-# 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

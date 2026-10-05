@@ -70,9 +70,25 @@ def main() -> int:
     source = {**legacy, **defense}
     vm = challenge.get("vm") if isinstance(challenge.get("vm"), dict) else {}
     flag_cfg = challenge.get("flag") if isinstance(challenge.get("flag"), dict) else {}
+    platform_cfg = challenge.get("platform") if isinstance(challenge.get("platform"), dict) else {}
     verification = challenge.get("verification") if isinstance(challenge.get("verification"), dict) else {}
     solve_probe = verification.get("solve_probe") if isinstance(verification.get("solve_probe"), dict) else {}
     sync_paths = flag_cfg.get("sync_paths") if isinstance(flag_cfg.get("sync_paths"), list) else []
+    contract = str(platform_cfg.get("contract") or "direct-exec-v1").strip().lower()
+    flag_mode = str(flag_cfg.get("mode") or "").strip().lower()
+    if not flag_mode:
+        flag_mode = "helper_script" if contract in {"legacy", "legacy-helper", "legacy-helper-v2"} else (
+            "qemu_guest" if stack == "linux-qemu" else "direct_exec"
+        )
+    flag_path = str(flag_cfg.get("path") or (str(vm.get("guest_flag_path") or "/flag") if flag_mode == "qemu_guest" else "/flag")).strip()
+    initial_file = pick_bool(flag_cfg, "initial_file", False)
+    require_bash = pick_bool(
+        platform_cfg,
+        "require_bash",
+        flag_mode in {"helper_script", "qemu_guest"},
+    )
+    if flag_mode in {"helper_script", "qemu_guest"}:
+        require_bash = "true"
     guest_forwards = vm.get("guest_forwards") if isinstance(vm.get("guest_forwards"), list) else []
     forward_host_ports = []
     for item in guest_forwards:
@@ -115,6 +131,11 @@ def main() -> int:
         "FLAG_OPTIONAL_CFG": flag_optional,
         "START_CMD_CFG": str(((challenge.get("start") or {}).get("cmd")) or "").strip(),
         "FLAG_SYNC_PATHS_CFG": ",".join(str(item).strip() for item in sync_paths if str(item).strip()),
+        "PLATFORM_CONTRACT_CFG": contract,
+        "FLAG_MODE_CFG": flag_mode,
+        "FLAG_PATH_CFG": flag_path,
+        "FLAG_INITIAL_FILE_CFG": initial_file,
+        "REQUIRE_BASH_CFG": require_bash,
         "HAS_SOLVE_PROBE_CFG": "true" if bool(solve_probe) else "false",
         "VM_ACCELERATOR_CFG": str(vm.get("accelerator") or "tcg").strip().lower(),
         "VM_REQUIRE_KVM_CFG": pick_bool(vm, "require_kvm", False),

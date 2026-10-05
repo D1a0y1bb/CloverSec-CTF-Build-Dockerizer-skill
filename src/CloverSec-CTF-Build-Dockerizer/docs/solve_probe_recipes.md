@@ -73,14 +73,13 @@ verification:
 
 ## Pwn nc 入口
 
-Pwn 题通常要人工确认程序真实读取的 flag 路径。`flag.sync_paths` 负责把平台动态 flag 同步到业务路径，`solve_probe` 只验证入口有响应。
+Pwn 题通常要人工确认程序真实读取的 flag 路径。direct-exec 直接把真实路径写入 `flag.path`，`solve_probe` 只验证入口有响应。
 
 ```yaml
 flag:
-  path: /flag
+  mode: direct_exec
+  path: /home/ctf/flag
   permission: "444"
-  sync_paths:
-    - /home/ctf/flag
 
 verification:
   solve_probe:
@@ -88,18 +87,16 @@ verification:
     expect_text: "choice"
 ```
 
-如果源码读取 `flag0` 或 `flag1`，不要只保留默认 `/home/ctf/flag`：
+如果源码读取 `flag0` 或 `flag1`，把已确认的实际路径写入 `flag.path`：
 
 ```yaml
 flag:
-  path: /flag
+  mode: direct_exec
+  path: /home/ctf/flag0
   permission: "444"
-  sync_paths:
-    - /home/ctf/flag0
-    - /home/ctf/flag1
 ```
 
-源码中的相对路径要按题目进程的 WORKDIR 转成绝对路径。不要把 `flag0` 这类相对路径直接写进 `sync_paths`，因为 `/changeflag.sh` 执行时的当前目录不一定是题目 WORKDIR。
+源码中的相对路径要按题目进程的 WORKDIR 转成绝对路径。多路径题目需要用户明确选择一个 direct-exec 入口，或显式使用 `legacy-helper-v2`。
 
 ## 动态 flag 与真实拿 flag
 

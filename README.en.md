@@ -14,27 +14,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r10-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r11-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r10"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r11"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r10</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r11</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its job is not just "generate Dockerfile", but to turn CTF container delivery into a predictable engineering pipeline.
 
 If you have ever patched `start.sh` minutes before kickoff, or found contract failures after packaging, this README is designed to remove that uncertainty. You can use this page end-to-end: install, proposal confirmation, single challenge rendering, scenario orchestration, local regression, and release publishing.
 
-## v2.2.0-r10 Release Fix
+## v2.2.0-r11 Release Fix
 
-`v2.2.0-r10` is the tenth release-fix build for `v2.2.0`. It does not change the `challenge.yaml` contract. It fixes validate path handling when Windows runs `validate.sh` through WSL bash.
+`v2.2.0-r11` is the eleventh release-fix build for `v2.2.0`. It changes ordinary challenge flag delivery to direct platform injection and removes unnecessary helper files.
 
-This r10 release includes:
+This r11 release includes:
 
-- `workflow.py auto-render` and `workflow.py validate` now share one validate command builder.
-- On Windows with WSL `bash.exe`, `validate.sh`, the output JSON, `Dockerfile`, `start.sh`, `challenge.yaml`, and the project directory are converted to `/mnt/...` paths.
-- Non-WSL bash keeps the previous behavior for macOS, Linux, and Git Bash.
+- Ordinary challenges now use `direct-exec-v1`; the platform writes to `challenge.flag.path` and does not generate `changeflag.sh`.
+- File replacement and database challenges record real update commands in `flag.update`.
+- `ctfctl.py audit/prepare/verify/package` now unifies directory cleanup, startup contract checks, Docker verification, and delivery packaging.
+- Default `render.py` output removes template narration and empty placeholder logic; legacy helper and Linux-QEMU remain explicit options.
+- Examples, platform contracts, and migration documents now use the direct-exec, legacy-helper, and Linux-QEMU contract split.
 
 ## v2.2.0-r9 Release Fix
 
@@ -88,7 +90,7 @@ This release covers:
 | Stateful workflow | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | Orchestrate analysis, confirmation, rendering, validation, and status tracking | `.ctfbuild/session.json` |
 | Input audit and proposal | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | Infer stack, ports, start command, runtime, profile, and risk level | audit result / build plan |
 | Build-plan parsing | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | Convert the confirmed plan into `challenge.yaml` | normalized config |
-| Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
+| Single challenge render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | Generate platform delivery artifacts | `Dockerfile/start.sh/challenge.yaml`; helper/QEMU only adds `changeflag.sh` |
 | Contract validation | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | Enforce platform constraints and policy checks | `ERROR/WARN/INFO` / JSON summary |
 | Component render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | Generate component+variant base units | build-ready service directory |
 | Bundle/Recipe render | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | Generate and validate fixed recipes or explicit custom single-container multi-service bundles | platform delivery directory |
@@ -598,22 +600,24 @@ SMOKE_CASES=node-basic,pwn-basic \
 
 Every rendered output must satisfy:
 
-- `Dockerfile` exists.
-- executable `start.sh` exists.
-- executable `changeflag.sh` exists.
-- `/bin/bash` exists in container image.
-- Dockerfile declares `EXPOSE`.
+- `Dockerfile`, executable `start.sh`, and `challenge.yaml` exist.
 - `start.sh` launches real service processes (no idle keepalive).
+- `changeflag.sh` and `/bin/bash` are required only for `helper_script` or Linux-QEMU contracts.
 
 `flag` behavior:
 
-- default: `flag` artifact required.
-- if `include_flag_artifact=false`: only `flag` omission is allowed, never `changeflag.sh` omission.
+- default: the platform writes `challenge.flag.path` at runtime.
+- keep a `flag` artifact only when the challenge needs an initial file; use `flag.update` for file replacement or database updates.
+
+Business Flag path:
+
+- `/flag` is only the default path. Set `challenge.flag.path` to the path read by the challenge.
+- Use `challenge.flag.sync_paths` only when a legacy platform explicitly calls the helper.
 
 Scenario boundary:
 
 - `docker-compose.yml` is valid for local orchestration/testing.
-- platform final delivery is still per-service directory (`Dockerfile + start.sh + changeflag.sh`).
+- ordinary platform delivery remains a single-service directory without `changeflag.sh`.
 
 ## Workflow Screenshots (prompt to release)
 
@@ -790,13 +794,13 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 
 ## FAQ and Troubleshooting
 
-### Q1: Why are `/start.sh`, `/changeflag.sh`, and `/bin/bash` mandatory?
+### Q1: Why are `/start.sh` and `challenge.flag.path` required?
 
-They are platform runtime contract requirements. Missing any of them can break startup or challenge reset behavior.
+`/start.sh` is the container entrypoint. `challenge.flag.path` tells the platform where the challenge reads its dynamic Flag. Only legacy helper or Linux-QEMU contracts require `/changeflag.sh` and `/bin/bash`.
 
-### Q2: Why do I still get an error with `include_flag_artifact=false`?
+### Q2: Why does an ordinary challenge have no `changeflag.sh`?
 
-That option only relaxes `flag` artifact requirement. It does not relax `changeflag.sh` requirement.
+Ordinary challenges use direct-exec. The platform writes to `challenge.flag.path` with `docker exec`, so no helper is needed. Select `legacy-helper-v2` only when the platform explicitly calls the helper.
 
 ### Q3: AWD and SecOps look similar. How should I choose?
 
@@ -848,7 +852,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r10
+bash scripts/publish_release.sh --version v2.2.0-r11
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

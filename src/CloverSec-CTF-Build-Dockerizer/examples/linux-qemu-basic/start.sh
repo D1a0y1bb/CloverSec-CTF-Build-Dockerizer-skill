@@ -1,18 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-
-# Linux-QEMU 栈启动脚本：平台执行 /start.sh，漏洞内核在 QEMU guest 中运行。
-# 保障 /flag 存在并保持可读，便于平台后续覆盖写入
 if [ ! -f /flag ]; then
   touch /flag
 fi
 chmod 444 /flag || true
-:
-
 
 cd "/opt/linux-qemu"
-: # defense block disabled
 
 if [[ -n "${FLAG:-${CTF_FLAG:-}}" ]]; then
   /changeflag.sh

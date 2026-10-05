@@ -1,8 +1,6 @@
 # syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
-
-# AI 最小模板：默认 CPU 推理服务，优先 gunicorn 前台运行
 RUN set -eux; \
     if command -v apk >/dev/null 2>&1; then \
       apk add --no-cache bash ca-certificates; \
@@ -13,21 +11,10 @@ RUN set -eux; \
       exit 1; \
     fi
 
-
-# 可选运行时依赖安装。
-RUN set -eux; \
-    :
-
-# 工作目录统一由模板变量控制。
-# 统一工作目录：start.sh 会切换到该目录
 WORKDIR /app
 
-
-# 复制应用代码。
 COPY . /app
-# no extra copy
 
-# 默认收紧数值计算线程，规避高核心宿主机线程创建失败。
 ENV OPENBLAS_NUM_THREADS=1 \
     OMP_NUM_THREADS=1 \
     NUMEXPR_NUM_THREADS=1 \
@@ -37,7 +24,6 @@ ENV OPENBLAS_NUM_THREADS=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# 可选额外环境变量。
 ENV TRANSFORMERS_OFFLINE="1"
 ENV OPENBLAS_NUM_THREADS="1"
 ENV OMP_NUM_THREADS="1"
@@ -46,8 +32,6 @@ ENV NUMEXPR_NUM_THREADS="1"
 ENV GOTO_NUM_THREADS="1"
 ENV MALLOC_ARENA_MAX="2"
 
-
-# Python 依赖安装必须使用 --no-cache-dir 以控制镜像体积。
 RUN set -eux; \
     if [ -f requirements.txt ]; then \
       pip install --no-cache-dir -r requirements.txt; \
@@ -55,19 +39,11 @@ RUN set -eux; \
       echo "[INFO] 未检测到 requirements.txt，跳过 pip 安装"; \
     fi
 
-# defense block disabled
-
-# defense block disabled
-# ---- 平台硬约束：/start.sh /changeflag.sh 与 /flag 必须位于容器根目录 ----
 COPY start.sh /start.sh
-COPY changeflag.sh /changeflag.sh
+RUN chmod 555 /start.sh
 COPY flag /flag
-
-# /start.sh 与 /changeflag.sh 必须可执行；/flag 必须可读（平台启动后会写入动态 flag）
-RUN chmod 555 /start.sh && chmod 555 /changeflag.sh && chmod 444 /flag
-# 对外暴露端口（至少一个）
+RUN chmod 444 /flag
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=10s CMD bash -lc 'echo > /dev/tcp/127.0.0.1/5000'
-# 默认启动入口，便于本地直接 docker run image
 CMD ["/start.sh"]

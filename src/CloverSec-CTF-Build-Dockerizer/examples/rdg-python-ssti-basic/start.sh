@@ -1,11 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-
-# RDG 栈启动脚本：先起 sshd/ttyd 旁路，再以前台 exec 拉起主服务。
-: # profile flag_optional=true：跳过 /flag 检查
 export PYTHONUNBUFFERED=1
-
 
 cd "/app"
 

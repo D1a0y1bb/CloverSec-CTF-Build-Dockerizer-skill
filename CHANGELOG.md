@@ -4,6 +4,22 @@
 
 ## Unreleased
 
+## v2.2.0-r11 - 2026-10-05
+
+### 变更
+
+- 普通题目默认使用 `direct-exec-v1`，平台通过 `docker exec` 写入 `challenge.flag.path`，不再生成无用的 `changeflag.sh`。
+- 文件替换题和数据库题使用 `flag.mode=file_replace|database`，并在 `flag.update` 中记录真实更新命令、等待条件和业务路径。
+- 新增 `ctfctl.py audit/prepare/verify/package`，统一输入审计、干净交付目录、启动合同检查、真实 Docker 验证和归档打包。
+- `render.py` 默认使用 minimal 输出，移除 Dockerfile、start.sh 和 changeflag 模板中的叙述性废话；legacy helper 与 Linux-QEMU 仍可显式生成 `changeflag.sh`。
+- 示例、平台契约、迁移文档和三种语言 README 同步 direct-exec、legacy-helper、Linux-QEMU 三类合同。
+
+### 验证
+
+- `scripts/release_build.sh --with-smoke` 通过。
+- 39 个示例和场景通过真实回归，4 个仅结构校验场景按设计跳过运行构建，0 个失败。
+- `skill-creator` 官方快速校验通过，文档治理检查通过，发布 zip、SBOM 和依赖清单生成成功。
+
 ## v2.2.0-r10 - 2026-06-23
 
 ### 修复

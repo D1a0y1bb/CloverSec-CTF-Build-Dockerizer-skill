@@ -370,6 +370,7 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
 
     platform = ensure_dict(proposal.get("platform"), "platform")
     entrypoint = str(_first_non_empty(platform.get("entrypoint"), "/start.sh") or "/start.sh").strip()
+    platform_contract = str(_first_non_empty(platform.get("contract"), "direct-exec-v1") or "direct-exec-v1").strip()
     require_bash = _to_bool(platform.get("require_bash"), True)
     allow_loopback_bind = _to_bool(platform.get("allow_loopback_bind"), False)
     docker_platform = str(_first_non_empty(platform.get("docker_platform"), "") or "").strip()
@@ -387,6 +388,10 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
 
     flag = ensure_dict(proposal.get("flag"), "flag")
     flag_path = str(_first_non_empty(flag.get("path"), "/flag") or "/flag").strip()
+    flag_mode = str(_first_non_empty(flag.get("mode"), "direct_exec") or "direct_exec").strip().lower()
+    flag_initial_file = flag.get("initial_file")
+    if flag_initial_file is None:
+        flag_initial_file = flag_mode in {"helper_script", "qemu_guest"}
     flag_perm = str(_first_non_empty(flag.get("permission"), "444") or "444").strip()
     flag_sync_paths = _string_list(flag.get("sync_paths"), "flag.sync_paths")
 
@@ -421,11 +426,14 @@ def build_challenge(proposal: Dict[str, Any], args: argparse.Namespace) -> Dict[
             "build_deps": build_deps,
             "flag": {
                 "path": flag_path,
+                "mode": flag_mode,
+                "initial_file": bool(flag_initial_file),
                 "permission": flag_perm,
                 "sync_paths": flag_sync_paths,
             },
             "platform": {
                 "entrypoint": entrypoint,
+                "contract": platform_contract,
                 "require_bash": require_bash,
                 "allow_loopback_bind": allow_loopback_bind,
                 "docker_platform": docker_platform,

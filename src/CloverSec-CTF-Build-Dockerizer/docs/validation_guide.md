@@ -46,7 +46,7 @@ bash scripts/validate.sh --static-only Dockerfile start.sh challenge.yaml
 | 层级 | 入口 | 适用场景 |
 |---|---|---|
 | 静态契约检查 | `validate.sh --static-only` | 快速判断 Dockerfile/start.sh/challenge.yaml 是否满足平台基本契约 |
-| 动态 flag 写入检查 | `validate.sh` 默认启用，或显式 `--with-dynamic-flag` | 检查 `changeflag.sh` 是否能按平台动态 flag 机制写入 |
+| 动态 flag 写入检查 | `validate.sh` 按 `flag.mode` 执行；完整运行使用 `ctfctl.py verify` | direct-exec 检查实际路径回读，helper 合同检查 `changeflag.sh` |
 | 题目入口验证 | 业务断言验证入口 + `smoke_assert.yaml` 或 `challenge.verification.solve_probe` | 容器启动后检查 HTTP/TCP/container_exec 断言，确认题目服务真的可用 |
 | 手动增强验证 | `linux_qemu_manual_check.sh`、Docker smoke、PoC 复现 | Linux-QEMU boot、guest flag、真实服务运行和漏洞复现 |
 
@@ -88,25 +88,25 @@ bash scripts/validate.sh /tmp/bundle/Dockerfile /tmp/bundle/start.sh /tmp/bundle
 ## 2. 硬规则
 
 - Dockerfile 必须把 `start.sh` 放到 `/start.sh`。
-- Dockerfile 必须把 `changeflag.sh` 放到 `/changeflag.sh`。
-- 默认必须把 `flag` 放到 `/flag`，并设置可读权限。
-- `start.sh` 首行必须是 `#!/bin/bash`。
-- 镜像内必须安装或保留 `/bin/bash`。
+- direct-exec 不需要 `changeflag.sh`。helper 或 Linux-QEMU 合同必须把它放到 `/changeflag.sh`。
+- direct-exec 必须把运行时 Flag 写入 `challenge.flag.path`；默认路径是 `/flag`。
+- direct-exec 的 `start.sh` 可以使用 `/bin/sh` 或 `/bin/bash`。
+- 显式 `platform.require_bash=true`、helper 合同和 Linux-QEMU 合同必须使用 Bash。
 - 渲染产物不能残留模板变量。
 - `EXPOSE` 与 `challenge.expose_ports` 必须一致。
 - 单服务必须用 `exec` 作为 PID1。
 - 多服务必须至少有真实前台主进程。
 
-`/flag` 可放行的范围以当前 profile/stack 实现为准，公开描述必须同时提到 `include_flag_artifact=false` 的前提。
+`flag.initial_file=false` 时，平台在容器启动后直接写入 `flag.path`，不需要预置 `flag` 文件。
 
 ## 3. 常见 ERROR
 
 | 现象 | 处理 |
 |---|---|
 | `/start.sh` 未复制到根目录 | Dockerfile 增加 `COPY start.sh /start.sh` |
-| `/changeflag.sh` 缺失 | Dockerfile 增加 `COPY changeflag.sh /changeflag.sh` 并赋权 |
-| `/flag` 缺失或权限错误 | 增加 `COPY flag /flag` 和 `chmod 444 /flag`，或确认 profile 是否允许放行 |
-| Bash 缺失 | Debian/Ubuntu 安装 `bash`；Alpine 使用 `apk add --no-cache bash` |
+| `/changeflag.sh` 缺失 | 仅在 helper 合同中增加 `COPY changeflag.sh /changeflag.sh` 并赋权；direct-exec 删除旧引用 |
+| `flag.path` 缺失或权限错误 | 确认题目实际读取路径，再设置 `challenge.flag.path`；只有 `flag.initial_file=true` 时才增加初始文件 |
+| Bash 缺失 | 仅在 `require_bash=true`、helper 或 Linux-QEMU 合同中安装 Bash；普通 direct-exec 可使用 POSIX `sh` |
 | 单服务未使用 `exec` | 将最终启动命令改为 `exec <server command>` |
 | 端口不一致 | 同步 Dockerfile `EXPOSE`、`challenge.expose_ports` 和服务监听端口 |
 | 模板变量残留 | 检查模板变量名、include 文件和 `challenge.yaml` 字段 |
@@ -174,7 +174,7 @@ python3 scripts/generate_check_stub.py \
 - `challenge.vm` 字段结构
 - `vm/vmlinuz`、`vm/initrd.img`、`vm/rootfs.ext4` 或 `build_script` 是否存在
 - Docker `EXPOSE` 与 QEMU `hostfwd` 是否一致
-- `changeflag.sh` 是否具备 guest flag 写入逻辑
+- direct-exec 是否能回读 `challenge.flag.path`；Linux-QEMU 是否具备 guest flag 写入逻辑
 
 手动增强检查使用：
 

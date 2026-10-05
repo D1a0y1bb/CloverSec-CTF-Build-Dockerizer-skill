@@ -1,21 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-
-# AI 栈启动脚本：必须启动真实前台服务并输出日志。
-# 保障 /flag 存在并保持可读，便于平台后续覆盖写入
-if [ ! -f /flag ]; then
-  touch /flag
-fi
-chmod 444 /flag || true
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
-
 cd "/app"
-: # defense block disabled
 
-# 二次兜底线程限制，避免宿主机高核心数触发 OpenBLAS 线程异常。
 : "${OPENBLAS_NUM_THREADS:=1}"
 : "${OMP_NUM_THREADS:=1}"
 : "${NUMEXPR_NUM_THREADS:=1}"

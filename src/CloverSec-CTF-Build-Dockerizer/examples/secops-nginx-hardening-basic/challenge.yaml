@@ -15,6 +15,7 @@ challenge:
     cmd: nginx -g 'daemon off;'
   runtime_deps: []
   platform:
+    contract: direct-exec-v1
     entrypoint: /start.sh
     require_bash: true
   defense:

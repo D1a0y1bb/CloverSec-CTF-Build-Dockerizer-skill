@@ -87,9 +87,10 @@ python3 scripts/derive_config.py --project-dir <题目目录> --format json --pr
 
 Pwn 题必须额外说明业务 flag 路径来源：
 
-- 若输出包含 `pwn_flag_path_hints`，把命中的文件、行号和候选路径列出来，并要求用户确认 `flag.sync_paths`。
+- 若输出包含 `pwn_flag_path_hints`，把命中的文件、行号和候选路径列出来，并要求用户确认 `flag.path`。
 - 若没有命中线索，也要提示用户看源码或 PoC，确认程序读取 `/flag`、`/home/ctf/flag`、`flag0/flag1` 还是其他路径。
 - 源码里的相对路径要按 WORKDIR 转成绝对路径，例如 WORKDIR 为 `/home/ctf` 时，`flag0` 应写成 `/home/ctf/flag0`。
+- 多个业务 flag 路径不能默认生成同步脚本。需要多路径同步时，用户必须显式选择 `legacy-helper-v2`。
 - 不得把默认 `/home/ctf/flag` 描述为所有 Pwn 题都正确。
 
 ## 4. CONFIG PROPOSAL 模板

@@ -1,12 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-
-# SecOps 栈启动脚本：先起 sshd/ttyd 旁路，再以前台 exec 拉起真实服务。
-: # profile flag_optional=true：跳过 /flag 检查
-:
-
-
 cd "/app"
 
 if [[ "true" == "true" ]]; then

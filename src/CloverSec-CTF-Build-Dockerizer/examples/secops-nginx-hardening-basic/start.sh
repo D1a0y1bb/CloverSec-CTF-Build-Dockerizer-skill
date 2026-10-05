@@ -1,16 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-
-# SecOps 栈启动脚本：先起 sshd/ttyd 旁路，再以前台 exec 拉起真实服务。
-# 保障 /flag 存在并保持可读，便于平台后续覆盖写入
-if [ ! -f /flag ]; then
-  touch /flag
-fi
-chmod 444 /flag || true
-:
-
-
 cd "/usr/share/nginx/html"
 
 if [[ "true" == "true" ]]; then

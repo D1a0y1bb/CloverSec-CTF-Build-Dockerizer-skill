@@ -45,7 +45,7 @@ def docker_expose_ports(dockerfile: Path) -> List[str]:
 
 def validate_bundle(bundle_dir: Path) -> Dict[str, Any]:
     errors: List[str] = []
-    required = ["Dockerfile", "start.sh", "changeflag.sh", "flag", "challenge.yaml"]
+    required = ["Dockerfile", "start.sh", "flag", "challenge.yaml"]
     for rel in required:
         if not (bundle_dir / rel).is_file():
             errors.append(f"missing {rel}")
@@ -54,6 +54,13 @@ def validate_bundle(bundle_dir: Path) -> Dict[str, Any]:
         return structured_error("bundle", "BUNDLE_DELIVERY_INCOMPLETE", "; ".join(errors), support_level="partial")
 
     challenge = read_challenge(bundle_dir / "challenge.yaml")
+    platform = ensure_dict(challenge.get("platform"), "challenge.platform")
+    flag = ensure_dict(challenge.get("flag"), "challenge.flag")
+    flag_mode = str(flag.get("mode") or "direct_exec").strip().lower()
+    contract = str(platform.get("contract") or "direct-exec-v1").strip().lower()
+    if flag_mode == "helper_script" or contract in {"legacy-helper-v2", "legacy-helper"}:
+        if not (bundle_dir / "changeflag.sh").is_file():
+            errors.append("missing changeflag.sh for helper_script contract")
     if str(challenge.get("stack") or "") != "bundle":
         errors.append("challenge.stack must be bundle")
     if str(challenge.get("profile") or "") != "jeopardy":

@@ -1,4 +1,4 @@
-# 架构总览（v2.2.0）
+# 架构总览（v3.0）
 
 ## 1) 输入层
 
@@ -26,13 +26,15 @@
 
 ## 4) 校验层
 
+- `scripts/ctfctl.py`：审计、最小准备、Docker 运行验证和交付打包入口
 - `scripts/validate.sh`：平台硬规则 + 风险规则
 - `scripts/validate_scenario.py`：scenario 规则校验
 - `linux-qemu` 默认只进入 render/validate；完整 QEMU boot、guest flag 和 PoC 复现必须显式运行手动检查
 
 ## 5) 核心约束
 
-- 最终交付必须包含：`Dockerfile/start.sh/changeflag.sh`
-- `/flag` 仅在受支持的 defense profile 显式设置 `include_flag_artifact=false` 时可放行
+- 默认交付包含：`Dockerfile/start.sh`。平台通过 `docker exec` 写入实际 flag 路径。
+- `changeflag.sh` 只在 `legacy-helper-v2` 或 `linux-qemu-v1` 合同中生成。
+- `/flag` 可以缺省。题目必须在 `challenge.flag.path` 声明真实业务路径，或由审计器输出待确认推断。
 - `docker-compose.yml` 仅用于本地场景编排，不作为平台最终交付
 - `linux-qemu` 不改变平台单容器契约；特定漏洞内核只在 QEMU guest 中运行

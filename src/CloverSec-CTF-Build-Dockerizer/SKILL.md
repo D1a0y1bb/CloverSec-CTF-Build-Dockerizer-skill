@@ -15,15 +15,18 @@ allowed-tools:
 
 ## 任务定位
 
-把 CTF 题目源码、历史交付件、固定服务基座、Bundle 老环境、Linux-QEMU 内核题和 Scenario 本地编排转换为符合四叶草安全-创研中心平台契约的 Docker 交付目录。
+把 CTF 题目源码、历史交付件、固定服务基座、Bundle 老环境、Linux-QEMU 内核题和 Scenario 本地编排转换为可审计、可复现、可验证的交付结果。
 
-默认交付件：
+普通题目的最小交付件：
 
 - `Dockerfile`
 - `start.sh`
-- `changeflag.sh`
-- `flag`，可按受支持 defense profile 的 `include_flag_artifact=false` 放行
+- `flag`，仅在题目启动前需要初始文件时保留
+- `FLAG_UPDATE.md`
+- `delivery-manifest.json`
 - `check/check.sh`，仅在 RDG/SecOps/check-service 场景生成
+
+`changeflag.sh` 只在 `flag.mode=helper_script` 或 Linux-QEMU 合同时生成。
 
 本 Skill 不替代题目业务设计、漏洞修复或 PoC 编写，也不把原始 `docker-compose.yml` 直接声明为平台最终交付物。
 
@@ -33,10 +36,12 @@ allowed-tools:
 
 输入提示：可直接给 `<path/to/challenge.yaml>`，也可用 `--project-dir <path/to/challenge>` 指向题目目录。
 
-优先使用 `workflow.py auto-render`。它会审计输入、必要时推导 `challenge.yaml`、生成平台交付文件，并执行静态契约校验：
+优先使用 `ctfctl.py`。它会先审计输入，再准备最小交付目录，并区分静态、构建、运行和业务验证：
 
 ```bash
-python3 scripts/workflow.py auto-render --project-dir <题目目录>
+python3 scripts/ctfctl.py audit --project-dir <题目目录> --format json
+python3 scripts/ctfctl.py prepare --project-dir <题目目录> --output <题目目录>/dist
+python3 scripts/ctfctl.py verify --project-dir <题目目录>/dist --format json
 ```
 
 需要先看输入审计或状态时使用：
@@ -46,7 +51,7 @@ python3 scripts/workflow.py intake --project-dir <题目目录>
 python3 scripts/workflow.py status --project-dir <题目目录>
 ```
 
-`auto-render` 只代表平台文件生成和静态契约检查通过，不代表题目已经可解，也不代表 Docker build/run/export 已执行。真实 Docker 操作仍需要用户授权。
+`prepare` 只代表交付文件已经准备；输入事实不足时仍返回 `partial` 或 `unverified`。`verify` 才会尝试真实 Docker build/run、direct-exec Flag 注入和入口探测。真实 Docker 操作仍需要用户授权。每个结果必须标记 `passed`、`failed`、`partial`、`environment_failed` 或 `unverified`。
 
 熟练用户已经确认 `challenge.yaml` 时，可以直接调用底层脚本：
 
@@ -58,8 +63,10 @@ bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 ## 必须遵守
 
 - 平台启动入口固定为 `/start.sh`；`start.sh` 必须可执行并启动真实服务。
-- 镜像内必须存在 `/bin/bash`，因为平台动态 flag 调用依赖 Bash。
-- 默认必须提供 `/flag` 且可读；只有受支持 defense profile 显式设置 `include_flag_artifact=false` 时才放行。
+- 默认合同是 `platform.contract=direct-exec-v1`。平台使用 `docker exec` 写入 `flag.path`。
+- `flag.path` 必须是题目程序实际读取的路径。`/flag` 只是默认值。
+- `start.sh` 不得创建、覆盖或同步通用 Flag。
+- `changeflag.sh` 不是默认交付件。旧平台兼容和 Linux-QEMU 才允许强制生成。
 - 单服务必须使用 `exec` 作为主进程；多服务必须有真实前台主进程，不能用空转命令保活。
 - `Dockerfile EXPOSE`、`challenge.expose_ports` 和运行端口必须一致。
 - RDG/SecOps 的 `check/check.sh` 必须是真实检查脚本；`CHECK_IMPLEMENT_ME`、`CHECK_REVIEW_REQUIRED`、短脚本直接 `exit 0` 都会被 `validate.sh` 阻断。
@@ -67,16 +74,18 @@ bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 - Scenario 只用于本地多服务编排和逐服务验证，平台最终交付仍以单服务目录为准。
 - Bundle 支持固定 Recipe 和显式 custom 组合；custom 组合必须由用户给出安装命令、启动命令、端口和服务清单，不做自动版本求解。
 - 历史题复刻必须确认原始运行时版本、镜像架构和题目业务 flag 路径；`validate.sh` 通过只代表平台交付契约成立，不代表题目已经可解。
-- 如果题目程序不读取 `/flag`，在 `challenge.flag.sync_paths` 配置业务路径；同步发生在平台调用 `/changeflag.sh` 时，启动脚本只保证 `/flag` 和模板内显式兼容的常见路径。只有用户明确说明平台不会调用 `/changeflag.sh` 时，才把启动时同步写成题目特定兼容逻辑。需要证明题目入口可用时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 写断言，并执行 `bash scripts/smoke_test.sh --case <example-name>`；内置示例用 `python-flask-basic`。
+- 如果题目程序不读取 `/flag`，在 `challenge.flag.path` 设置业务路径。`sync_paths` 只为 legacy-helper 保留。文件替换和数据库题目使用 `flag.mode=file_replace|database`，并在 `flag.update` 中记录更新命令。需要证明题目入口可用时，在 `challenge.verification.solve_probe` 中写断言，并执行 `ctfctl.py verify`。
 
-平台契约细节读取 `docs/platform_contract.md`。
+平台契约细节读取 `docs/platform_contract_v3.md`。旧题目兼容规则读取 `docs/legacy_migration.md`。
 
 ## 输入路由
 
 | 输入状态 | 推荐路径 | 读取资料 |
 |---|---|---|
-| 明确 `challenge.yaml`，低风险 | `workflow.py auto-render --project-dir <题目目录>` | `data/schema.md`、`docs/stack_cookbook.md` |
-| 目录里有旧 Dockerfile、零散脚本、多栈线索或默认启动命令不可信 | 先执行 `workflow.py intake` 看风险；未触发阻塞时执行 `workflow.py auto-render` | `scripts/README.md`、`docs/troubleshooting.md` |
+| 所有输入 | `ctfctl.py audit --project-dir <题目目录>` | `data/schema.md`、`docs/platform_contract_v3.md` |
+| 已有 Dockerfile/start.sh | `ctfctl.py prepare --project-dir <题目目录> --output <题目目录>/dist` | `docs/legacy_migration.md` |
+| 需要真实验收 | `ctfctl.py verify --project-dir <交付目录>` | `docs/verification_v3.md` |
+| 历史 workflow 兼容 | `workflow.py auto-render` | `docs/legacy_migration.md` |
 | compose/Vulhub-like 输入 | `import_compose.py` -> 审查 `scenario.draft.yaml` -> 渲染 `scenario.renderable.yaml` | `data/scenario_schema.md` |
 | Scenario 正向编排 | 输出服务清单和端口摘要，低风险场景继续执行 `render_scenario.py` -> `validate_scenario.py --validate-rendered` | `data/scenario_schema.md` |
 | Bundle 老环境组合 | 输出 Recipe/custom 摘要，低风险组合继续执行 `render_bundle.py` -> `validate_bundle.py` -> `validate.sh` | `docs/bundle_design.md`、`data/bundle_recipes.yaml` |
@@ -85,7 +94,7 @@ bash scripts/validate.sh Dockerfile start.sh challenge.yaml
 
 ## 自动生成门
 
-普通源码题、已有 Dockerfile、单服务 Web/Pwn 服务题默认允许 `auto-render`。缺少端口、Flag 路径这类信息时，脚本会写入 `unconfirmed` 和校验摘要，不把它当成题目已通过。
+普通题目默认允许只读审计和最小准备。缺少端口、Flag 路径、启动方式或运行时证据时，流程停在 `partial` 或 `unverified`，不生成猜测性业务配置。
 
 以下情况不能自动生成，需要把问题列给用户判断：
 
@@ -179,7 +188,7 @@ python3 scripts/generate_check_stub.py --type http --output check/check.sh --tar
 |---|---|
 | 输入字段、`challenge.yaml` 结构 | `data/schema.md` |
 | 栈选择、运行时档位、Linux-QEMU 配置示例 | `docs/stack_cookbook.md` |
-| 平台 `/start.sh`、`/flag`、`/changeflag.sh` 契约 | `docs/platform_contract.md` |
+| 平台 `/start.sh`、`flag.path` 和可选 helper 契约 | `docs/platform_contract_v3.md` |
 | 校验项、错误码、check-service 门禁 | `docs/validation_guide.md` |
 | 题目入口业务断言、动态 flag 路径和 smoke probe 示例 | `docs/solve_probe_recipes.md` |
 | 自动推导、方案摘要和高风险确认边界 | `docs/orchestrated_workflow.md` |

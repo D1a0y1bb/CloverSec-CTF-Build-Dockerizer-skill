@@ -1,4 +1,4 @@
-# Scenario Schema (v2.2.0)
+# Scenario Schema (v3.0)
 
 `scenario.yaml` 用于描述**本地多服务编排与验证**，适合 AWD / AWDP / Vulhub-like 迁移场景。
 
@@ -6,7 +6,7 @@
 
 - 把多个单题目目录或 baseunit 组件渲染到统一输出目录；
 - 生成仅供本地联调使用的 `docker-compose.yml`；
-- 保持平台最终交付仍然是**每个服务各自的 `Dockerfile + start.sh + changeflag.sh`**。
+- 保持平台最终交付仍然是**每个服务各自的 `Dockerfile + start.sh`**；helper/QEMU 合同才附带 `changeflag.sh`。
 
 ## 目录
 
@@ -29,6 +29,7 @@
 - `scenario.yaml` 不是平台最终投产格式。
 - `docker-compose.yml` 只是本地联调与样例验证输出。
 - 每个 service 最终仍渲染到：`output/services/<service-name>/`。
+- 默认 service 使用 `direct-exec-v1`，由平台直接写入 `flag.path`。
 - AWDP 服务必须满足固定补丁契约：
   - `patch/src/`
   - `patch/patch.sh`
@@ -138,13 +139,13 @@ patch_bundle.tar.gz
       challenge.yaml
       Dockerfile
       start.sh
-      changeflag.sh
+      flag（按合同可选）
       ...
     <service-b>/
       challenge.yaml
       Dockerfile
       start.sh
-      changeflag.sh
+      flag（按合同可选）
       ...
 ```
 

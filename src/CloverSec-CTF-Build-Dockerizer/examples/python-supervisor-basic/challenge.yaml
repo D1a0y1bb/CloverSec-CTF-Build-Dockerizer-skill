@@ -16,9 +16,11 @@ challenge:
     - "supervisor"
   build_deps: []
   flag:
+    mode: direct_exec
     path: "/flag"
     permission: "444"
   platform:
+    contract: direct-exec-v1
     entrypoint: "/start.sh"
     require_bash: true
   healthcheck:

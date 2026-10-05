@@ -1,18 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-
-# Java 栈启动脚本（JAR Runner）。
-# 保障 /flag 存在并保持可读，便于平台后续覆盖写入
-if [ ! -f /flag ]; then
-  touch /flag
-fi
-chmod 444 /flag || true
 export JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8
 
-
 cd "/app"
-: # defense block disabled
 
 START_CMD="java -jar app.jar"
 if [[ -z "${START_CMD}" ]]; then

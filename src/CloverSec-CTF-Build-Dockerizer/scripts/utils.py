@@ -1062,16 +1062,19 @@ def validate_rendered(
     start_mode: str,
     stack_id: str = "",
     flag_optional: bool = False,
+    flag_helper_enabled: bool = True,
+    flag_initial_file: bool = True,
+    flag_path: str = "/flag",
 ) -> None:
     docker_requirements = [
         "COPY start.sh /start.sh",
-        "COPY changeflag.sh /changeflag.sh",
         "chmod 555 /start.sh",
-        "chmod 555 /changeflag.sh",
         "EXPOSE ",
     ]
-    if not flag_optional:
-        docker_requirements.extend(["COPY flag /flag", "chmod 444 /flag"])
+    if flag_helper_enabled:
+        docker_requirements.extend(["COPY changeflag.sh /changeflag.sh", "chmod 555 /changeflag.sh"])
+    if not flag_optional and flag_initial_file:
+        docker_requirements.extend([f"COPY flag {flag_path}", f"chmod 444 {flag_path}"])
 
     missing = [item for item in docker_requirements if item not in docker_text]
     if missing:

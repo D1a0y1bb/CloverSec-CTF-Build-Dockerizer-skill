@@ -6,7 +6,8 @@
 
 ## 脚本列表
 
-- `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh/changeflag.sh/flag(可选)
+- `render.py`：根据 challenge.yaml 或 CLI 参数渲染 Dockerfile/start.sh。旧 helper 合同才额外渲染 changeflag.sh。
+- `ctfctl.py`：统一执行审计、最小交付、Docker 运行验证和交付打包。`prepare` 会把合同事实写入 staged `challenge.yaml`，清理交付入口的说明注释，并在 direct-exec 下删除旧 helper 引用和空 Flag 初始化。
 - `render_bundle.py`：根据固定 Bundle/Recipe 渲染单容器多服务交付目录
 - `validate_bundle.py`：校验 Bundle/Recipe 渲染目录的结构与 recipe 契约
 - `import_compose.py`：将 compose/Vulhub-like 输入转换为 scenario draft、renderable subset 和 import report
@@ -25,6 +26,8 @@
 - `verify_asset_manifest.py`：校验 Linux-QEMU 外部 VM 资产 manifest 的文件存在、大小和 SHA256
 - `docker_artifacts.py`：生成 Docker build/run/save/load/import 计划，执行选定步骤，并输出 `environment`、`docker_artifacts`、`xlsx_fields`
 - `utils.py`：模板 include、变量渲染、推断与通用函数
+
+运行依赖：`PyYAML`。缺少依赖时，`ctfctl.py` 返回 `environment_failed`，示例回归入口会在循环前停止并给出安装命令。
 
 ## 常用命令
 
@@ -101,11 +104,12 @@ check-service 生成器说明：
 
 Validate 分层说明：
 
-- 默认 `validate.sh` 执行静态契约检查和动态 flag 写入检查，并在 `--json-summary` 中写入 `verification.level=contract+dynamic-flag`。
+- 默认 `validate.sh` 执行静态契约检查和按合同的 flag 策略检查，并在 `--json-summary` 中写入 `verification.level=contract+flag-policy`。
 - `validate.sh` 不证明题目业务可解；需要题目入口验证时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写 HTTP/TCP/container_exec 断言，再执行 `bash scripts/smoke_test.sh --case <example-name>`。
 - 内置 `python-flask-basic` 已包含 `challenge.verification.solve_probe`，可用 `bash scripts/smoke_test.sh --case python-flask-basic` 直接验证该字段会被读取并执行。
 - 常用 HTTP/TCP/container_exec/Pwn nc 断言片段见 `docs/solve_probe_recipes.md`。
-- `challenge.flag.sync_paths` 由生成的 `/changeflag.sh` 同步。若平台只覆盖 `/flag` 后直接启动服务，业务路径不会自动得到动态 flag；只有用户明确说明平台不会调用 `/changeflag.sh` 时，才把启动时同步写成题目特定兼容逻辑。
+- direct-exec 默认由平台直接写入 `challenge.flag.path`。不要为了生成 `changeflag.sh` 添加同步脚本。
+- `challenge.flag.sync_paths` 只服务于明确使用 `helper_script` 或 Linux-QEMU 合同的题目。
 - `--static-only` 只做静态契约检查，适合快速检查 Dockerfile/start.sh/challenge.yaml。
 - 核心校验脚本按 `0=通过、1=契约失败、2=配置/路径/环境错误` 返回。
 - Linux-QEMU boot、guest flag 写入和 PoC 复现使用 `linux_qemu_manual_check.sh`，默认不会在快速校验里自动执行。

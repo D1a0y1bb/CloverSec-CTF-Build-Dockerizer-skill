@@ -70,6 +70,7 @@ from utils import (  # noqa: E402
     write_unix_text,
 )
 from audit_input import audit_project, proposal_gate_required  # noqa: E402
+from contract import normalize_contract  # noqa: E402
 from result_utils import dump_json, read_json, sha256_file, structured_error, structured_ok  # noqa: E402
 
 
@@ -98,6 +99,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--format", choices=["text", "json"], default="text", help="输出格式")
     parser.add_argument("--manual", action="store_true", help="人工确认后绕过 proposal gate")
     parser.add_argument("--reason", default="", help="manual 绕过原因")
+    parser.add_argument(
+        "--contract",
+        choices=["direct-exec-v1", "legacy-helper-v2", "linux-qemu-v1"],
+        help="平台合同；默认 direct-exec-v1，旧题目可显式选择 legacy-helper-v2",
+    )
+    parser.add_argument(
+        "--style",
+        choices=["minimal", "legacy"],
+        default="minimal",
+        help="生成风格；minimal 减少无效注释，legacy 保留旧模板风格",
+    )
     return parser.parse_args()
 
 
@@ -116,12 +128,10 @@ def parse_cli_env(env_items: List[str]) -> Dict[str, str]:
 
 def build_file_plan(context: Dict[str, Any]) -> List[Dict[str, str]]:
     out_dir = Path(context["output_dir"])
-    entries: List[tuple[str, str]] = [
-        ("Dockerfile", "overwrite"),
-        ("start.sh", "overwrite"),
-        ("changeflag.sh", "overwrite"),
-    ]
-    if not bool(context.get("flag_optional", False)):
+    entries: List[tuple[str, str]] = [("Dockerfile", "overwrite"), ("start.sh", "overwrite")]
+    if bool(context.get("flag_helper_enabled", False)):
+        entries.append(("changeflag.sh", "overwrite"))
+    if context.get("flag_initial_file", False) and not bool(context.get("flag_optional", False)):
         entries.append(("flag", "create_or_preserve"))
     if context.get("rdg_check_enabled", True) and context.get("rdg_scoring_mode", "flag") == "check_service":
         entries.append((str(context.get("rdg_check_script_path", "check/check.sh")), "create_if_missing"))
@@ -409,6 +419,37 @@ def _render_flag_sync_block(sync_paths: List[str]) -> str:
         "  done\n"
         "fi\n"
     )
+
+
+def _compact_generated_text(text: str, kind: str) -> str:
+    """Remove template narration while preserving executable content."""
+    lines: List[str] = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            if kind == "docker" and stripped.startswith("# syntax="):
+                lines.append(line.rstrip())
+            elif kind == "shell" and stripped.startswith("#!"):
+                lines.append(line.rstrip())
+            continue
+        if re.match(r"^\s*:\s*(#.*)?$", line):
+            continue
+        lines.append(line.rstrip())
+
+    compact: List[str] = []
+    blank = False
+    for line in lines:
+        if not line:
+            if blank:
+                continue
+            blank = True
+        else:
+            blank = False
+        compact.append(line)
+    result = "\n".join(compact).strip() + "\n"
+    if kind == "docker":
+        result = re.sub(r"(?m)^RUN set -eux; \\\n(?=\n|$)\n?", "", result)
+    return result
 
 
 def _vm_default_healthcheck_cmd(mode: str, host_port: str) -> str:
@@ -705,6 +746,22 @@ def build_render_context(
     challenge: Dict[str, Any] = {}
     if args.config:
         challenge = load_challenge_config(Path(args.config))
+
+    try:
+        normalized_contract = normalize_contract(challenge, scan_dir)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from exc
+    if args.contract:
+        normalized_contract["contract"] = args.contract
+        if args.contract == "legacy-helper-v2":
+            normalized_contract["flag"]["mode"] = "helper_script"
+            normalized_contract["legacy_helper"] = True
+        elif args.contract == "linux-qemu-v1":
+            normalized_contract["flag"]["mode"] = "qemu_guest"
+            normalized_contract["legacy_helper"] = True
+        else:
+            normalized_contract["flag"]["mode"] = "direct_exec"
+            normalized_contract["legacy_helper"] = False
 
     cfg_stack_raw = challenge.get("stack")
     cfg_stack = cfg_stack_raw.strip() if isinstance(cfg_stack_raw, str) else ""
@@ -1007,6 +1064,13 @@ def build_render_context(
         "npm_install_block": npm_install_block,
         "pip_requirements_block": pip_requirements_block,
         "flag_sync_paths": flag_sync_paths,
+        "flag_path": str(normalized_contract["flag"]["path"]),
+        "flag_permission": str(flag_cfg.get("permission") or "444"),
+        "flag_mode": str(normalized_contract["flag"]["mode"]),
+        "flag_initial_file": bool(normalized_contract["flag"]["initial_file"]),
+        "flag_helper_enabled": bool(normalized_contract["legacy_helper"]),
+        "platform_contract": str(normalized_contract["contract"]),
+        "render_style": str(getattr(args, "style", "minimal")),
         "solve_probe": solve_probe,
         "rdg_enable_ttyd": rdg_enable_ttyd,
         "rdg_ttyd_port": rdg_ttyd_port,
@@ -1062,8 +1126,28 @@ def render_files(context: Dict[str, Any]) -> None:
     flag_start_block = load_template_with_includes(
         TEMPLATES_DIR / "snippets" / "ensure-flag.tpl", TEMPLATES_DIR
     ).rstrip()
+    pwn_legacy_flag_block = ""
+    if stack_id == "pwn" and context.get("flag_helper_enabled", False):
+        pwn_legacy_flag_block = load_template_with_includes(
+            TEMPLATES_DIR / "snippets" / "pwn-legacy-flag-block.tpl", TEMPLATES_DIR
+        ).rstrip()
 
-    if context.get("flag_optional", False):
+    if not context.get("flag_helper_enabled", False):
+        flag_path = str(context.get("flag_path", "/flag"))
+        flag_docker_block = "COPY start.sh /start.sh\nRUN chmod 555 /start.sh"
+        if context.get("flag_initial_file", False):
+            flag_docker_block += f"\nCOPY flag {flag_path}\n"
+            parent = Path(flag_path).parent.as_posix()
+            if parent == "/":
+                flag_docker_block += f"RUN chmod {context.get('flag_permission', '444')} {flag_path}"
+            else:
+                flag_docker_block += (
+                    f"RUN mkdir -p {shlex.quote(parent)} && "
+                    f"chmod {context.get('flag_permission', '444')} {flag_path}"
+                )
+        flag_start_block = ""
+
+    if context.get("flag_optional", False) and context.get("flag_helper_enabled", False):
         flag_docker_block = (
             "# profile allow flag_optional：跳过 /flag 产物拷贝。"
             "\nCOPY start.sh /start.sh"
@@ -1073,7 +1157,7 @@ def render_files(context: Dict[str, Any]) -> None:
         )
         flag_start_block = ": # profile flag_optional=true：跳过 /flag 检查"
 
-    healthcheck_block = "# healthcheck disabled"
+    healthcheck_block = ""
     if context.get("healthcheck_enabled", True):
         health_tpl = load_template_with_includes(
             TEMPLATES_DIR / "snippets" / "healthcheck.tpl", TEMPLATES_DIR
@@ -1089,8 +1173,8 @@ def render_files(context: Dict[str, Any]) -> None:
             },
         ).rstrip()
 
-    defense_docker_block = "# defense block disabled"
-    defense_start_block = ": # defense block disabled"
+    defense_docker_block = ""
+    defense_start_block = ""
     if context["stack_id"] not in {"rdg", "secops"} and context.get("defense_enabled", False):
         defense_docker_tpl = load_template_with_includes(
             TEMPLATES_DIR / "snippets" / "defense-docker-block.tpl", TEMPLATES_DIR
@@ -1138,6 +1222,7 @@ def render_files(context: Dict[str, Any]) -> None:
             "STACK_FLAG_BLOCK": flag_docker_block,
             "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
             "RDG_FLAG_START_BLOCK": flag_start_block,
+            "PWN_LEGACY_FLAG_BLOCK": pwn_legacy_flag_block,
             "HEALTHCHECK_BLOCK": healthcheck_block,
         }).rstrip()
         defense_start_block = render_template(defense_start_tpl, common_vars).rstrip()
@@ -1182,6 +1267,7 @@ def render_files(context: Dict[str, Any]) -> None:
         "STACK_FLAG_BLOCK": flag_docker_block,
         "RDG_FLAG_DOCKER_BLOCK": flag_docker_block,
         "RDG_FLAG_START_BLOCK": flag_start_block,
+        "PWN_LEGACY_FLAG_BLOCK": pwn_legacy_flag_block,
         "HEALTHCHECK_BLOCK": healthcheck_block,
         "DEFENSE_DOCKER_BLOCK": defense_docker_block,
         "DEFENSE_START_BLOCK": defense_start_block,
@@ -1226,6 +1312,9 @@ def render_files(context: Dict[str, Any]) -> None:
 
     rendered_docker = render_template(docker_tpl, docker_vars)
     rendered_start = render_template(start_tpl, start_vars)
+    if context.get("render_style", "minimal") == "minimal":
+        rendered_docker = _compact_generated_text(rendered_docker, "docker")
+        rendered_start = _compact_generated_text(rendered_start, "shell")
 
     validate_rendered(
         docker_text=rendered_docker,
@@ -1234,6 +1323,9 @@ def render_files(context: Dict[str, Any]) -> None:
         start_mode=context["mode"],
         stack_id=context["stack_id"],
         flag_optional=bool(context.get("flag_optional", False)),
+        flag_helper_enabled=bool(context.get("flag_helper_enabled", False)),
+        flag_initial_file=bool(context.get("flag_initial_file", False)),
+        flag_path=str(context.get("flag_path", "/flag")),
     )
 
     out_dir: Path = context["output_dir"]
@@ -1246,17 +1338,18 @@ def render_files(context: Dict[str, Any]) -> None:
 
     if changeflag_out.exists():
         os.chmod(changeflag_out, 0o644)
+    if not context.get("flag_helper_enabled", False) and changeflag_out.exists():
+        changeflag_out.unlink()
     flag_sync_block = _render_flag_sync_block(context.get("flag_sync_paths", []))
 
     write_unix_text(docker_out, rendered_docker.rstrip() + "\n")
     write_unix_text(start_out, rendered_start.rstrip() + "\n")
-    if context.get("stack_id") == "linux-qemu":
+    if context.get("flag_helper_enabled", False) and context.get("stack_id") == "linux-qemu":
         vm = context.get("vm", {}) if isinstance(context.get("vm"), dict) else {}
         rootfs_path = str(vm.get("rootfs", "vm/rootfs.ext4"))
         guest_flag_path = str(vm.get("guest_flag_path", "/root/flag"))
         flag_injection = str(vm.get("flag_injection", "debugfs"))
-        write_unix_text(
-            changeflag_out,
+        qemu_changeflag = (
             "#!/bin/bash\n"
             "set -euo pipefail\n\n"
             "# linux-qemu 动态 flag 写入入口：保留外层 /flag，并按配置写入 guest rootfs。\n"
@@ -1307,11 +1400,11 @@ def render_files(context: Dict[str, Any]) -> None:
             "debugfs -w -R \"set_inode_field ${GUEST_FLAG_PATH} uid 0\" \"${VM_ROOTFS}\" >/dev/null || true\n"
             "debugfs -w -R \"set_inode_field ${GUEST_FLAG_PATH} gid 0\" \"${VM_ROOTFS}\" >/dev/null || true\n"
             "rm -f \"${tmp_flag}\"\n"
-            "echo \"[INFO] flag updated at ${TARGET_PATH} and guest:${GUEST_FLAG_PATH}\"\n",
+            "echo \"[INFO] flag updated at ${TARGET_PATH} and guest:${GUEST_FLAG_PATH}\"\n"
         )
-    else:
-        write_unix_text(
-            changeflag_out,
+        write_unix_text(changeflag_out, _compact_generated_text(qemu_changeflag, "shell"))
+    elif context.get("flag_helper_enabled", False):
+        helper_changeflag = (
             "#!/bin/bash\n"
             "set -euo pipefail\n\n"
             "# 平台动态 flag 写入入口。优先使用 FLAG/CTF_FLAG 环境变量，"
@@ -1335,13 +1428,15 @@ def render_files(context: Dict[str, Any]) -> None:
             "printf '%s\\n' \"${TARGET_FLAG}\" > \"${TARGET_PATH}\"\n"
             "chmod 444 \"${TARGET_PATH}\" || true\n"
             f"{flag_sync_block}"
-            "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n",
+            "echo \"[INFO] flag updated at ${TARGET_PATH}\"\n"
         )
+        write_unix_text(changeflag_out, _compact_generated_text(helper_changeflag, "shell"))
 
     os.chmod(start_out, 0o755)
-    os.chmod(changeflag_out, 0o555)
+    if changeflag_out.exists():
+        os.chmod(changeflag_out, 0o555)
 
-    include_flag_artifact = not bool(context.get("flag_optional", False))
+    include_flag_artifact = bool(context.get("flag_initial_file", False)) and not bool(context.get("flag_optional", False))
     if include_flag_artifact:
         flag_default = "flag{static_test_flag}\n"
         if not flag_out.exists():
@@ -1458,11 +1553,11 @@ def render_files(context: Dict[str, Any]) -> None:
 
     if context["stack_id"] in {"rdg", "secops"}:
         if include_flag_artifact:
-            print("- 产物: Dockerfile, start.sh, changeflag.sh, flag, check/check.sh")
+            print("- 产物: Dockerfile, start.sh, flag, check/check.sh")
         else:
-            print("- 产物: Dockerfile, start.sh, changeflag.sh, check/check.sh（flag 可选关闭）")
+            print("- 产物: Dockerfile, start.sh, check/check.sh（helper 合同才包含 changeflag.sh）")
     else:
-        print("- 产物: Dockerfile, start.sh, changeflag.sh, flag")
+        print("- 产物: Dockerfile, start.sh, flag（helper/QEMU 合同才包含 changeflag.sh）")
 
     if context["profile"] != "jeopardy":
         print(

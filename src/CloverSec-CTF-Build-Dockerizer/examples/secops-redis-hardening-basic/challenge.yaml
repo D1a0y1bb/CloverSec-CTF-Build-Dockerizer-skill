@@ -19,6 +19,7 @@ challenge:
     check_enabled: true
     check_script_path: check/check.sh
   platform:
+    contract: direct-exec-v1
     entrypoint: /start.sh
     require_bash: true
   healthcheck:

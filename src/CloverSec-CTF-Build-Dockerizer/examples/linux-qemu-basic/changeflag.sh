@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# linux-qemu 动态 flag 写入入口：保留外层 /flag，并按配置写入 guest rootfs。
 TARGET_PATH="${FLAG_PATH:-/flag}"
 DEFAULT_FLAG="flag{dynamic_flag_placeholder}"
 if [[ -n "${FLAG:-}" ]]; then
@@ -25,7 +24,6 @@ fi
 mkdir -p "$(dirname "${TARGET_PATH}")"
 printf '%s\n' "${TARGET_FLAG}" > "${TARGET_PATH}"
 chmod 444 "${TARGET_PATH}" || true
-
 
 if [[ "${FLAG_INJECTION}" == "none" ]]; then
   echo "[INFO] flag updated at ${TARGET_PATH}; guest flag injection disabled"

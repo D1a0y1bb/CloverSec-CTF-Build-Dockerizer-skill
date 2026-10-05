@@ -3,7 +3,7 @@
 ## 适用场景
 
 - CTF Jeopardy 模式 Pwn 题目（支持 xinetd/tcpserver/socat 前台托管）。
-- 需要统一满足平台 `/start.sh`、`/flag`、`/bin/bash` 约束的交付。
+- 需要统一满足平台 `/start.sh` 和 Pwn 服务前台运行约束的交付。
 
 > 说明：本模板不覆盖 AWD/AWDP 攻防编排。
 
@@ -47,4 +47,5 @@ challenge:
 
 1. `ctf.xinetd` 中二进制路径与 `WORKDIR` 不一致，导致服务启动失败。
 2. 二进制缺少执行权限，建议在题目目录预先 `chmod +x`。
-3. 若题目读取 `/home/ctf/flag`，请确认 `start.sh` 复制逻辑未被移除。
+3. 若题目读取 `/home/ctf/flag`，请在 `challenge.flag.path` 写明该路径；direct-exec 不需要在 `start.sh` 中复制 Flag。
+4. 只有旧平台明确调用 `/changeflag.sh` 时，才选择 `legacy-helper-v2` 并保留同步逻辑。

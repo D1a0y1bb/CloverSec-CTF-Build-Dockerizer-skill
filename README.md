@@ -11,13 +11,13 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r10-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r11-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r10</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r11</code></p>
 
 四叶草安全-创研中心竞赛 x Docker环境-专用容器构建 Skill。服务于竞赛、漏洞、基础镜像类的容器（题目）交付场景（CTF Jeopardy / Web / Pwn / AI / RDG / AWD / AWDP / SecOps / BaseUnit / Scenario/Vulhub-like / Bundle/Recipe / Linux-QEMU），可通过 Agent 与 LLM 工具把题目附件、源码、指定目录转化为适配当前已验证竞赛平台与靶场交付约束的 Docker 镜像交付件，并通过自动化规则校验把构建质量稳定在可发布状态，减少人工试错与临场修补带来的不确定性。
 
@@ -25,15 +25,17 @@
 
 如果用一句话概括现在这个 Skill 的工作形态，那就是：从“让模型阅读一份巨大的操作手册并自己决定怎么做”，变成了“由 Workflow 控制执行阶段，模型只在当前阶段获取需要的信息并完成对应任务”。旧版本本质上是把 Docker 构建规范、题目规范、交付标准、验收规则、交互要求等全部塞进 SKILL.md，每次执行任务都让模型重新阅读和理解一遍，所以输入 Token 很大，而且很多规则实际上是在不断重复发送。新版本则把这些内容拆解成状态化流程，用户提交任务后先进入 Intake 阶段识别题目类型和基本信息，然后进入 Proposal 阶段生成构建方案，用户确认后再进入 Render 阶段生成 Dockerfile、start.sh、challenge.yaml 等交付物，最后进入 Validate 阶段执行验收检查。每个阶段只读取当前需要的文档和规则，而不是加载整个知识体系，因此模型不再承担“记住所有规则”的职责，而是通过 Workflow 决定当前应该执行什么、读取什么、输出什么。这样做带来的收益并不只是 Token 下降，而是将原本依赖 Prompt 和记忆维持的流程约束转移到了 Workflow 本身，复杂能力仍然保留，但只在需要的时候展开。模型负责理解和生成，Workflow 负责阶段控制和行为约束，Knowledge 负责提供对应阶段所需的规范和模板。最终形成的是一种按需加载、状态驱动、渐进式披露的 Skill 运行模式，在保持原有构建能力和交付标准的前提下，大幅降低上下文负担和无效推理开销，这也是为什么在真实 API 调用记录中能够看到输入 Token 降低 96.2%、总 Token 降低 72.3%、费用降低 47.5% 和耗时降低 27.9% 的根本原因。
 
-## V2.2.0-R10 发布修复
+## V2.2.0-R11 发布修复
 
-`v2.2.0-r10` 是 `v2.2.0` 的第十个发布修复版本，不改变 `challenge.yaml` 配置契约。重点修复 Windows 通过 WSL bash 执行 validate 时的路径不一致问题。
+`v2.2.0-r11` 是 `v2.2.0` 的第十一个发布修复版本。它把普通题目的动态 Flag 合同切换为平台直接写入真实路径，并清理默认交付物。
 
-本次 r10 修复覆盖：
+本次 r11 修复覆盖：
 
-- `workflow.py auto-render` 和 `workflow.py validate` 共用 validate 命令构造函数。
-- Windows + WSL `bash.exe` 场景下，`validate.sh`、输出 JSON、`Dockerfile`、`start.sh`、`challenge.yaml` 和项目目录会转换成 `/mnt/...` 路径。
-- 非 WSL bash 保持原有行为，不影响 macOS/Linux 和 Git Bash。
+- 普通题目默认使用 `direct-exec-v1`，平台直接写入 `challenge.flag.path`，不再生成无用的 `changeflag.sh`。
+- 文件替换题和数据库题通过 `flag.update` 记录真实更新命令，保留等待服务和业务路径信息。
+- 新增 `ctfctl.py audit/prepare/verify/package`，统一目录整理、启动契约检查、真实 Docker 验证和交付打包。
+- `render.py` 的默认输出移除模板废话和空占位逻辑；旧 helper 与 Linux-QEMU 仍可显式生成 `changeflag.sh`。
+- 示例、平台契约和迁移文档全部按 direct-exec、legacy-helper、Linux-QEMU 三类合同更新。
 
 ## V2.2.0-R9 发布修复
 
@@ -151,7 +153,7 @@ flowchart LR
 | 1. 状态化工作流 | `workflow.py` | 依次完成题目分析、方案生成、确认、交付生成和验证 | `.ctfbuild/session.json` |
 | 2. 输入审计与提案 | `audit_input.py` / `derive_config.py` | 推断栈、端口、启动命令、运行环境和风险等级 | 风险审计结果 / 构建方案 |
 | 3. 提案解析 | `parse_config_block.py` | 把方案确认内容转成规范 `challenge.yaml` | 标准化配置 |
-| 4. 单题渲染 | `render.py` | 生成平台交付物 | `Dockerfile` `start.sh` `changeflag.sh` `flag(可选)` |
+| 4. 单题渲染 | `render.py` | 生成平台交付物 | `Dockerfile` `start.sh` `challenge.yaml`；helper/QEMU 才有 `changeflag.sh` |
 | 5. 合规校验 | `validate.sh` | 执行平台契约与风险规则检查 | `ERROR/WARN/INFO` / JSON summary |
 | 6. 回归验收 | `validate_examples.sh` / `smoke_test.sh` | 批量回归与构建级冒烟 | 回归汇总 / pass-fail |
 
@@ -549,15 +551,15 @@ SMOKE_CASES=node-basic,pwn-basic \
 
 ## 平台硬契约与边界
 
-所有渲染产物必须满足：存在 `Dockerfile`。存在可执行 `start.sh`。存在可执行 `changeflag.sh`。容器内存在 `/bin/bash`。Dockerfile 声明 `EXPOSE`。`start.sh` 启动真实服务进程，禁止空转保活。
+所有渲染产物必须满足：存在 `Dockerfile`、可执行 `start.sh` 和 `challenge.yaml`。`start.sh` 必须启动真实服务进程，禁止空转保活。只有 `helper_script` 或 Linux-QEMU 合同需要可执行 `changeflag.sh` 和 `/bin/bash`。
 
-`flag` 规则：默认需要交付 `flag`。显式 `include_flag_artifact=false` 时，只能放行 `flag` 缺失，不能放行 `changeflag.sh` 缺失。
+`flag` 规则：平台默认在运行时直接写入 `challenge.flag.path`。只有题目启动前依赖初始文件时才交付 `flag`；`flag.mode=file_replace|database` 时把更新命令写入 `flag.update`。
 
-业务 flag 路径：平台只认识 `/flag`，题目程序可能读取 `/home/ctf/flag0`、`/home/ctf/flag1`、`/challenge/flag.php` 等路径。此时在 `challenge.flag.sync_paths` 写入这些路径，生成的 `changeflag.sh` 会同步动态 flag。
+业务 Flag 路径：`/flag` 只是默认值。题目程序读取 `/home/ctf/flag0`、`/home/ctf/flag1`、`/challenge/flag.php` 等路径时，直接在 `challenge.flag.path` 设置真实路径。只有旧平台仍调用 helper 时才使用 `challenge.flag.sync_paths`。
 
 题目入口验证：`validate.sh` 只验证平台交付契约和动态 flag 写入入口，不证明题目已经可解。需要证明“通过题目入口能拿到动态 flag”时，在 `challenge.verification.solve_probe` 或 `smoke_assert.yaml` 中写业务断言，再跑 `smoke_test.sh`。
 
-Scenario 边界：允许输出 `docker-compose.yml` 做本地编排。平台最终交付仍是单服务目录（`Dockerfile + start.sh + changeflag.sh`）。
+Scenario 边界：允许输出 `docker-compose.yml` 做本地编排。平台最终交付仍是单服务目录；普通题目不包含 `changeflag.sh`。
 
 ## Workflow 演示案例
 
@@ -726,13 +728,13 @@ python3 scripts/validate_build_test.py --case cpanel-whm-authbypass-rce
 
 ## FAQ 与常见排障
 
-### Q1：为什么必须有 `/start.sh`、`/changeflag.sh`、`/bin/bash`？
+### Q1：为什么必须有 `/start.sh` 和 `challenge.flag.path`？
 
-这是凌虚竞赛平台&星图大靶场引擎的运行契约（实际上适配市面上任意一家的竞赛平台与靶场Docker启动引擎）。缺任一项都可能导致题目无法被平台正常启动或重置。
+`/start.sh` 是容器启动入口。`challenge.flag.path` 告诉平台把动态 Flag 写入题目程序实际读取的位置。只有旧平台 helper 或 Linux-QEMU 合同才需要 `/changeflag.sh` 和 `/bin/bash`。
 
-### Q2：为什么我设置了 `include_flag_artifact=false` 还报错？
+### Q2：为什么普通题目没有 `changeflag.sh`？
 
-这个开关只允许 `flag` 缺失，不允许 `changeflag.sh` 缺失。请检查渲染目录里 `changeflag.sh` 是否存在且可执行。
+普通题目使用 direct-exec 合同。平台通过 `docker exec` 写入 `challenge.flag.path`，不需要额外 helper。只有平台明确要求旧 helper 时，才选择 `legacy-helper-v2`。
 
 ### Q3：AWD 和 SecOps 看起来很像，怎么选？
 
@@ -783,7 +785,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r10
+bash scripts/publish_release.sh --version v2.2.0-r11
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

@@ -899,9 +899,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
                 "docker_platform": "linux/amd64" if stack_id == "pwn" else "",
             },
             "flag": {
+                "mode": "direct_exec",
                 "path": "/flag",
                 "permission": "444",
-                "sync_paths": ["/home/ctf/flag"] if stack_id == "pwn" else [],
+                "initial_file": False,
             },
             "healthcheck": {
                 "enabled": True,
@@ -989,6 +990,11 @@ def derive(project_dir: Path) -> Dict[str, Any]:
     challenge_doc = _challenge_doc_from_path(challenge_path)
     if challenge_doc:
         proposal["gates"] = _apply_explicit_config_to_gates(proposal["gates"], challenge_doc)
+        explicit_flag = challenge_doc.get("flag") if isinstance(challenge_doc.get("flag"), dict) else {}
+        proposal_flag = proposal["config_proposal"]["flag"]
+        for field in ("mode", "path", "permission", "initial_file", "sync_paths", "update"):
+            if field in explicit_flag:
+                proposal_flag[field] = explicit_flag[field]
         proposal["input_audit"] = audit_project(project_dir, challenge_path=challenge_path, gates=proposal["gates"])
     else:
         proposal["input_audit"] = audit_project(
@@ -1014,8 +1020,10 @@ def derive(project_dir: Path) -> Dict[str, Any]:
         proposal["stack_guess"]["selected_source"] = proposal["input_audit"].get("stack_source", "unknown")
     if effective_stack == "pwn":
         pwn_sync_paths = _pwn_hint_sync_paths(proposal["input_audit"], str(proposal["config_proposal"].get("workdir") or ""))
-        if pwn_sync_paths:
-            proposal["config_proposal"]["flag"]["sync_paths"] = pwn_sync_paths
+        explicit_flag = challenge_doc.get("flag") if isinstance(challenge_doc.get("flag"), dict) else {}
+        if pwn_sync_paths and not str(explicit_flag.get("path") or "").strip():
+            proposal["config_proposal"]["flag"]["path"] = pwn_sync_paths[0]
+            proposal["config_proposal"]["flag"]["initial_file"] = True
         proposal["pwn_flag_path_hints"] = proposal["input_audit"].get("flag_path_hints", [])
     proposal["risk_level"] = proposal["input_audit"]["risk_level"]
     proposal["recommended_path"] = proposal["input_audit"]["recommended_path"]

@@ -354,7 +354,7 @@ def _scan_python_source_findings(project_dir: Path, stack_id: str, start_cmd: st
                 "FLAG_ENV_NEEDS_PLATFORM_SYNC",
                 "源码读取 `FLAG` 环境变量；平台动态 flag 默认写文件，不会自动更新已启动进程环境变量。",
                 file=rel,
-                hint="确认题目是否改为读取 /flag，或补充平台调用 /changeflag.sh 后业务可读到动态 flag 的方案。",
+                hint="确认题目是否改为读取 flag.path，或为旧平台显式选择 legacy-helper-v2。",
             )
 
     if imports & _PYTHON_WEB_IMPORTS and not _has_python_dependency_file(project_dir):
@@ -639,8 +639,8 @@ def audit_project(
         if pwn_flag_hints and missing_paths:
             add(
                 "PWN_FLAG_PATH_REVIEW_REQUIRED",
-                "源码里发现疑似业务 flag 路径，需要确认 challenge.flag.sync_paths。",
-                hint="查看 flag_path_hints，把真实业务读取路径写入 challenge.flag.sync_paths。",
+                "源码里发现疑似业务 flag 路径，需要确认 challenge.flag.path。",
+                hint="查看 flag_path_hints，把真实业务读取路径写入 challenge.flag.path；多路径题目再显式选择 legacy-helper-v2。",
                 risk="mixed",
                 path="proposal_required",
                 verify="rendered",

@@ -14,6 +14,7 @@ challenge:
   runtime_deps: []
   build_deps: []
   flag:
+    mode: direct_exec
     path: "/flag"
     permission: "444"
   verification:
@@ -24,6 +25,7 @@ challenge:
       expect_text: "hello from python-flask-basic"
       timeout_seconds: 5
   platform:
+    contract: direct-exec-v1
     entrypoint: "/start.sh"
     require_bash: true
   extra:

@@ -14,27 +14,29 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r10-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v2.2.0--r11-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r10"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v2.2.0-r11"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v2.2.0-r10</code></p>
+<p align="center"><code><strong>VERSION</strong>: v2.2.0-r11</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。目的は「Dockerfile を作ること」ではなく、CTF 配布作業を再現可能なエンジニアリングフローへ標準化することです。
 
 大会直前に `start.sh` を場当たり修正したり、パッケージ後に契約違反が見つかった経験があるなら、この README をそのまま運用手順として使えます。インストール、提案確認、単一問題レンダリング、シナリオ編成、回帰検証、リリース公開まで一連で実行できます。
 
-## v2.2.0-r10 リリース修正
+## v2.2.0-r11 リリース修正
 
-`v2.2.0-r10` は `v2.2.0` の 10 回目のリリース修正版です。`challenge.yaml` contract は変更しません。Windows が WSL bash 経由で `validate.sh` を実行する場合の path handling を修正します。
+`v2.2.0-r11` は `v2.2.0` の 11 回目のリリース修正版です。通常問題の dynamic Flag を platform direct injection に切り替え、不要な helper を削除します。
 
-この r10 release の主な修正点：
+この r11 release の主な修正点：
 
-- `workflow.py auto-render` と `workflow.py validate` が同じ validate command builder を使います。
-- Windows + WSL `bash.exe` では、`validate.sh`、output JSON、`Dockerfile`、`start.sh`、`challenge.yaml`、project directory を `/mnt/...` path に変換します。
-- 非 WSL bash では従来動作を維持し、macOS、Linux、Git Bash には影響しません。
+- 通常問題は `direct-exec-v1` を使い、platform が `challenge.flag.path` に書き込みます。不要な `changeflag.sh` は生成しません。
+- file replacement と database 問題は、実際の更新コマンドを `flag.update` に記録します。
+- `ctfctl.py audit/prepare/verify/package` が整理、起動契約、Docker 検証、配布梱包を統一します。
+- `render.py` の既定出力から template 説明コメントと空 placeholder を削除し、legacy helper と Linux-QEMU は明示選択に残します。
+- examples、platform contract、migration 文書を direct-exec、legacy-helper、Linux-QEMU の分離へ更新します。
 
 ## v2.2.0-r9 リリース修正
 
@@ -88,7 +90,7 @@ CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF �
 | 状態付きワークフロー | `src/CloverSec-CTF-Build-Dockerizer/scripts/workflow.py` | 分析、確認、生成、検証、状態確認を編成 | `.ctfbuild/session.json` |
 | 入力監査と提案 | `src/CloverSec-CTF-Build-Dockerizer/scripts/audit_input.py` / `derive_config.py` | スタック、ポート、起動方法、実行環境、profile、リスクを推定 | 監査結果 / 構築案 |
 | 構築案解析 | `src/CloverSec-CTF-Build-Dockerizer/scripts/parse_config_block.py` | 確認済みの構築案を `challenge.yaml` 化 | 正規化設定 |
-| 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/changeflag.sh/(flag optional)` |
+| 単体レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render.py` | 単一問題の配布物生成 | `Dockerfile/start.sh/challenge.yaml`；helper/QEMU のみ `changeflag.sh` を追加 |
 | 契約検証 | `src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh` | ハード契約とポリシー検査 | `ERROR/WARN/INFO` / JSON summary |
 | コンポーネント生成 | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_component.py` | component+variant 最小単位化 | build 可能なサービスディレクトリ |
 | Bundle/Recipe レンダリング | `src/CloverSec-CTF-Build-Dockerizer/scripts/render_bundle.py` / `validate_bundle.py` | 固定 recipe または明示 custom の単一コンテナ複数サービス構成を生成・検証 | プラットフォーム配布ディレクトリ |
@@ -596,23 +598,24 @@ SMOKE_CASES=node-basic,pwn-basic \
 
 すべてのレンダリング結果で以下が必須です。
 
-- `Dockerfile` が存在。
-- 実行可能な `start.sh` が存在。
-- 実行可能な `changeflag.sh` が存在。
-- イメージ内に `/bin/bash` が存在。
-- Dockerfile に `EXPOSE` 宣言がある。
+- `Dockerfile`、実行可能な `start.sh`、`challenge.yaml` が存在。
 - `start.sh` は実サービスを起動し、空回し keepalive を使わない。
+- `helper_script` または Linux-QEMU contract のみ、実行可能な `changeflag.sh` と `/bin/bash` が必要です。
 
 `flag` ルール：
 
-- 既定では `flag` 必須。
-- `include_flag_artifact=false` 指定時に限り `flag` 欠落のみ許可。
-- `changeflag.sh` 欠落は常に不可。
+- 既定では platform が runtime に `challenge.flag.path` へ書き込みます。
+- 問題起動前に初期ファイルが必要な場合だけ `flag` を保持し、file replacement/database は `flag.update` に記録します。
+
+Business Flag path：
+
+- `/flag` は default path にすぎません。問題が読む実際の path を `challenge.flag.path` に設定します。
+- `challenge.flag.sync_paths` は legacy platform が helper を明示的に呼ぶ場合だけ使います。
 
 Scenario 境界：
 
 - `docker-compose.yml` はローカル編成検証で利用可能。
-- プラットフォーム最終納品は引き続き単一サービスディレクトリ（`Dockerfile + start.sh + changeflag.sh`）。
+- 通常の platform 納品は `changeflag.sh` なしの単一サービスディレクトリです。
 
 ## Workflow スクリーンショット（プロンプトから公開まで）
 
@@ -789,13 +792,13 @@ bash ../../src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh Dockerfile sta
 
 ## FAQ とトラブルシュート
 
-### Q1：なぜ `/start.sh`、`/changeflag.sh`、`/bin/bash` が必須ですか？
+### Q1：なぜ `/start.sh` と `challenge.flag.path` が必要ですか？
 
-これはプラットフォーム実行契約です。いずれか欠けると起動やリセットが破綻します。
+`/start.sh` は container entrypoint です。`challenge.flag.path` は platform が dynamic Flag を書く場所です。legacy helper または Linux-QEMU contract の場合だけ `/changeflag.sh` と `/bin/bash` が必要です。
 
-### Q2：`include_flag_artifact=false` を指定したのにエラーになります。
+### Q2：通常問題に `changeflag.sh` がないのはなぜですか？
 
-緩和されるのは `flag` のみです。`changeflag.sh` の欠落は許可されません。
+通常問題は direct-exec を使います。platform が `docker exec` で `challenge.flag.path` に書くため helper は不要です。platform が旧 helper を明示的に呼ぶ場合だけ `legacy-helper-v2` を選択します。
 
 ### Q3：AWD と SecOps の使い分けは？
 
@@ -847,7 +850,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v2.2.0-r10
+bash scripts/publish_release.sh --version v2.2.0-r11
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

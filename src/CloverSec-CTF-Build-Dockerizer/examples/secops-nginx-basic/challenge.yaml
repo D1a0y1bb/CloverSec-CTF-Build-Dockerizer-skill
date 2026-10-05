@@ -16,6 +16,7 @@ challenge:
   runtime_deps:
     - procps
   platform:
+    contract: direct-exec-v1
     entrypoint: /start.sh
     require_bash: true
     allow_loopback_bind: false

@@ -3,7 +3,7 @@
 本指南面向第一次接触该 Skill 的同学，目标是让你不看源码也能完成：
 
 1. 在对话里正确触发 Skill
-2. 用最少交互生成可交付的 `Dockerfile + start.sh + changeflag.sh + flag(可选)`
+2. 用最少交互生成可交付的 `Dockerfile + start.sh`，按合同决定是否包含 `changeflag.sh` 和初始 `flag`
 3. 在真实业务场景中稳定复用
 
 ## 目录
@@ -38,7 +38,7 @@
 
 - `Dockerfile`
 - `start.sh`
-- `changeflag.sh`
+- `changeflag.sh`（仅旧 helper 或 Linux-QEMU 合同）
 - `flag`（按 profile / defense 配置可选）
 
 ## 2. 平台硬约束（必须满足）
@@ -47,12 +47,12 @@
 
 1. 平台固定用 `/start.sh` 启动：`docker run -d -p host:container <image>:latest /start.sh`
 2. 镜像必须包含 `/start.sh` 且可执行
-3. 镜像必须包含 `/changeflag.sh` 且可执行
-4. 镜像必须包含 `/bin/bash`（平台会执行 `/bin/bash /changeflag.sh`）
+3. direct-exec 镜像必须允许平台通过 `docker exec` 写入 `challenge.flag.path`
+4. 只有 helper 合同才要求镜像包含可执行 `/changeflag.sh` 和 `/bin/bash`
 5. Dockerfile 必须有 `EXPOSE`
 6. 禁止空转保活（`sleep infinity`、`while true; do sleep ...`）
 7. 单服务必须 `exec` 主进程（PID1）
-8. `/flag` 默认要求存在；仅在支持的 defense profile 中显式设置 `include_flag_artifact=false` 时可放行
+8. `/flag` 只在题目需要初始文件时生成；平台运行时会按 `flag.path` 注入动态 flag
 
 ## 3. 三个平台如何触发这个 Skill
 
@@ -62,7 +62,7 @@
 
 ```text
 请使用 CloverSec-CTF-Build-Dockerizer 处理当前题目目录。
-先执行自动探测并输出 CONFIG PROPOSAL，我确认 OK 后你再自动生成 Dockerfile/start.sh/changeflag.sh/flag(可选)，并运行 validate。
+先执行自动探测并输出 CONFIG PROPOSAL，我确认 OK 后你再生成 Dockerfile/start.sh，并按合同生成可选文件，最后运行 validate。
 ```
 
 ### 3.2 Claude 触发示例
@@ -102,10 +102,10 @@
 
 | 场景 | 触发语句（可直接发给 AI） | 期望输出 |
 |---|---|---|
-| 老题目没有 Dockerfile | “用 CloverSec-CTF-Build-Dockerizer 为当前目录生成交付文件，按 CONFIG PROPOSAL 流程走。” | 生成 `Dockerfile/start.sh/changeflag.sh/flag(可选)` |
+| 老题目没有 Dockerfile | “用 CloverSec-CTF-Build-Dockerizer 为当前目录生成交付文件，按 CONFIG PROPOSAL 流程走。” | 生成最小 `Dockerfile/start.sh`，并输出 flag 路径证据 |
 | 题目容器一启动就退出 | “用 CloverSec-CTF-Build-Dockerizer 重生 start.sh，并确保单服务用 exec 作为 PID1。” | `start.sh` 可持续运行且有日志 |
 | 平台报 `/bin/bash` 不存在 | “用 CloverSec-CTF-Build-Dockerizer 修复镜像，确保 /bin/bash 可用并通过 validate。” | Dockerfile 补齐 bash 安装 |
-| 平台动态 flag 写入失败 | “检查并修复 /flag 权限、路径与 changeflag 入口约束。” | `/flag` 与 `/changeflag.sh` 约束正确 |
+| 平台动态 flag 写入失败 | “检查实际 flag 路径、权限和 direct-exec 回读结果。” | 平台写入 `challenge.flag.path` 后能回读 |
 | 端口映射后访问不到 | “检查 EXPOSE 与服务监听地址，确保监听 0.0.0.0 并更新配置。” | 端口与监听修复 |
 | Pwn 题目需要前台托管 | “按 pwn 栈生成模板，并确保 start.sh 使用 xinetd/tcpserver/socat 的合法前台路径。” | 端口/前台策略符合平台约束 |
 | AI 题目在高核心服务器报线程错误 | “按 ai 栈生成并设置 OPENBLAS/OMP/MKL 线程限制，使用 gunicorn 单 worker。” | 线程稳定、容器持续运行 |
@@ -135,7 +135,7 @@ docker logs -f "$(docker ps -q --filter ancestor=ctf-web-demo:latest | head -n 1
 1. 把宿主机端口写进 `expose_ports`
 2. 启动命令只监听 `127.0.0.1`
 3. 用 `sleep infinity` 保活
-4. 忘了 `/start.sh`、`/changeflag.sh` 或 `/bin/bash`
+4. 忘了 `/start.sh`，或为旧 helper 合同遗漏 `/changeflag.sh` 和 `/bin/bash`
 5. 把 `include_flag_artifact=false` 理解成可以跳过所有平台产物
 6. 忽略 `validate.sh`
 
@@ -143,5 +143,5 @@ docker logs -f "$(docker ps -q --filter ancestor=ctf-web-demo:latest | head -n 1
 
 1. 复制触发示例发给 Agent。
 2. 收到 `CONFIG PROPOSAL` 后只回复 `OK` 或改 YAML。
-3. 查看 `Dockerfile/start.sh/changeflag.sh/flag(可选)` 与 validate 结果。
+3. 查看 `Dockerfile/start.sh`、合同决定的可选文件和 validate 结果。
 4. 需要运行时，再本地 `docker run ... /start.sh` 验证。

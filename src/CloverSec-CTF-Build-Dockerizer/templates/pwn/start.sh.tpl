@@ -8,11 +8,7 @@
 cd "{{WORKDIR}}"
 {{DEFENSE_START_BLOCK}}
 
-# 兼容题目读取 /home/ctf/flag 的常见路径：保留根目录 /flag 为平台动态写入入口。
-if [[ -d /home/ctf ]]; then
-  cp /flag /home/ctf/flag 2>/dev/null || true
-  chmod 444 /home/ctf/flag 2>/dev/null || true
-fi
+{{PWN_LEGACY_FLAG_BLOCK}}
 
 # 若题目目录自带 ctf.xinetd，则自动挂载到 xinetd 服务目录。
 if [[ -f "{{WORKDIR}}/ctf.xinetd" ]]; then

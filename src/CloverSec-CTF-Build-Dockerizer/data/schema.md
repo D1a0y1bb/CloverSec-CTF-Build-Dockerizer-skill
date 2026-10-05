@@ -1,4 +1,4 @@
-# challenge.yaml Schema (v2.2.0)
+# challenge.yaml Schema (v3.0)
 
 本文档定义 `CloverSec-CTF-Build-Dockerizer` 的稳定输入契约。
 
@@ -6,7 +6,7 @@
 
 - 顶层结构
 - 关键字段说明
-- 平台硬约束（V2）
+- 平台硬约束（V3）
 - AWDP 契约
 - BaseUnit 约定
 - Scenario 约定（本地编排）
@@ -18,6 +18,7 @@
 ```yaml
 challenge:
   name: "example"
+  category: "web|pwn|ai|misc|crypto|reverse|forensics"
   stack: "node|php|python|java|tomcat|lamp|pwn|ai|rdg|secops|baseunit|bundle|linux-qemu"
   profile: "jeopardy|rdg|awd|awdp|secops"
 
@@ -37,7 +38,8 @@ challenge:
 
   platform:
     entrypoint: "/start.sh"
-    require_bash: true
+    contract: "direct-exec-v1"
+    require_bash: false
     allow_loopback_bind: false
     docker_platform: ""   # 可选，例如 linux/amd64
 
@@ -50,9 +52,14 @@ challenge:
     start_period: "10s"
 
   flag:
+    mode: "direct_exec|file_replace|database|helper_script|qemu_guest"
     path: "/flag"
+    initial_file: false
     permission: "444"
-    sync_paths: []        # 可选，题目业务会读取的动态 flag 路径
+    update:
+      command: ""
+      wait_for: ""
+    sync_paths: []        # 仅 legacy-helper 兼容
 
   verification:
     solve_probe:
@@ -130,11 +137,30 @@ challenge:
   - 未显式提供时可由探测规则推断。
   - `stack=bundle` 只用于 `render_bundle.py` 生成的 Recipe 交付目录；custom 组合必须显式提供安装与启动命令，不是自动安装器。
 
+- `challenge.category`
+  - 表示题目分类。它不决定 Docker 运行时。
+  - Crypto、Reverse、Forensics 和附件型 Misc 可以使用 `delivery.kind=attachment-only`。
+
+- `challenge.platform.contract`
+  - 默认值为 `direct-exec-v1`。
+  - 旧平台调用 `/changeflag.sh` 时显式使用 `legacy-helper-v2`。
+  - Linux-QEMU 使用 `linux-qemu-v1`。
+
+- `challenge.flag.mode`
+  - `direct_exec`：平台通过 `docker exec` 写入 `flag.path`。
+  - `file_replace`：在 `FLAG_UPDATE.md` 输出 `sed` 或 `echo` 命令。
+  - `database`：在 `FLAG_UPDATE.md` 输出等待条件和 SQL 命令。
+  - `helper_script`：显式生成 `/changeflag.sh`。
+  - `qemu_guest`：使用 guest rootfs 注入流程。
+
+- `challenge.flag.path`
+  - 表示题目程序实际读取的路径。
+  - `/flag` 只是默认值。
+  - Pwn 题必须根据源码或题目手册确认 `/home/ctf/flag`、`flag0`、`flag1` 或其他路径。
+
 - `challenge.flag.sync_paths`
-  - 用于同步题目业务实际读取的动态 flag 路径。
-  - Pwn 历史题常见源码线索包括 `/home/ctf/flag`、`flag0`、`flag1`、`flag.txt`，必须看源码或 PoC 后确认。
-  - 源码中的相对路径应按题目 WORKDIR 转成绝对路径，例如 WORKDIR 为 `/home/ctf` 时，`flag0` 应写成 `/home/ctf/flag0`。
-  - 自动探测只会给出 `flag_path_hints`，不能代替人工确认。
+  - 只为 `legacy-helper-v2` 保留。
+  - `direct_exec` 模式应直接设置 `flag.path`，不再依赖通用同步脚本。
 
 - `challenge.profile`
   - 支持：`jeopardy/rdg/awd/awdp/secops`
@@ -143,7 +169,7 @@ challenge:
     - `stack=secops` -> `secops`
     - 其他 -> `jeopardy`
 
-- `challenge.defense`（V2 推荐字段）
+- `challenge.defense`（V3 推荐字段，兼容 V2 输入）
   - 用于统一防御注入配置（sshd/ttyd/ctf 用户/评分模式）。
   - 非 `rdg/secops` 栈在 `profile!=jeopardy` 且开启防御开关时会注入 defense block。
   - `stack=rdg` 与 `stack=secops` 使用专用模板语义，避免重复注入。
@@ -153,17 +179,16 @@ challenge:
   - 渲染前会与 `challenge.defense` 归一化，冲突时以 `defense` 为主。
 
 - `defense.include_flag_artifact`
-  - 默认 `true`。
-  - 设为 `false` 时仅放行 `/flag` 产物，不放行 `/changeflag.sh`。
+  - 兼容旧 profile 的初始 flag 控制项。
+  - 设为 `false` 时不生成初始 flag 文件；它不会改变 direct-exec 的运行时注入。
 
 - `challenge.platform.docker_platform`
   - 可选字段，用于渲染 `FROM --platform=<value> ...`。
   - 常见于 Pwn 历史题迁移，例如在 macOS arm64 上固定 `linux/amd64`，避免镜像架构无提示变化。
 
 - `challenge.flag.sync_paths`
-  - 可选数组，表示除 `/flag` 之外，题目业务实际会读取的 flag 文件路径。
-  - 生成的 `changeflag.sh` 会把动态 flag 同步到这些路径，适合 Pwn 的 `/home/ctf/flag0`、`/home/ctf/flag1` 或 Web 题自己的 flag 文件。
-  - 生效时机是平台调用 `/changeflag.sh`。普通容器启动只保证 `/flag` 存在；除非模板有专门兼容逻辑，`start.sh` 不会自动把任意 `sync_paths` 全部写好。
+  - 仅供 `legacy-helper-v2` 和需要多路径同步的历史题目使用。
+  - direct-exec 题目应把程序实际读取路径写入 `challenge.flag.path`。
 
 - `challenge.verification.solve_probe`
   - 可选字段，由业务断言验证入口在容器启动后执行。
@@ -180,25 +205,26 @@ challenge:
   - `asset_mode=prebuilt` 表示题目目录已经包含 kernel/initrd/rootfs；`asset_mode=build-script` 表示构建镜像时执行 `build_script` 生成 VM 资产。
   - `flag_injection=debugfs` 会让生成的 `changeflag.sh` 同时写外层 `/flag` 和 guest rootfs 内的 `guest_flag_path`。
 
-## 平台硬约束（V2）
+## 平台硬约束（V3）
 
-每次渲染交付必须包含：
+每次普通题目交付必须包含：
 
 - `Dockerfile`
 - `start.sh`
-- `changeflag.sh`
 
 并满足：
 
-- 镜像内可执行 `/start.sh`、`/changeflag.sh`
-- 镜像内存在 `/bin/bash`
+- 镜像内可执行 `/start.sh`
 - Dockerfile 声明 `EXPOSE`
 - 禁止空转保活（`sleep infinity` 等）
 
+`changeflag.sh` 仅在 `flag.mode=helper_script|qemu_guest` 时要求。
+
 `flag` 规则：
 
-- 默认必须存在且可读
-- `include_flag_artifact=false` 可放行 `flag`，但不能放行 `changeflag.sh`
+- direct-exec 通过平台运行时写入 `flag.path`。
+- `flag.initial_file=false` 时不交付初始 `flag` 文件。
+- `include_flag_artifact=false` 仍兼容旧 profile，并只影响初始文件。
 
 ## AWDP 契约
 

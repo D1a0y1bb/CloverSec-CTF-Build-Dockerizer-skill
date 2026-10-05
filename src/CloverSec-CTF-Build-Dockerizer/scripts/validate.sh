@@ -14,7 +14,7 @@ usage() {
   - --fix-write 应用安全自动修复（落盘）并继续校验
   - --fix-loopback 允许自动修复将显式 loopback 绑定参数改为 0.0.0.0
   - --static-only 只执行静态契约检查，不执行动态 flag 写入检查
-  - --with-dynamic-flag 执行动态 flag 写入检查（当前默认开启，显式传入用于记录意图）
+  - --with-dynamic-flag 保留旧调用兼容；当前按 flag.mode 执行对应策略检查
   - --json-summary 写入机器可读校验摘要
 USAGE
 }
@@ -23,7 +23,7 @@ AUTOFIX_MODE="false"
 AUTOFIX_WRITE="false"
 AUTOFIX_LOOPBACK="false"
 JSON_SUMMARY_PATH=""
-VALIDATION_LAYER="contract+dynamic-flag"
+VALIDATION_LAYER="contract+flag-policy"
 DYNAMIC_FLAG_CHECK="true"
 POSITIONAL_ARGS=()
 
@@ -52,7 +52,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --with-dynamic-flag)
-      VALIDATION_LAYER="contract+dynamic-flag"
+      VALIDATION_LAYER="contract+flag-policy"
       DYNAMIC_FLAG_CHECK="true"
       shift
       ;;
@@ -127,6 +127,11 @@ VM_GUEST_FLAG_PATH_CFG="/root/flag"
 VM_HOSTFWD_PORTS_CFG=""
 FLAG_SYNC_PATHS_CFG=""
 HAS_SOLVE_PROBE_CFG="false"
+PLATFORM_CONTRACT_CFG="direct-exec-v1"
+FLAG_MODE_CFG="direct_exec"
+FLAG_PATH_CFG="/flag"
+FLAG_INITIAL_FILE_CFG="false"
+REQUIRE_BASH_CFG="false"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
   echo "[ERROR] Dockerfile 不存在: $DOCKERFILE" >&2
@@ -418,6 +423,10 @@ find_unrendered_template_vars() {
 }
 
 validate_changeflag_dynamic_write() {
+  if [[ "$FLAG_MODE_CFG" != "helper_script" && "$FLAG_MODE_CFG" != "qemu_guest" ]]; then
+    log_result INFO "Flag 模式为 ${FLAG_MODE_CFG}，平台直接处理 Flag，不要求 changeflag.sh"
+    return
+  fi
   local changeflag_host
   changeflag_host="$(cd "$(dirname "$START_SH")" && pwd)/changeflag.sh"
 
@@ -828,20 +837,27 @@ run_hard_rules() {
     log_result ERROR "未检测到 /start.sh 拷贝逻辑。修复：在 Dockerfile 增加 COPY start.sh /start.sh。"
   fi
 
-  if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*changeflag\.sh.*(/changeflag\.sh|"/changeflag\.sh")'; then
-    log_result INFO "Dockerfile 已将 changeflag.sh 放置到 /changeflag.sh"
+  if [[ "$FLAG_MODE_CFG" == "helper_script" || "$FLAG_MODE_CFG" == "qemu_guest" ]]; then
+    if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*changeflag\.sh.*(/changeflag\.sh|"/changeflag\.sh")'; then
+      log_result INFO "Dockerfile 已将 changeflag.sh 放置到 /changeflag.sh"
+    else
+      log_result ERROR "Flag 模式 ${FLAG_MODE_CFG} 要求 /changeflag.sh，但 Dockerfile 未复制该文件。"
+    fi
   else
-    log_result ERROR "未检测到 /changeflag.sh 拷贝逻辑。修复：在 Dockerfile 增加 COPY changeflag.sh /changeflag.sh。"
+    log_result INFO "Flag 模式 ${FLAG_MODE_CFG} 不要求 /changeflag.sh"
   fi
 
-  if [[ $rdg_flag_optional -eq 1 ]]; then
-    log_result INFO "profile include_flag_artifact=false：放行 /flag 产物校验"
+  if [[ $rdg_flag_optional -eq 1 || "$FLAG_INITIAL_FILE_CFG" != "true" ]]; then
+    log_result INFO "Flag 由平台运行时注入，跳过初始 flag 文件校验"
   else
-    if contains_re "$DOCKERFILE" '^[[:space:]]*(COPY|ADD)[[:space:]].*flag.*(/flag|"/flag")' \
-      || contains_re "$DOCKERFILE" '^[[:space:]]*RUN[[:space:]].*(touch|echo|printf|install).*([[:space:]]|>)\/flag'; then
-      log_result INFO "Dockerfile 已创建或复制 /flag"
+    flag_path_re="$(printf '%s' "$FLAG_PATH_CFG" | sed 's/[.[\*^$()+?{|\\]/\\&/g')"
+    flag_parent="$(dirname "$FLAG_PATH_CFG")"
+    if contains_re "$DOCKERFILE" "^[[:space:]]*(COPY|ADD)[[:space:]].*flag.*(${flag_path_re}|\"${flag_path_re}\")" \
+      || contains_re "$DOCKERFILE" "^[[:space:]]*RUN[[:space:]].*(touch|echo|printf|install).*([[:space:]]|>)${flag_path_re}" \
+      || { grep -Fq "${flag_parent}" "$DOCKERFILE" && grep -Fq "${FLAG_PATH_CFG}" "$DOCKERFILE"; }; then
+      log_result INFO "Dockerfile 已创建或复制 ${FLAG_PATH_CFG}"
     else
-      log_result ERROR "未检测到 /flag 创建逻辑。修复：增加 COPY flag /flag 或 RUN touch /flag。"
+      log_result ERROR "未检测到 ${FLAG_PATH_CFG} 创建逻辑。请确认 flag.initial_file 或题目启动时的 Flag 依赖。"
     fi
   fi
 
@@ -851,31 +867,45 @@ run_hard_rules() {
     log_result ERROR "未检测到 /start.sh 可执行权限。修复：增加 RUN chmod 555 /start.sh。"
   fi
 
-  if contains_re "$DOCKERFILE" 'chmod.*(\+x|a\+x|u\+x|555|755|775).*/changeflag\.sh'; then
-    log_result INFO "Dockerfile 已对 /changeflag.sh 设置可执行权限"
-  else
-    log_result ERROR "未检测到 /changeflag.sh 可执行权限。修复：增加 RUN chmod 555 /changeflag.sh。"
+  if [[ "$FLAG_MODE_CFG" == "helper_script" || "$FLAG_MODE_CFG" == "qemu_guest" ]]; then
+    if contains_re "$DOCKERFILE" 'chmod.*(\+x|a\+x|u\+x|555|755|775).*/changeflag\.sh'; then
+      log_result INFO "Dockerfile 已对 /changeflag.sh 设置可执行权限"
+    else
+      log_result ERROR "Flag 模式 ${FLAG_MODE_CFG} 要求 /changeflag.sh 可执行。"
+    fi
   fi
 
-  if [[ $rdg_flag_optional -eq 1 ]]; then
-    log_result INFO "profile include_flag_artifact=false：放行 /flag 权限校验"
+  if [[ $rdg_flag_optional -eq 1 || "$FLAG_INITIAL_FILE_CFG" != "true" ]]; then
+    log_result INFO "Flag 由平台运行时注入，跳过初始权限校验"
   else
-    if contains_re "$DOCKERFILE" 'chmod.*(444|644|664|744|755|a\+r|u\+r|go\+r).*/flag'; then
-      log_result INFO "Dockerfile 已对 /flag 设置可读权限"
+    flag_path_re="$(printf '%s' "$FLAG_PATH_CFG" | sed 's/[.[\*^$()+?{|\\]/\\&/g')"
+    if contains_re "$DOCKERFILE" "chmod.*(444|644|664|744|755|a\+r|u\+r|go\+r).*${flag_path_re}" \
+      || grep -Fq "${FLAG_PATH_CFG}" "$DOCKERFILE" && grep -Eiq 'chmod[[:space:]]+[0-7]{3,4}' "$DOCKERFILE"; then
+      log_result INFO "Dockerfile 已对 ${FLAG_PATH_CFG} 设置可读权限"
     else
-      log_result ERROR "未检测到 /flag 可读权限。修复：增加 RUN chmod 444 /flag。"
+      log_result ERROR "未检测到 ${FLAG_PATH_CFG} 可读权限。请确认题目启动时的 Flag 权限。"
     fi
   fi
 
   FIRST_LINE="$(head -n1 "$START_SH" | tr -d '\r')"
-  if [[ "$FIRST_LINE" == "#!/bin/bash" ]]; then
-    log_result INFO "start.sh 首行是 #!/bin/bash"
+  if [[ "$REQUIRE_BASH_CFG" == "true" ]]; then
+    if [[ "$FIRST_LINE" == "#!/bin/bash" || "$FIRST_LINE" == "#!/usr/bin/env bash" ]]; then
+      log_result INFO "start.sh 使用 Bash，符合 require_bash=true"
+    else
+      log_result ERROR "当前合同要求 Bash，但 start.sh 不是 Bash。请使用 #!/bin/bash。"
+    fi
+  elif [[ "$FIRST_LINE" == "#!/bin/bash" || "$FIRST_LINE" == "#!/usr/bin/env bash" || "$FIRST_LINE" == "#!/bin/sh" || "$FIRST_LINE" == "#!/usr/bin/env sh" ]]; then
+    log_result INFO "start.sh 使用受支持的 shell: ${FIRST_LINE#\#!}"
   else
-    log_result ERROR "start.sh 首行必须是 #!/bin/bash。修复：将 shebang 改为 #!/bin/bash。"
+    log_result ERROR "start.sh 首行必须声明 /bin/bash 或 /bin/sh。"
   fi
   local start_syntax_error
-  if start_syntax_error="$(bash -n "$START_SH" 2>&1)"; then
-    log_result INFO "start.sh 通过 bash -n 语法检查"
+  local syntax_checker="bash"
+  if [[ "$FIRST_LINE" == *"/sh" ]]; then
+    syntax_checker="sh"
+  fi
+  if start_syntax_error="$("$syntax_checker" -n "$START_SH" 2>&1)"; then
+    log_result INFO "start.sh 通过 ${syntax_checker} -n 语法检查"
   else
     start_syntax_error="${start_syntax_error//$'\n'/; }"
     log_result ERROR "start.sh 存在 shell 语法错误：${start_syntax_error}"
@@ -902,6 +932,11 @@ run_hard_rules() {
 
   echo
   echo "[B] /bin/bash 可用性硬规则"
+
+  if [[ "$REQUIRE_BASH_CFG" != "true" ]]; then
+    log_result INFO "当前合同允许 POSIX sh，跳过 /bin/bash 安装检查"
+    return
+  fi
 
   BASE_IMAGE="$(extract_base_image)"
   HAS_BASH_INSTALL=0
@@ -1105,10 +1140,10 @@ run_dynamic_checks() {
   if [[ -n "$stack_hint" ]]; then
     log_result INFO "检测到栈提示: ${stack_hint}"
   fi
-  if [[ -n "$FLAG_SYNC_PATHS_CFG" ]]; then
-    log_result INFO "业务 flag 同步路径已配置: ${FLAG_SYNC_PATHS_CFG}"
+  if [[ "$FLAG_PATH_CFG" != "/flag" ]]; then
+    log_result INFO "业务 flag 路径已配置: ${FLAG_PATH_CFG}"
   elif [[ "$stack_hint" == "pwn" ]]; then
-    log_result WARN "Pwn 题未配置 challenge.flag.sync_paths。validate.sh 只能确认 /flag 与平台契约，不能确认题目程序会读到动态 flag。"
+    log_result WARN "Pwn 题仍使用默认 flag.path=/flag。请确认源码实际路径，或在 challenge.flag.path 中显式配置。"
   fi
   if [[ "$HAS_SOLVE_PROBE_CFG" == "true" ]]; then
     log_result INFO "检测到 verification.solve_probe；题目入口验证应在容器业务断言阶段执行。"
