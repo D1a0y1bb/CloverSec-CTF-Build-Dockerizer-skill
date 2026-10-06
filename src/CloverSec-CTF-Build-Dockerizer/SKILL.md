@@ -81,7 +81,9 @@ nginx -t
 exec nginx -g 'daemon off;'
 ```
 
-更多栈（Node/Python/Java/纯静态）的范例见 `references/dockerfiles.md`。
+更多栈（Node/Python/Java/纯静态/Pwn）的范例见 `references/dockerfiles.md`。
+
+如果题目对运行时版本敏感（漏洞只在特定版本成立），或者要长期存档复现，就要把基础镜像、apt 包、PECL/pip 依赖锁死版本，否则以后 build 会因上游漂移而打不通——锁版本的具体手法见 `references/dockerfiles.md` 的"镜像版本固定"一节。
 
 ## 中文注释规范
 
