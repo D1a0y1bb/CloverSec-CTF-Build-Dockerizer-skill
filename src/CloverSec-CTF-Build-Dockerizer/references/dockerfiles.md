@@ -10,6 +10,52 @@
 
 ---
 
+## 镜像版本固定（题目要存档、以后还要能复现时）
+
+真实教训：同一份源码"以前能 build、过段时间再 build 就不通"，根因通常不是源码被改，而是**构建输入会漂移**——用了浮动 tag、apt 源没锁时间点、PECL/pip 装的是最新版。等上游更新，依赖版本对不上，题目行为就变了。
+
+普通题目用 `python:3.11-slim` 这种 tag 就够了。但如果这道题**对运行时版本敏感**（漏洞只在特定版本成立，比如某个 ImageMagick / Redis / 库的 CVE），或者要**长期存档复现**，就要把构建输入锁死：
+
+1. **基础镜像锁 digest**，不只用 tag：
+
+   ```dockerfile
+   FROM php:8.2.29-apache-bookworm@sha256:bb954ec03238abf760e91a3fa74202f192d644be12bd4bda5bac577997a76466
+   ```
+
+2. **Debian/apt 源锁到 snapshot 时间点**，并关掉有效期检查：
+
+   ```dockerfile
+   RUN printf '%s\n' \
+       'Types: deb' \
+       'URIs: http://snapshot.debian.org/archive/debian/20251117T000000Z' \
+       'Suites: bookworm' 'Components: main' \
+       'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+       > /etc/apt/sources.list.d/debian.sources; \
+       echo 'Acquire::Check-Valid-Until false;' > /etc/apt/apt.conf.d/99snapshot
+   ```
+
+3. **apt 包锁具体版本号**：
+
+   ```dockerfile
+   RUN apt-get update && apt-get install -y --no-install-recommends \
+       imagemagick=8:6.9.11.60+dfsg-1.6+deb12u4 \
+       redis-server=5:7.0.15-1~deb12u6
+   ```
+
+4. **PECL/源码包锁版本 + 校验 SHA256**：
+
+   ```dockerfile
+   RUN wget -O /tmp/imagick.tgz https://pecl.php.net/get/imagick-3.8.0.tgz; \
+       echo 'bda67461c854f20d6105782b769c524fc37388b75d4481d951644d2167ffeec6  /tmp/imagick.tgz' | sha256sum -c -; \
+       pecl install /tmp/imagick.tgz
+   ```
+
+一个反向教训：**不要把旧版本包硬拼到新基础镜像上**（旧 `libxml2-dev` 配新基础层的 `libxml2` 会依赖冲突）。要锁就整套锁到同一个时间点基线，保证内部一致。
+
+> 固定版本会让 Dockerfile 变长，这是必要的，不算"东坡肉"——它是题目能不能复现的关键。但不敏感的普通题目别过度固定，`python:3.11-slim` 就行。
+
+---
+
 ## Python（Flask / gunicorn）
 
 ```dockerfile
@@ -131,6 +177,8 @@ exec nginx -g 'daemon off;'
 
 ## Java（Spring Boot 等，jar 包）
 
+有现成 jar 直接拷：
+
 ```dockerfile
 # syntax=docker/dockerfile:1
 FROM eclipse-temurin:17-jre
@@ -151,7 +199,24 @@ set -eu
 exec java -jar /app/app.jar
 ```
 
-需要从源码构建时用多阶段：`FROM maven:... AS build` 编译，再 `COPY --from=build` 拿 jar。
+需要从源码编译用多阶段：`maven` 阶段编译，运行阶段只拿 jar，镜像不带编译工具链。多模块题目可以每个模块一个 build 阶段：
+
+```dockerfile
+# syntax=docker/dockerfile:1
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+COPY src/pom.xml ./pom.xml
+COPY src/src ./src
+RUN mvn -q -DskipTests package
+
+FROM tomcat:9.0-jdk17-temurin
+COPY --from=build /build/target/app.jar /opt/app/app.jar
+COPY start.sh /start.sh
+COPY flag /flag
+RUN chmod 555 /start.sh && chmod 444 /flag
+EXPOSE 8080
+CMD ["/start.sh"]
+```
 
 ---
 
