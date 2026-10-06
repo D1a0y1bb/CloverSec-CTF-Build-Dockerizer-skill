@@ -8,139 +8,25 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
-    inputs:
-      linux_qemu_full_policy:
-        description: "Linux-QEMU full check policy for release-full-check"
-        required: false
-        default: "auto"
-        type: choice
-        options:
-          - auto
-          - required
-          - skip
 
 jobs:
+  # job 名保持 fast-check，与仓库 main 分支保护要求的状态检查对齐。
   fast-check:
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Install Python deps
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt
-
-      - name: Python syntax check
-        run: python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
-
-      - name: Governance Python entrypoints
-        run: |
-          python3 scripts/doc_guard.py --help
-          python3 scripts/release_build.py --help
-          python3 scripts/generate_sbom.py --help
-          python3 scripts/sync.py --help
-          python3 scripts/publish_guard.py --help
-
+      # verify.sh 是 Skill 唯一的脚本，确保它语法正确。
       - name: Shell syntax check
-        run: find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
+        run: bash -n src/CloverSec-CTF-Build-Dockerizer/scripts/verify.sh
 
-      - name: Runtime profile inference regression
-        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/test_runtime_profiles.sh
-
-      - name: Validate examples
-        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
-
-      - name: Validate autofix dry-run
-        run: |
-          EXAMPLE_DIR="src/CloverSec-CTF-Build-Dockerizer/examples/node-basic"
-          python3 src/CloverSec-CTF-Build-Dockerizer/scripts/render.py --config "${EXAMPLE_DIR}/challenge.yaml" --output "${EXAMPLE_DIR}"
-          bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate.sh --fix "${EXAMPLE_DIR}/Dockerfile" "${EXAMPLE_DIR}/start.sh" "${EXAMPLE_DIR}/challenge.yaml"
-
-      - name: Document guard
-        run: bash scripts/doc_guard.sh
-
+      # 确认这个目录能被 skills 工具识别为一个合法 Skill。
       - name: Skill discovery
         run: npx -y skills add . --list
-
-  release-full-check:
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install Python deps
-        run: |
-          python3 -m pip install --upgrade pip
-          pip3 install -r src/CloverSec-CTF-Build-Dockerizer/scripts/requirements.txt
-
-      - name: Python syntax check
-        run: python3 -m py_compile src/CloverSec-CTF-Build-Dockerizer/scripts/*.py scripts/*.py
-
-      - name: Governance Python entrypoints
-        run: |
-          python3 scripts/doc_guard.py --help
-          python3 scripts/release_build.py --help
-          python3 scripts/generate_sbom.py --help
-          python3 scripts/sync.py --help
-          python3 scripts/publish_guard.py --help
-
-      - name: Shell syntax check
-        run: find scripts src/CloverSec-CTF-Build-Dockerizer/scripts -name '*.sh' -print0 | xargs -0 -n1 bash -n
-
-      - name: Runtime profile inference regression
-        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/test_runtime_profiles.sh
-
-      - name: Validate examples
-        run: VALIDATE_ENFORCE_DIGEST=1 bash src/CloverSec-CTF-Build-Dockerizer/scripts/validate_examples.sh
-
-      - name: Document guard
-        run: bash scripts/doc_guard.sh
-
-      - name: Skill discovery
-        run: npx -y skills add . --list
-
-      - name: Smoke test
-        run: bash src/CloverSec-CTF-Build-Dockerizer/scripts/smoke_test.sh
-
-      - name: Linux-QEMU full check
-        env:
-          CI_LINUX_QEMU_FULL_POLICY: ${{ github.event.inputs.linux_qemu_full_policy || 'auto' }}
-          CI_LINUX_QEMU_REQUIRE_POC: "1"
-          CI_LINUX_QEMU_JSON_SUMMARY: /tmp/linux-qemu-ci-full.json
-        run: bash scripts/ci_linux_qemu_full_check.sh
-
-      - name: Release build
-        run: bash scripts/release_build.sh
-
-      - name: Assert SBOM artifacts
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          test -n "${version}"
-          test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.sbom.spdx.json"
-          test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.sbom.cdx.json"
-          test -f "dist/CloverSec-CTF-Build-Dockerizer-${version}.deps.txt"
