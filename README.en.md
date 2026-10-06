@@ -26,8 +26,8 @@
 An agent skill used by the CloverSec R&D Center to package CTF challenges. Give Claude Code or Codex the challenge source, a design note, or an old challenge directory. It produces a container directory that imports straight into the competition platform, then builds it locally, starts it, writes a flag, and probes the port.
 
 - The model writes the source, `Dockerfile` and `start.sh` from the examples in the skill, with comments that point out the vulnerability and any non-obvious configuration. Comments are in Chinese.
-- Ships examples for Python, Node, PHP, PHP-FPM + nginx, Java, static sites and C/Pwn.
-- `verify.sh` does a real local build and run, and reports `passed`, `partial` or `failed`.
+- Ships examples for Python, Node, PHP, PHP-FPM + nginx, Java, static sites and Pwn (socat / xinetd).
+- `verify.sh` runs the challenge the way the platform does: amd64 build, start with `/start.sh`, write a test flag, probe the ports, and optionally run a solve script that must print the test flag.
 - For challenges that must stay buildable for years, the references show how to pin image digests, apt snapshots and dependency versions.
 - Multi-service, Bundle, Scenario, RDG/AWD and Linux-QEMU challenges have their own reference file. Regular challenges never load it.
 
@@ -39,7 +39,7 @@ npx skills add D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill -g -a claude-code -
 
 `-g` installs into `~/.agents/skills/`, and Claude Code reads it through a symlink. Drop `-g` to install into the current project. Pass `-a` once per agent.
 
-Verification needs Docker, `curl` and `nc`.
+Verification needs Docker and `curl`. On Apple Silicon the amd64 build runs under emulation and is slower.
 
 ## Usage
 
@@ -71,30 +71,35 @@ Only runtime files go in. Writeups, exploits, packet captures and author notes a
 ## Local verification
 
 ```bash
-bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes
+bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes \
+  --solve 'curl -s http://$HOST:$PORT/flag'
 ```
 
-The script builds the image, starts it with `/start.sh`, writes a test flag to `flag.path` and reads it back, then probes the port. The container and image are removed afterwards; pass `--keep` to leave them.
+The script builds for `linux/amd64`, starts the container with `/start.sh`, waits until the ports are really listening, writes a random test flag to `flag.path`, then probes the ports. With `--solve` it runs the solve command and only passes if the output contains that test flag, which catches services that cache the flag at startup. The container and image are removed afterwards; pass `--keep` to leave them.
 
 ```text
-== 构建镜像 ctf-verify-ssti-notes:test
+== 构建镜像 (linux/amd64)
+   完成，用时 16 秒
 == 启动容器
+   等待端口 5000 开始监听（最多 60 秒）
    容器运行中
-== 写测试 Flag 到 /flag
-   Flag 回读一致
-== 探测端口 localhost:64108
+== 写入测试 Flag 到 /flag
+   回读一致（444 root:root）
+== 探测端口 5000（本机 127.0.0.1:61197）
    HTTP 200
+== 运行解题命令
+   拿到测试 Flag
 
 == 结果: passed
 ```
 
-| Result | Meaning |
-|---|---|
-| `passed` | Build, start, flag read-back and port probe all succeeded |
-| `partial` | The container runs but some checks failed; each one is listed |
-| `failed` | The build failed or the container exited |
+| Result | Exit code | Meaning |
+|---|---|---|
+| `passed` | 0 | Every check passed |
+| `partial` | 3 | It runs, but some checks were skipped (e.g. no port declared); each one is listed |
+| `failed` | 1 | Build failed, container exited, port bound to 127.0.0.1 only, flag not writable, or the solve script did not get the flag |
 
-Port and flag path come from `challenge.yaml` by default. Override them with `--port` and `--flag-path`.
+Port and flag path come from `challenge.yaml` by default. Override them with `--port` and `--flag-path`. See `verify.sh --help` for all options.
 
 ## Flag contract
 
@@ -103,7 +108,7 @@ Once the container is up, the platform writes the round's dynamic flag into the 
 | Category | Usual path |
 |---|---|
 | Web / AI / Misc | `/flag` |
-| Pwn | `/home/ctf/flag` |
+| Pwn | `/home/ctf/flag` (`root:ctf`, `440`) |
 | Flag embedded in PHP | `/var/www/html/flag.php` |
 | Database | Document the SQL that updates the flag |
 
@@ -113,10 +118,11 @@ Read the flag file on every request. If it is read once at startup and cached (a
 
 ```text
 src/CloverSec-CTF-Build-Dockerizer/
-├── SKILL.md              # entry: output layout, examples, comment rules, flag contract
+├── SKILL.md              # entry: output layout, workflow, examples, comment rules, flag contract
+├── agents/openai.yaml    # name and default prompt shown in Codex
 ├── references/
-│   ├── platform.md       # how the platform starts challenges, flag paths, challenge.yaml fields
-│   ├── dockerfiles.md    # Dockerfile / start.sh per language, version pinning
+│   ├── platform.md       # how the platform starts challenges, env-var flags, image tar formats, challenge.yaml
+│   ├── dockerfiles.md    # Dockerfile / start.sh per language, Pwn, version pinning
 │   └── special.md        # multi-service, Bundle, Scenario, RDG/AWD, Linux-QEMU
 └── scripts/
     └── verify.sh         # local build and run check

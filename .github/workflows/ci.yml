@@ -23,9 +23,10 @@ jobs:
         with:
           node-version: "20"
 
-      # verify.sh 是 Skill 唯一的脚本，确保它语法正确。
-      - name: Shell syntax check
-        run: bash -n src/CloverSec-CTF-Build-Dockerizer/scripts/verify.sh
+      - name: Shell check
+        run: |
+          bash -n src/CloverSec-CTF-Build-Dockerizer/scripts/verify.sh
+          shellcheck -S warning src/CloverSec-CTF-Build-Dockerizer/scripts/verify.sh
 
       # 确认这个目录能被 skills 工具识别为一个合法 Skill。
       - name: Skill discovery
