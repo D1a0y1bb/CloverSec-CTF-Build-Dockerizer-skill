@@ -10,7 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  check:
+  # job 名保持 fast-check，与仓库 main 分支保护要求的状态检查对齐。
+  fast-check:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
