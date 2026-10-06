@@ -4,6 +4,27 @@
 
 ## Unreleased
 
+## v4.0.0 - 2026-10-06
+
+重构为「Markdown 为主、模型优先」的 Skill。
+
+### 变更
+
+- Skill 本体从 362 个文件精简到 5 个：`SKILL.md` + `references/{platform,dockerfiles,special}.md` + `scripts/verify.sh`。
+- 定位改为「模型照着手写范例写源码、Dockerfile、start.sh 和中文注释，脚本只做真实验证」，不再用模板渲染管线压制交付形状。
+- `references/platform.md` 的 Flag 路径分布、Flag 缓存陷阱、Pwn 约定取自真实题库抽样。
+- `references/dockerfiles.md` 提供 Python/Node/PHP/PHP-FPM/Java/静态/Pwn 七种栈的紧凑范例。
+- 中文注释规范固化为「只讲为什么、不复读代码、不记版本史」。
+- `description` 精简，不再前置罗列 `changeflag.sh`、Bundle、Scenario、QEMU。
+- 旧渲染器、模板、示例、文档及仓库发布/CI 工具归档到 `src/CloverSec-CTF-Build-Dockerizer/legacy/`，不随 Skill 分发。
+- 根 `README.md` 重写为当前产品说明；CI 精简为语法检查 + Skill 发现。
+
+### 验证
+
+- 两轮子代理盲测经 `verify.sh` 真实构建验证通过：
+  - Web SSTI（Flask）：目录干净、SSTI 链可利用、动态 Flag 实时读取。
+  - Pwn 栈溢出（Ubuntu + socat）：`/home/ctf/flag` 路径、构建启动、TCP 探通。
+
 ## v3.0.1 - 2026-10-06
 
 ### 修复
