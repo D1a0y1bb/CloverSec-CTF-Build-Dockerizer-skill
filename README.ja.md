@@ -14,17 +14,21 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v3.0.1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v3.0.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v3.0.1</code></p>
 
 CloverSec-CTF-Build-Dockerizer は、CloverSec 研究開発センターの CTF 問題コンテナ配布 Skill です。既定の役割は、アイデア、未完成のソース、参考ディレクトリ、過去の配布物を、読みやすく検証可能な CTF コンテナディレクトリへ整理することです。
 
 実行方式、Flag パス、依存関係、Docker 契約を先に確認し、最小の配布ディレクトリを生成します。Scenario、Bundle、Linux-QEMU、RDG/SecOps、Release の機能は明示的な入力または要求がある場合だけ読み込みます。
+
+## v3.0.1 実題移行と検証の修正
+
+`v3.0.1` は実際の問題移行で残る helper 参照、読み取り専用入口の更新失敗、起動直後の probe 競合を修正します。未完成の attachment archive は `partial` として扱います。
 
 ## v3.0.0 既定製品の再設計
 
@@ -879,7 +883,7 @@ bash scripts/release_build.sh --with-smoke
 正式公開：
 
 ```bash
-bash scripts/publish_release.sh --version v3.0.0
+bash scripts/publish_release.sh --version v3.0.1
 ```
 
 リモート tag/release 競合や認証失敗が出た場合は、その時点で停止し、先に阻害要因を解消してください。

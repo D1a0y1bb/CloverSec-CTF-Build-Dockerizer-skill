@@ -346,6 +346,9 @@ def main() -> int:
             regression_test = root / "tests" / "ctfctl_v3_test.py"
             if regression_test.is_file():
                 run_check(status, "ctfctl_v3_tests", [sys.executable, str(regression_test)])
+            build_test_regression = root / "scripts" / "validate_build_test.py"
+            if build_test_regression.is_file():
+                run_check(status, "build_test_regression", [sys.executable, str(build_test_regression), "--format", "json"])
             shell_syntax_check(root, src_skill_dir)
             record_check(status, "shell_syntax", True)
             env = os.environ.copy()

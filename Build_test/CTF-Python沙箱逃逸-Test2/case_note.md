@@ -7,6 +7,6 @@
 - Support level: supported
 - Manual confirmation required: false
 - Verification level: static
-- Contract expectation: fail
+- Contract expectation: pass
 - Suggested command: `python3 scripts/validate_build_test.py --case python-sandbox-existing`
-- Current limits: historical Dockerfile misses `changeflag.sh` delivery and `/flag` readable permission checks.
+- Current limits: the nested `src/requirements.txt` is recognized by the audit; Docker build and business solving remain separate checks.

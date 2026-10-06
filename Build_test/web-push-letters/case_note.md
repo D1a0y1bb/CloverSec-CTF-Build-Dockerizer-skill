@@ -7,6 +7,6 @@
 - Support level: supported
 - Manual confirmation required: false
 - Verification level: static
-- Contract expectation: fail
+- Contract expectation: pass
 - Suggested command: `python3 scripts/validate_build_test.py --case web-push-letters`
-- Current limits: historical Dockerfile does not satisfy current platform contract and port declaration checks.
+- Current limits: the direct-exec-v1 contract and declared port pass static validation; Docker build and solving remain separate checks.

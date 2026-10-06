@@ -11,19 +11,23 @@
   <img src="docs/assets/readme/CloverSec-CTF-Build-Dockerizer-skill.svg" alt="CloverSec-CTF-Build-Dockerizer-skill" width="920" />
 </p>
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
 </p>
 
 
-<p align="center"><code><strong>VERSION</strong>: v3.0.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v3.0.1</code></p>
 
 四叶草安全-创研中心竞赛 x Docker 环境专用容器构建 Skill。默认工作是把题目想法、半成品源码、参考目录或历史交付件整理成干净、可读、可构建、可验证的 CTF 题目目录。
 
 它优先处理源码目录、Dockerfile、start.sh、challenge.yaml、依赖和真实 Flag 路径。它先生成最小目录，再执行合同检查和可用的 Docker 验证。Scenario、Bundle、Linux-QEMU、RDG/SecOps 和 Release 仍然支持，但只在输入事实或用户请求触发时读取。
 
 现在的默认形态是“模型理解输入，脚本生成目录，验证命令证明结果”。Skill 入口只保留普通题目所需的合同。高级模式通过路由资料按需展开。机器报告写入 `.ctfbuild/`，不污染题目根目录。
+
+## V3.0.1 真实迁移与验证修复
+
+`v3.0.1` 修复真实题目迁移中的悬空 helper 引用、只读入口写入失败和启动探测竞态。`package` 现在阻止未完成的 scaffold 伪装成完整归档，高级输入会保留配置并返回明确的 `partial` 状态。
 
 ## V3.0.0 默认产品重构
 
@@ -840,7 +844,7 @@ bash scripts/release_build.sh --with-smoke
 正式发布：
 
 ```bash
-bash scripts/publish_release.sh --version v3.0.0
+bash scripts/publish_release.sh --version v3.0.1
 ```
 
 如果遇到远端 tag/release 冲突或认证失败，应该停止发布流程并先处理阻塞，不要临时修改版本号绕过。

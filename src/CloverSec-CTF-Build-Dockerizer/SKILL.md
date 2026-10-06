@@ -59,7 +59,7 @@ python3 scripts/ctfctl.py package --project-dir <output> --output <parent>/chall
 4. 已有 Dockerfile 或启动脚本时，保留运行语义。只修复明确的合同问题。
 5. 没有 Dockerfile 但 `challenge.yaml` 提供 `base_image` 和 `start.cmd` 时，生成最小 Dockerfile 和 start.sh。
 6. 缺少启动命令、端口、运行时或真实 Flag 路径时，不猜测业务配置。输出 `partial` 或 `unverified`，并一次提出最少的问题。
-7. 只有附件或纯资料输入时，输出 `attachment-only`。不要伪造服务入口。
+7. 只有附件或纯资料输入时，输出 `attachment-only`，保留 `challenge.yaml` 和高级资料。不要伪造服务入口。此类归档返回 `partial`。
 
 ## Flag 合同
 
@@ -97,7 +97,7 @@ flag:
 
 ## 验证结果
 
-`inspect` 只读取事实。`scaffold` 只生成交付目录。`build` 只构建镜像。`verify` 才启动容器并检查运行入口、Flag 回读、声明的 solve probe 和可选 `smoke_assert.sh`。
+`inspect` 只读取事实。`scaffold` 只生成交付目录。`build` 只构建镜像。`verify` 才启动容器并检查运行入口、Flag 回读、声明的 solve probe 和可选 `smoke_assert.sh`。HTTP/TCP solve probe 会等待启动窗口并重试。
 
 结果必须区分：
 

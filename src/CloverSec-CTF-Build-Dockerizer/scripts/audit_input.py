@@ -286,7 +286,17 @@ def _iter_python_files(project_dir: Path) -> List[Path]:
 
 
 def _has_python_dependency_file(project_dir: Path) -> bool:
-    return any((project_dir / name).is_file() for name in _PYTHON_DEP_FILES)
+    for path in project_dir.rglob("*"):
+        if not path.is_file() or path.name not in _PYTHON_DEP_FILES:
+            continue
+        try:
+            relative_parts = path.relative_to(project_dir).parts
+        except ValueError:
+            continue
+        if any(part in _SKIP_DIRS for part in relative_parts[:-1]):
+            continue
+        return True
+    return False
 
 
 def _module_exists(project_dir: Path, module: str) -> bool:

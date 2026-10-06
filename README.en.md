@@ -14,17 +14,21 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.0-2563eb?style=for-the-badge" alt="Version" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases"><img src="https://img.shields.io/badge/version-v3.0.1-2563eb?style=for-the-badge" alt="Version" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/stacks-12-f59e0b?style=for-the-badge" alt="Stacks" /></a>
   <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill"><img src="https://img.shields.io/badge/profiles-jeopardy%2Frdg%2Fawd%2Fawdp%2Fsecops-16a34a?style=for-the-badge" alt="Profiles" /></a>
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v3.0.0"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/tag/v3.0.1"><img src="https://img.shields.io/badge/release-zip%2Bsbom%2Bdeps-10b981?style=for-the-badge" alt="Release Asset" /></a>
 </p>
 
-<p align="center"><code><strong>VERSION</strong>: v3.0.0</code></p>
+<p align="center"><code><strong>VERSION</strong>: v3.0.1</code></p>
 
 CloverSec-CTF-Build-Dockerizer is a challenge delivery skill from CloverSec R&D Center. Its default job is to turn an idea, partial source tree, or historical delivery into a clean, readable, buildable, and verifiable CTF container directory.
 
 It reads the runtime facts, preserves the challenge semantics, generates the minimum delivery files, and verifies the image when Docker is available. Scenario, Bundle, Linux-QEMU, RDG/SecOps, and release workflows remain available through explicit routing.
+
+## v3.0.1 Real Migration and Verification Fixes
+
+`v3.0.1` removes dangling helper references during real challenge migration, handles read-only entrypoints, retries startup probes, and marks incomplete attachment archives as `partial`.
 
 ## v3.0.0 Default Product Refactor
 
@@ -881,7 +885,7 @@ bash scripts/release_build.sh --with-smoke
 Formal release command:
 
 ```bash
-bash scripts/publish_release.sh --version v3.0.0
+bash scripts/publish_release.sh --version v3.0.1
 ```
 
 If remote tag/release conflicts or authentication failures occur, stop and fix the blocker first. Do not bypass by changing version strategy on the fly.

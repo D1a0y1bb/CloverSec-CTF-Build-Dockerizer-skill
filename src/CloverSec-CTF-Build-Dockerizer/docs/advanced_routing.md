@@ -15,7 +15,9 @@
 | 题目需要指定 Linux 内核或 guest rootfs | `render.py`、`linux_qemu_manual_check.sh` | `docs/linux_qemu_manual_validation.md` |
 | 用户要导出 amd64 镜像、image tar 或表格字段 | `docker_artifacts.py` | `scripts/README.md` 中的 Docker artifact 章节 |
 
-`ctfctl.py inspect` 会把 compose、Scenario 和 Bundle 文件列入 `advanced_inputs`。看到这些字段时，不要把它们静默当作普通单服务输入。先保留原始目录，再选择对应入口或使用 `preserve`。
+`ctfctl.py inspect` 会把 compose、Scenario 和 Bundle 文件列入 `advanced_inputs`，并在 `advanced_route` 中给出后续入口。看到这些字段时，不要把它们静默当作普通单服务输入。先保留原始目录，再选择对应入口或使用 `preserve`。
+
+`ctfctl.py scaffold --profile clean` 在 attachment-only 输入中保留 `challenge.yaml` 和高级资料。`ctfctl.py package` 会归档这些资料，但返回 `partial`，直到高级入口生成可构建服务目录。
 
 ## 高级模式边界
 

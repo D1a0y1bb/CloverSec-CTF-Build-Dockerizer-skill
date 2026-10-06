@@ -12,9 +12,9 @@ cases:
       manual_required: false
     contract:
       enabled: true
-      expected: fail
-      expected_code: CONTRACT_VALIDATION_FAILED
-      reason: "Missing changeflag.sh delivery contract."
+      expected: pass
+      expected_code: CONTRACT_VALIDATION_PASSED
+      reason: "The direct-exec-v1 contract does not require changeflag.sh."
 
   - id: python-sandbox-existing
     path: "CTF-Python沙箱逃逸-Test2"
@@ -28,9 +28,9 @@ cases:
       manual_required: false
     contract:
       enabled: true
-      expected: fail
-      expected_code: CONTRACT_VALIDATION_FAILED
-      reason: "Missing changeflag.sh delivery contract and /flag readable permission."
+      expected: pass
+      expected_code: CONTRACT_VALIDATION_PASSED
+      reason: "The current contract validator accepts the direct-exec-v1 files; Python dependency and stack findings still require review."
 
   - id: cpanel-whm-authbypass-rce
     path: "cpanel-whm-authbypass-rce"
@@ -76,9 +76,9 @@ cases:
       manual_required: false
     contract:
       enabled: true
-      expected: fail
-      expected_code: CONTRACT_VALIDATION_FAILED
-      reason: "The historical Dockerfile does not satisfy current platform contract and port declaration checks."
+      expected: pass
+      expected_code: CONTRACT_VALIDATION_PASSED
+      reason: "The direct-exec-v1 contract and declared port pass the current validator."
 
   - id: web-push-letters
     path: "web-push-letters"
@@ -92,9 +92,9 @@ cases:
       manual_required: false
     contract:
       enabled: true
-      expected: fail
-      expected_code: CONTRACT_VALIDATION_FAILED
-      reason: "The historical Dockerfile does not satisfy current platform contract and port declaration checks."
+      expected: pass
+      expected_code: CONTRACT_VALIDATION_PASSED
+      reason: "The direct-exec-v1 contract and declared port pass the current validator."
 
   - id: pwn-house-deploy
     path: "pwn-house-deploy"

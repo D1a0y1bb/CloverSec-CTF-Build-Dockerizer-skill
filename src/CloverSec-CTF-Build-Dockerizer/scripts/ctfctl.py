@@ -392,6 +392,23 @@ def audit(project: Path) -> Dict[str, Any]:
             advanced_inputs.append(str(candidate))
     if advanced_inputs:
         issues.append({"code": "ADVANCED_INPUT_PRESENT", "status": "partial", "message": "输入包含 compose/scenario/bundle 资料，普通 clean 只处理单服务运行目录"})
+    advanced_route: Dict[str, Any] = {"status": "not_applicable", "entrypoints": []}
+    advanced_names = {Path(item).name for item in advanced_inputs}
+    if any(name in advanced_names for name in ("scenario.yaml", "bundle.yaml")):
+        advanced_route = {
+            "status": "deferred",
+            "entrypoints": [
+                "scripts/render_scenario.py" if "scenario.yaml" in advanced_names else "scripts/render_bundle.py",
+                "scripts/validate_scenario.py" if "scenario.yaml" in advanced_names else "scripts/validate_bundle.py",
+            ],
+            "reason": "普通 clean 不会把多服务或 Bundle 输入压成单服务；请使用对应高级入口。",
+        }
+    elif advanced_names & {"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"}:
+        advanced_route = {
+            "status": "deferred",
+            "entrypoints": ["scripts/import_compose.py"],
+            "reason": "普通 clean 保留 compose 资料；请先导入 compose 草案，再选择可渲染服务。",
+        }
     return {
         "schema_version": "3.0",
         "project": str(project),
@@ -411,6 +428,7 @@ def audit(project: Path) -> Dict[str, Any]:
         "flag_hints": hints,
         "inference": {"flag_path": inferred_source},
         "advanced_inputs": advanced_inputs,
+        "advanced_route": advanced_route,
         "helper_paths": [str(path) for path in helper_paths],
         "issues": issues,
         "status": "passed" if not issues else "partial",
@@ -619,17 +637,30 @@ def strip_legacy_helper_references(output: Path, flag_path: str = "/flag") -> Li
         lines: List[str] = []
         for line in text.splitlines():
             stripped = line.strip()
-            if re.search(r"^COPY\s+\.?/?changeflag\.sh\s+/changeflag\.sh", stripped, re.I):
+            if re.match(r"^(COPY|ADD)\s+.*\bchangeflag\.sh\b", stripped, re.I):
                 continue
-            if "changeflag.sh" in line:
-                line = re.sub(r"chmod\s+\d+\s+/changeflag\.sh\s*&&\s*", "", line)
-                line = re.sub(r"&&\s*chmod\s+\d+\s+/changeflag\.sh", "", line)
-                line = re.sub(r"chmod\s+\d+\s+/changeflag\.sh", "", line)
-                if not line.strip() or line.strip().startswith("#"):
+            if re.search(r"\bchangeflag\.sh\b", line, re.I):
+                line = re.sub(
+                    r"chmod\s+[0-7]+\s+/?changeflag\.sh\s*&&\s*",
+                    "",
+                    line,
+                    flags=re.I,
+                )
+                line = re.sub(
+                    r"&&\s*chmod\s+[0-7]+\s+/?changeflag\.sh(?=\s*(?:\\|$))",
+                    "",
+                    line,
+                    flags=re.I,
+                )
+                line = re.sub(r"\bchmod\s+[0-7]+\s+/?changeflag\.sh\b", "", line, flags=re.I)
+                line = re.sub(r"(?<![A-Za-z0-9_.-])/?changeflag\.sh\b", "", line, flags=re.I)
+                line = re.sub(r"\s{2,}", " ", line).rstrip()
+                if not line.strip() or re.fullmatch(r"RUN\s*(?:&&\s*)?", line.strip(), re.I):
                     continue
             lines.append(line.rstrip())
         new_text = "\n".join(lines).rstrip() + "\n"
         if new_text != text:
+            dockerfile.chmod(dockerfile.stat().st_mode | 0o600)
             dockerfile.write_text(new_text, encoding="utf-8")
             changed.append("Dockerfile")
     start = output / "start.sh"
@@ -660,6 +691,7 @@ def strip_legacy_helper_references(output: Path, flag_path: str = "/flag") -> Li
             flags=re.M,
         )
         if new_text != original_text:
+            start.chmod(start.stat().st_mode | 0o600)
             start.write_text(new_text, encoding="utf-8")
             changed.append("start.sh")
     stale = output / "changeflag.sh"
@@ -679,6 +711,7 @@ def compact_delivery_entrypoints(output: Path) -> List[str]:
         original = path.read_text(encoding="utf-8", errors="replace")
         compacted = compact_entrypoint_text(original, kind)
         if compacted != original:
+            path.chmod(path.stat().st_mode | 0o600)
             path.write_text(compacted, encoding="utf-8")
             changed.append(name)
     return changed
@@ -712,10 +745,11 @@ def update_runbook(contract: Dict[str, Any]) -> str:
 def manifest_for(directory: Path, audit_result: Dict[str, Any]) -> Dict[str, Any]:
     files: List[Dict[str, Any]] = []
     for path in sorted(directory.rglob("*")):
-        if not path.is_file() or path.name == "delivery-manifest.json":
+        relative = path.relative_to(directory).as_posix()
+        if not path.is_file() or path.name == "delivery-manifest.json" or relative == ".ctfbuild/prepare-state.json":
             continue
         data = path.read_bytes()
-        files.append({"path": str(path.relative_to(directory)), "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        files.append({"path": relative, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
     return {"schema_version": "3.0", "status": "prepared", "audit": audit_result, "files": files}
 
 
@@ -724,6 +758,20 @@ def metadata_root(output: Path, profile: str) -> Path:
     if profile == "legacy":
         return output
     return output / ".ctfbuild"
+
+
+def prepare_state_path(output: Path) -> Path:
+    """Keep scaffold completion state outside the visible delivery tree."""
+    return output / ".ctfbuild" / "prepare-state.json"
+
+
+def write_prepare_state(output: Path, profile: str, status: str) -> None:
+    path = prepare_state_path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"schema_version": "1.0", "profile": profile, "status": status}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
 
 def ensure_clean_dockerignore(output: Path, profile: str) -> None:
@@ -800,6 +848,7 @@ def prepare(project: Path, output: Path, force: bool = False, profile: str = "cl
     if force and output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True, exist_ok=True)
+    write_prepare_state(output, profile, "running")
     audit_result = audit(project)
     prepared_status = str(audit_result.get("status") or "partial")
     challenge, _ = read_challenge(project)
@@ -813,7 +862,6 @@ def prepare(project: Path, output: Path, force: bool = False, profile: str = "cl
 
     if not dockerfile and not audit_result["start"].get("path") and not can_generate_container:
         ignored = CLEAN_NON_RUNTIME_NAMES | {
-            "challenge.yaml",
             "Dockerfile",
             "dockerfile",
             "start.sh",
@@ -823,6 +871,7 @@ def prepare(project: Path, output: Path, force: bool = False, profile: str = "cl
         }
         copy_tree(project, output, ignored if profile == "clean" else None)
         metadata = write_metadata(output, audit_result, contract, profile)
+        write_prepare_state(output, profile, "ready")
         return {
             "status": prepared_status,
             "output": str(output),
@@ -911,6 +960,7 @@ def prepare(project: Path, output: Path, force: bool = False, profile: str = "cl
         audit_result["migrations"] = list(dict.fromkeys(audit_result["migrations"]))
     ensure_clean_dockerignore(output, profile)
     metadata = write_metadata(output, audit_result, contract, profile)
+    write_prepare_state(output, profile, "ready")
     return {
         "status": prepared_status,
         "output": str(output),
@@ -926,26 +976,145 @@ def docker_available() -> bool:
     return shutil.which("docker") is not None and run(["docker", "info"], timeout=20).returncode == 0
 
 
-def probe_http(host: str, port: int, path: str, expected: int | None) -> Dict[str, Any]:
+def probe_http(
+    host: str,
+    port: int,
+    path: str,
+    expected: int | None,
+    expect_text: str = "",
+    forbid_text: str = "",
+    timeout: float = 5,
+) -> Dict[str, Any]:
     url = f"http://{host}:{port}{path or '/'}"
+    status: int | None = None
+    body = ""
     try:
-        with urllib.request.urlopen(url, timeout=5) as response:
+        with urllib.request.urlopen(url, timeout=timeout) as response:
             status = int(response.status)
-            ok = expected is None or status == expected
-            return {"type": "http", "url": url, "status": status, "status_result": "passed" if ok else "failed"}
+            body = response.read(1024 * 1024).decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
-        ok = expected is None or exc.code == expected
-        return {"type": "http", "url": url, "status": exc.code, "status_result": "passed" if ok else "failed"}
+        status = int(exc.code)
+        body = exc.read(1024 * 1024).decode("utf-8", errors="replace")
     except Exception as exc:
         return {"type": "http", "url": url, "status_result": "failed", "error": str(exc)}
+    status_ok = (expected is None and status is not None and status < 400) or (expected is not None and status == expected)
+    text_ok = not expect_text or expect_text in body
+    forbid_ok = not forbid_text or forbid_text not in body
+    result: Dict[str, Any] = {
+        "type": "http",
+        "url": url,
+        "status": status,
+        "status_result": "passed" if status_ok and text_ok and forbid_ok else "failed",
+    }
+    if expect_text:
+        result["expect_text"] = expect_text
+        result["text_result"] = "passed" if text_ok else "failed"
+    if forbid_text:
+        result["forbid_text"] = forbid_text
+        result["forbid_result"] = "passed" if forbid_ok else "failed"
+    if not status_ok:
+        result["reason"] = f"HTTP status mismatch: got {status}, want {expected}" if expected is not None else f"HTTP status indicates failure: {status}"
+    elif not text_ok:
+        result["reason"] = "expected response text not found"
+    elif not forbid_ok:
+        result["reason"] = "forbidden response text observed"
+    return result
 
 
-def probe_tcp(host: str, port: int) -> Dict[str, Any]:
+def probe_tcp(host: str, port: int, expect_text: str = "", timeout: float = 5) -> Dict[str, Any]:
     try:
-        with socket.create_connection((host, port), timeout=5):
-            return {"type": "tcp", "host": host, "port": port, "status_result": "passed"}
+        with socket.create_connection((host, port), timeout=timeout) as connection:
+            if not expect_text:
+                return {"type": "tcp", "host": host, "port": port, "status_result": "passed"}
+            connection.settimeout(timeout)
+            chunks: List[bytes] = []
+            deadline = time.time() + timeout
+            while time.time() < deadline and sum(len(chunk) for chunk in chunks) < 1024 * 1024:
+                try:
+                    chunk = connection.recv(65536)
+                except socket.timeout:
+                    break
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                if expect_text.encode("utf-8") in b"".join(chunks):
+                    return {
+                        "type": "tcp",
+                        "host": host,
+                        "port": port,
+                        "expect_text": expect_text,
+                        "text_result": "passed",
+                        "status_result": "passed",
+                    }
+            return {
+                "type": "tcp",
+                "host": host,
+                "port": port,
+                "expect_text": expect_text,
+                "text_result": "failed",
+                "status_result": "failed",
+                "reason": "expected TCP banner text not found",
+            }
     except Exception as exc:
         return {"type": "tcp", "host": host, "port": port, "status_result": "failed", "error": str(exc)}
+
+
+def retry_network_probe(probe: Any, timeout: float) -> Dict[str, Any]:
+    """Allow a newly started service to finish binding before declaring probe failure."""
+    deadline = time.time() + max(1.0, timeout)
+    attempts = 0
+    result: Dict[str, Any] = {"status_result": "failed", "reason": "probe did not run"}
+    while True:
+        attempts += 1
+        result = probe()
+        if result.get("status_result") == "passed" or time.time() >= deadline:
+            break
+        time.sleep(min(0.5, max(0.05, deadline - time.time())))
+    if attempts > 1:
+        result["attempts"] = attempts
+    return result
+
+
+def probe_container_exec(
+    container: str,
+    command: str,
+    expected_exit: int = 0,
+    expect_text: str = "",
+    forbid_text: str = "",
+    timeout: int = 60,
+) -> Dict[str, Any]:
+    if not command.strip():
+        return {"type": "container_exec", "status_result": "failed", "reason": "container_exec requires cmd"}
+    checked = run(
+        ["docker", "exec", container, "bash", "-lc", command],
+        timeout=max(1, timeout),
+    )
+    output = checked.stdout + checked.stderr
+    exit_ok = checked.returncode == expected_exit
+    text_ok = not expect_text or expect_text in output
+    forbid_ok = not forbid_text or forbid_text not in output
+    result: Dict[str, Any] = {
+        "type": "container_exec",
+        "command": command,
+        "returncode": checked.returncode,
+        "expected_exit": expected_exit,
+        "status_result": "passed" if exit_ok and text_ok and forbid_ok else "failed",
+        "stdout": checked.stdout[-3000:],
+        "stderr": checked.stderr[-3000:],
+    }
+    if expect_text:
+        result["expect_text"] = expect_text
+        result["text_result"] = "passed" if text_ok else "failed"
+    if forbid_text:
+        result["forbid_text"] = forbid_text
+        result["forbid_result"] = "passed" if forbid_ok else "failed"
+    if not exit_ok:
+        result["reason"] = f"container_exec exit mismatch: got {checked.returncode}, want {expected_exit}"
+    elif not text_ok:
+        result["reason"] = "expected container output text not found"
+    elif not forbid_ok:
+        result["reason"] = "forbidden container output text observed"
+    return result
 
 
 def build_image(project: Path, image: str = "", platform: str = "", no_cache: bool = False) -> Dict[str, Any]:
@@ -1093,17 +1262,62 @@ def verify(project: Path, image: str, keep: bool = False) -> Dict[str, Any]:
         if port_map:
             result["ports"] = {str(key): value for key, value in port_map.items()}
         probe = verification.get("solve_probe") if isinstance(verification.get("solve_probe"), dict) else {}
-        if probe and port_map:
-            selected_port = int(probe.get("port") or next(iter(port_map)))
-            host_port = port_map.get(selected_port) or next(iter(port_map.values()))
+        if probe:
             probe_type = str(probe.get("type") or "http").lower()
-            if probe_type == "tcp":
-                result["probe"] = probe_tcp("127.0.0.1", host_port)
+            expect_text = str(probe.get("expect_text") or "")
+            forbid_text = str(probe.get("forbid_text") or "")
+            timeout = float(probe.get("timeout_seconds") or 5)
+            if probe_type == "container_exec":
+                try:
+                    expected_exit = int(probe.get("expect_exit", 0))
+                except (TypeError, ValueError):
+                    expected_exit = 0
+                    result["probe"] = {
+                        "type": "container_exec",
+                        "status_result": "failed",
+                        "reason": "expect_exit must be an integer",
+                    }
+                else:
+                    result["probe"] = probe_container_exec(
+                        container,
+                        str(probe.get("cmd") or ""),
+                        expected_exit,
+                        expect_text,
+                        forbid_text,
+                        max(1, int(timeout)),
+                    )
+            elif port_map:
+                selected_port = int(probe.get("port") or next(iter(port_map)))
+                host_port = port_map.get(selected_port) or next(iter(port_map.values()))
+                if probe_type == "tcp":
+                    result["probe"] = retry_network_probe(
+                        lambda: probe_tcp("127.0.0.1", host_port, expect_text, timeout),
+                        startup_timeout,
+                    )
+                else:
+                    expected_status = int(probe["expect_status"]) if str(probe.get("expect_status") or "").isdigit() else None
+                    result["probe"] = retry_network_probe(
+                        lambda: probe_http(
+                            "127.0.0.1",
+                            host_port,
+                            str(probe.get("path") or "/"),
+                            expected_status,
+                            expect_text,
+                            forbid_text,
+                            timeout,
+                        ),
+                        startup_timeout,
+                    )
             else:
-                result["probe"] = probe_http("127.0.0.1", host_port, str(probe.get("path") or "/"), int(probe["expect_status"]) if str(probe.get("expect_status") or "").isdigit() else None)
-            smoke_assert = run_smoke_assert(project, container, host_port)
-            if smoke_assert:
-                result["smoke_assert"] = smoke_assert
+                result["probe"] = {
+                    "type": probe_type,
+                    "status_result": "failed",
+                    "reason": "HTTP/TCP solve_probe requires a declared exposed port",
+                }
+            if port_map:
+                smoke_assert = run_smoke_assert(project, container, next(iter(port_map.values())))
+                if smoke_assert:
+                    result["smoke_assert"] = smoke_assert
         elif port_map:
             smoke_assert = run_smoke_assert(project, container, next(iter(port_map.values())))
             if smoke_assert:
@@ -1114,7 +1328,12 @@ def verify(project: Path, image: str, keep: bool = False) -> Dict[str, Any]:
         if result.get("smoke_assert"):
             checks.append(result["smoke_assert"].get("status_result") == "passed")
         result["status"] = "passed" if all(checks) else "partial"
-        result["verification"] = "runtime+flag+probe" + ("+smoke" if result.get("smoke_assert") else "")
+        verification_parts = ["runtime", "flag"]
+        if result.get("probe"):
+            verification_parts.append("probe")
+        if result.get("smoke_assert"):
+            verification_parts.append("smoke")
+        result["verification"] = "+".join(verification_parts)
     finally:
         if not keep:
             run(["docker", "rm", "-f", container], timeout=30)
@@ -1125,6 +1344,24 @@ def package(project: Path, output: Path) -> Dict[str, Any]:
     if not project.is_dir():
         raise RuntimeError(f"交付目录不存在: {project}")
     project = project.resolve()
+    state_path = prepare_state_path(project)
+    if state_path.is_file():
+        try:
+            state = json.loads(state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"交付目录的 scaffold 状态不可读: {state_path}") from exc
+        if state.get("status") != "ready":
+            raise RuntimeError(
+                f"交付目录尚未完成 scaffold，当前状态为 {state.get('status')!r}；请修复后重新执行 scaffold"
+            )
+    audit_path = project / ".ctfbuild" / "audit.json"
+    delivery_kind = ""
+    if audit_path.is_file():
+        try:
+            audit_result = json.loads(audit_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"交付目录的 audit.json 不可读: {audit_path}") from exc
+        delivery_kind = str(audit_result.get("delivery_kind") or "")
     output = output.resolve()
     try:
         output.relative_to(project)
@@ -1136,7 +1373,16 @@ def package(project: Path, output: Path) -> Dict[str, Any]:
     with tarfile.open(output, "w:gz") as archive:
         archive.add(project, arcname=project.name, recursive=True, filter=lambda info: None if any(part in IGNORED_NAMES for part in Path(info.name).parts) else info)
     data = output.read_bytes()
-    return {"status": "passed", "archive": str(output), "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    result: Dict[str, Any] = {
+        "status": "partial" if delivery_kind == "attachment-only" else "passed",
+        "archive": str(output),
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+    if delivery_kind == "attachment-only":
+        result["delivery_kind"] = delivery_kind
+        result["reason"] = "该归档只有附件或高级输入，尚未生成可构建的单服务 Dockerfile/start.sh。"
+    return result
 
 
 def parser() -> argparse.ArgumentParser:

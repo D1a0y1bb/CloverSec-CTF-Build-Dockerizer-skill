@@ -4,6 +4,25 @@
 
 ## Unreleased
 
+## v3.0.1 - 2026-10-06
+
+### 修复
+
+- 修复 direct-exec 清理只删除 `changeflag.sh` 文件、但遗漏 Dockerfile `COPY` 或 `chmod` 引用的问题。
+- 迁移前临时提升只读入口文件的写权限，避免历史题目 scaffold 因复制文件权限失败。
+- 为 scaffold 写入完成状态；`package` 拒绝未完成目录，并将 attachment-only 归档标记为 `partial`。
+- `inspect` 输出高级输入的后续入口，attachment-only 输出保留 `challenge.yaml`。
+- `verify` 真实检查 HTTP 响应文本、TCP banner 和 `container_exec`，并在启动竞态时重试 HTTP/TCP probe。
+- Python 审计递归识别源码目录中的 `requirements.txt` 等嵌套依赖文件。
+- 更新 Build_test 预期，移除 direct-exec 迁移后仍要求 `changeflag.sh` 的过期失败条件。
+
+### 验证
+
+- `ctfctl_v3_test` 8 项通过。
+- Build_test 8 个用例通过。
+- 真实 Minesweeper 和 Pwn-Boundary 源码完成 clean、static validate、Docker build、container verify 和 package。
+- 独立 Codex 子代理完成 Python IDOR 题目的真实构建、HTTP probe 重试、动态 Flag 攻击和清理验收。
+
 ## v3.0.0 - 2026-10-06
 
 ### 变更
