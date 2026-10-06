@@ -1,29 +1,10 @@
-__pycache__/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 .DS_Store
-iShot_*.png
-Build_test/**/node_modules/
-.venv/
-venv/
-env/
-dist/
-build/
-!src/CloverSec-CTF-Build-Dockerizer/examples/java-jar-basic/build/
-!src/CloverSec-CTF-Build-Dockerizer/examples/java-jar-basic/build/**
+__pycache__/
 *.pyc
-*.pyo
-*.pyd
-codegen/
-codegen-output/
-generated/
-*.egg-info/
+.venv/
+dist/
 
-# safety
+# 本地资料，不进仓库
 internal/
-SESSION_SUMMARY_v1.2.2.md
 check样例/
-
 开发文档（不同步）/
-src/CloverSec-CTF-Build-Dockerizer/examples/linux-qemu-basic/vm/initrd.img

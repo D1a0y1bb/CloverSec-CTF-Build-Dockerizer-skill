@@ -1,1 +1,0 @@
-# no external dependency required for this rdg-python baseline sample

@@ -3,7 +3,7 @@
 常规单服务题不要读这里。只有输入确实是下面某种形态、或用户明确要求时才用。
 原则不变：模型照着范例写干净的、带中文注释的交付文件；能不多引入文件就不引入。
 
-仓库 `legacy/` 保留了旧版的渲染器和各类模板（`render.py`、`render_scenario.py`、`render_bundle.py`、各栈模板等）。它们**不随 Skill 默认加载**，只在你确实要处理老环境、又不想手写时作为参考或兜底。优先手写干净版本；只有老环境复杂到手写不划算时才去翻 legacy。
+旧版渲染器和各类模板（`render.py`、`render_scenario.py`、`render_bundle.py`、各栈模板等）留在 [v3.0.1](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/tree/v3.0.1/src/CloverSec-CTF-Build-Dockerizer) 标签里，不随 Skill 安装。优先手写干净版本；只有老环境复杂到手写不划算时，再去 v3.0.1 里翻对应文件参考。
 
 ---
 
@@ -17,19 +17,19 @@
 
 ## Bundle / BaseUnit（组合环境）
 
-把多个可复用基础单元（BaseUnit）组合成一道题。保留各单元边界清晰，别揉成一个大镜像。具体历史格式见 `legacy/`。
+把多个可复用基础单元（BaseUnit）组合成一道题。保留各单元边界清晰，别揉成一个大镜像。历史格式见 v3.0.1 的 [`data/bundle_schema.md`](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/blob/v3.0.1/src/CloverSec-CTF-Build-Dockerizer/data/bundle_schema.md)。
 
 ## Scenario（多阶段编排）
 
-一道题分多个阶段/关卡，阶段间有状态流转。每个阶段源码独立成目录，编排关系写在配置里。历史 schema 见 `legacy/docs`。
+一道题分多个阶段/关卡，阶段间有状态流转。每个阶段源码独立成目录，编排关系写在配置里。历史 schema 见 v3.0.1 的 [`data/scenario_schema.md`](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/blob/v3.0.1/src/CloverSec-CTF-Build-Dockerizer/data/scenario_schema.md)。
 
 ## RDG / AWD / AWDP / SecOps
 
-这些是对抗/运维类赛制，通常需要 check 脚本（判题/巡检）。写一个清晰的 check，说明判定逻辑。历史 check 模板见 `legacy/scripts/generate_check_stub.py`。
+这些是对抗/运维类赛制，通常需要 check 脚本（判题/巡检）。写一个清晰的 check，说明判定逻辑。历史 check 模板见 v3.0.1 的 [`scripts/generate_check_stub.py`](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/blob/v3.0.1/src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py)。
 
 ## Linux kernel / QEMU guest 题
 
-内核 CVE/LPE 题，用 QEMU 起 guest。这类题的 Flag 在 guest 内部，host 层的 `changeflag.sh` 只写 host 文件、guest 看不到——Flag 要写进 rootfs 或由 guest 启动脚本读取。构建和手动验证流程见 `legacy/docs/linux_qemu_manual_validation.md`。
+内核 CVE/LPE 题，用 QEMU 起 guest。这类题的 Flag 在 guest 内部，host 层的 `changeflag.sh` 只写 host 文件、guest 看不到——Flag 要写进 rootfs 或由 guest 启动脚本读取。构建和手动验证流程见 v3.0.1 的 [`docs/linux_qemu_manual_validation.md`](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/blob/v3.0.1/src/CloverSec-CTF-Build-Dockerizer/docs/linux_qemu_manual_validation.md)。
 
 ## 旧平台 helper（changeflag.sh）
 

@@ -1,4 +1,0 @@
-#!/bin/sh
-echo "Welcome to pwn-basic"
-echo "hint: check /flag in challenge environment"
-exit 0
