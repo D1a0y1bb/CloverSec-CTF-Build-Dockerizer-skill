@@ -82,4 +82,4 @@ legacy/                   # 历史渲染器、模板、示例（保留但不参�
 
 ## 版本
 
-版本历史见 [CHANGELOG.md](CHANGELOG.md)。当前分支 `redesign/lean-markdown-skill`。
+版本历史见 [CHANGELOG.md](CHANGELOG.md)。
