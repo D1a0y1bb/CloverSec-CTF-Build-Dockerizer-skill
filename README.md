@@ -26,8 +26,8 @@
 四叶草安全创研中心出题用的 Agent Skill。把题目源码、一段题目设计或者一个旧题目录交给 Claude Code / Codex，整理出能直接导入竞赛平台的容器题目录，再在本机 build、起容器、写 Flag、探端口验证一遍。
 
 - 源码、`Dockerfile`、`start.sh` 由模型参照 Skill 里的范例编写，带中文注释，讲清漏洞点和不明显的配置。
-- 内置 Python、Node、PHP、PHP-FPM + nginx、Java、静态页面、C/Pwn 七种写法范例。
-- `verify.sh` 在本机真实构建运行，结果分 `passed` / `partial` / `failed`。
+- 内置 Python、Node、PHP、PHP-FPM + nginx、Java、静态页面、Pwn（socat / xinetd）的写法范例。
+- `verify.sh` 按平台的方式跑一遍题目：amd64 构建、`/start.sh` 启动、写入测试 Flag、探测端口，可选跑解题脚本确认能拿到 Flag。
 - 需要长期存档的题，按参考文档锁定镜像 digest、apt 源和依赖版本，上游更新后照样能 build。
 - 多服务、Bundle、Scenario、RDG/AWD、Linux-QEMU 有单独的参考文档，常规题不加载。
 
@@ -39,7 +39,7 @@ npx skills add D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill -g -a claude-code -
 
 `-g` 装到用户目录 `~/.agents/skills/`，Claude Code 通过软链接读取；去掉 `-g` 装进当前项目。`-a` 指定装给哪些 Agent，可以写多个。
 
-本机需要 Docker，验证脚本用到 `curl` 和 `nc`。
+本机需要 Docker 和 `curl`。Apple Silicon 上按 amd64 构建会走模拟，比原生慢。
 
 ## 使用
 
@@ -71,30 +71,35 @@ ssti-notes/
 ## 本地验证
 
 ```bash
-bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes
+bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes \
+  --solve 'curl -s http://$HOST:$PORT/flag'
 ```
 
-脚本会 build 镜像，用 `/start.sh` 起容器，往 `flag.path` 写一个测试 Flag 再读回来，然后探测端口。跑完删除容器和镜像，加 `--keep` 保留。
+脚本按 `linux/amd64` 构建镜像，用 `/start.sh` 起容器，等端口真正开始监听，往 `flag.path` 写一个随机测试 Flag，再探测端口。给了 `--solve` 时会运行解题命令，输出里出现这个测试 Flag 才算通过，能发现启动时把 Flag 缓存进变量的问题。跑完删除容器和镜像，加 `--keep` 保留。
 
 ```text
-== 构建镜像 ctf-verify-ssti-notes:test
+== 构建镜像 (linux/amd64)
+   完成，用时 16 秒
 == 启动容器
+   等待端口 5000 开始监听（最多 60 秒）
    容器运行中
-== 写测试 Flag 到 /flag
-   Flag 回读一致
-== 探测端口 localhost:64108
+== 写入测试 Flag 到 /flag
+   回读一致（444 root:root）
+== 探测端口 5000（本机 127.0.0.1:61197）
    HTTP 200
+== 运行解题命令
+   拿到测试 Flag
 
 == 结果: passed
 ```
 
-| 结果 | 含义 |
-|---|---|
-| `passed` | 构建、启动、Flag 回读、端口探测全部通过 |
-| `partial` | 容器起来了，但有检查项没过，输出里会逐条列出 |
-| `failed` | 构建失败，或者容器没跑起来 |
+| 结果 | 退出码 | 含义 |
+|---|---|---|
+| `passed` | 0 | 全部检查通过 |
+| `partial` | 3 | 能跑，但有检查项没做（比如没声明端口），输出里逐条列出 |
+| `failed` | 1 | 构建失败、容器退出、端口只监听 127.0.0.1、Flag 写不进去或解题拿不到 Flag |
 
-端口和 Flag 路径默认从 `challenge.yaml` 读取，也可以用 `--port`、`--flag-path` 指定。
+端口和 Flag 路径默认从 `challenge.yaml` 读取，也可以用 `--port`、`--flag-path` 指定。完整参数见 `verify.sh --help`。
 
 ## Flag 约定
 
@@ -103,7 +108,7 @@ bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-no
 | 题型 | 常用路径 |
 |---|---|
 | Web / AI / Misc | `/flag` |
-| Pwn | `/home/ctf/flag` |
+| Pwn | `/home/ctf/flag`（`root:ctf`，`440`） |
 | PHP 嵌入 Flag | `/var/www/html/flag.php` |
 | 数据库 | 在手册里写清更新 Flag 的 SQL |
 
@@ -113,10 +118,11 @@ bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-no
 
 ```text
 src/CloverSec-CTF-Build-Dockerizer/
-├── SKILL.md              # 入口：交付目录、写法范例、注释要求、Flag 约定
+├── SKILL.md              # 入口：交付目录、流程、写法范例、注释要求、Flag 约定
+├── agents/openai.yaml    # Codex 里显示的名称和默认提示词
 ├── references/
-│   ├── platform.md       # 平台启动方式、Flag 路径、challenge.yaml 字段
-│   ├── dockerfiles.md    # 各语言 Dockerfile / start.sh 范例、镜像版本固定
+│   ├── platform.md       # 平台启动方式、环境变量传 Flag、镜像 tar 格式、challenge.yaml 字段
+│   ├── dockerfiles.md    # 各语言 Dockerfile / start.sh 范例、Pwn、镜像版本固定
 │   └── special.md        # 多服务、Bundle、Scenario、RDG/AWD、Linux-QEMU
 └── scripts/
     └── verify.sh         # 本地构建与运行验证

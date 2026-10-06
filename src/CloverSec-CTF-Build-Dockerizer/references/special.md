@@ -1,7 +1,6 @@
 # 特殊形态（按需查）
 
-常规单服务题不要读这里。只有输入确实是下面某种形态、或用户明确要求时才用。
-原则不变：模型照着范例写干净的、带中文注释的交付文件；能不多引入文件就不引入。
+输入确实是下面这些形态，或用户明确要求时才读。写法要求和 SKILL.md 一样：带中文注释，只放运行需要的文件。
 
 旧版渲染器和各类模板（`render.py`、`render_scenario.py`、`render_bundle.py`、各栈模板等）留在 [v3.0.1](https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/tree/v3.0.1/src/CloverSec-CTF-Build-Dockerizer) 标签里，不随 Skill 安装。优先手写干净版本；只有老环境复杂到手写不划算时，再去 v3.0.1 里翻对应文件参考。
 
@@ -11,9 +10,17 @@
 
 输入带 `docker-compose.yml`，或题目需要 web + db + redis 等多个容器。
 
-- 能用单容器多进程解决的（如 nginx+php-fpm+一个 redis），优先单容器，`start.sh` 里按依赖顺序后台起、前台 exec 主服务。
-- 真需要多容器编排的，保留/整理 `docker-compose.yml`，在 `challenge.yaml` 里标明这是 compose 题。各服务各自一个干净 Dockerfile。
-- Flag 写入哪个服务、哪个路径，在手册里写清楚。
+- nginx + php-fpm + redis 这类能放进一个容器的，用单容器：start.sh 按依赖顺序在后台启动，等就绪后 `exec` 主服务。
+- 数据库要先初始化、再写 Flag 时，start.sh 里等它就绪再继续，不要用固定的 `sleep`：
+
+  ```bash
+  mysqld_safe &
+  until mysqladmin ping --silent; do sleep 1; done
+  mysql < /docker-entrypoint-initdb.d/init.sql
+  exec apache2-foreground
+  ```
+
+- 必须多容器时保留 `docker-compose.yml`，每个服务一个 Dockerfile，手册写清 Flag 写进哪个服务的哪个路径。verify.sh 只验证单容器，compose 题用 `docker compose up` 手动验证。
 
 ## Bundle / BaseUnit（组合环境）
 

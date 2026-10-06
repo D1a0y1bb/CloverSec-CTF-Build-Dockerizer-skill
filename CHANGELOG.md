@@ -4,10 +4,33 @@
 
 ## Unreleased
 
+## v5.0.1 - 2026-10-06
+
+### 修复
+
+- `verify.sh` 在 Docker Desktop 上把没有监听的端口报成“TCP 可连通”，改为读取容器内 `/proc/net/tcp` 判断。
+- `verify.sh` 对中文目录名和 `.` 生成了非法镜像 tag，导致构建失败。
+- `verify.sh` 无论结果都返回 0，改为 passed 0、failed 1、partial 3。
+- `verify.sh` 只读第一个端口，`flag.path` 可能读到其他配置块里的 `path`。
+- Pwn 范例的 socat 带 `pty`，会改写 payload 里的 `0x7f`、`0x03` 等字节；Flag 属主是 `ctf:ctf`，选手能改写 Flag。改为不加 `pty`、Flag 属主 `root:ctf`、权限 `440`，并且不在镜像里重新编译二进制。
+
 ### 变更
 
-- 删除 `legacy/`，旧版渲染器、模板和示例到 v3.0.1 标签查阅，`references/special.md` 中的路径改为 v3.0.1 链接。
-- 重写 README，新增英文版 `README.en.md`。
+- `verify.sh` 按 `linux/amd64` 构建，等端口真正开始监听再探测，端口只绑定 127.0.0.1。
+- `verify.sh` 新增 `--solve`：运行解题命令，输出里必须出现随机测试 Flag，能发现启动时缓存 Flag 的问题。
+- `verify.sh` 新增检查：start.sh 的 CRLF 换行、服务只监听 127.0.0.1、容器启动后退出、PID 1 仍是 start.sh、`ENTRYPOINT` 吞掉 `/start.sh`。
+- SKILL.md 改为清单式流程，要求跑到 `passed`；`description` 补充触发场景；删除不起限制作用的 `allowed-tools`。
+- start.sh 的 `tail -f` 保活从“错误”改为“能跑但不推荐”，并写明风险。
+- `platform.md` 新增平台执行的写入命令、环境变量传 Flag（`GZCTF_FLAG`、`DASFLAG`、`FLAG`）的处理、`docker save` 与 `docker export` 两种镜像 tar 的差异。
+- `dockerfiles.md` 新增 xinetd 写法、国内构建与 CRLF 说明，加目录；静态题补 start.sh；删除范例里的 `# syntax=` 行。
+- `special.md` 补充数据库就绪等待的写法。
+- 新增 `agents/openai.yaml`，设置 Codex 里的显示名称和默认提示词。
+- 删除 `legacy/`，`special.md` 中的旧文件路径改为 v3.0.1 链接；重写 README，新增英文版。
+
+### 验证
+
+- 9 个测试题覆盖正常 Web、Flag 缓存、只监听回环、CRLF、启动即退出、`tail -f` 保活、无端口、`ENTRYPOINT`、Pwn，`verify.sh` 结果和退出码均符合预期，macOS 自带 bash 3.2 下运行正常。
+- socat Pwn 范例实测：`0x7f`、`0x03` 原样送达，ctf 用户能读 Flag。
 
 ## v5.0.0 - 2026-10-06
 

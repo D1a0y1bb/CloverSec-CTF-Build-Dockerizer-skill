@@ -1,20 +1,26 @@
-# 各栈 Dockerfile / start.sh 范例
+# 各语言 Dockerfile / start.sh 范例
 
-照抄这些风格：短、真实、注释讲原因。把其中的版本、端口、命令换成你题目实际需要的。
+照这些写法改成题目实际的版本、端口和命令。
 
-通用原则：
-- 单进程题：`start.sh` 直接 `exec` 主进程，让它当 PID 1。
-- 多进程题：后台起依赖服务，前台 `exec` 对外主进程。
-- 能用官方/国内镜像源就用，按需换 `base_image`。
-- 只装题目真正用到的依赖。
+## 目录
+
+- 镜像版本固定
+- Python（Flask / gunicorn）
+- Node
+- PHP（cli 内置服务器）
+- PHP-FPM + nginx
+- Java（jar / 多阶段编译）
+- 纯静态
+- Pwn（socat / xinetd）
+- 国内构建与 CRLF
 
 ---
 
-## 镜像版本固定（题目要存档、以后还要能复现时）
+## 镜像版本固定
 
-真实教训：同一份源码"以前能 build、过段时间再 build 就不通"，根因通常不是源码被改，而是**构建输入会漂移**——用了浮动 tag、apt 源没锁时间点、PECL/pip 装的是最新版。等上游更新，依赖版本对不上，题目行为就变了。
+同一份源码过段时间再构建就失败，通常是构建输入变了：浮动 tag、没锁时间点的 apt 源、PECL/pip 装到了新版本。
 
-普通题目用 `python:3.11-slim` 这种 tag 就够了。但如果这道题**对运行时版本敏感**（漏洞只在特定版本成立，比如某个 ImageMagick / Redis / 库的 CVE），或者要**长期存档复现**，就要把构建输入锁死：
+普通题目用 `python:3.11-slim` 这样的 tag 即可。漏洞只在特定版本成立（某个 ImageMagick、Redis 或库的 CVE），或者题目要长期存档时，按下面四步锁定：
 
 1. **基础镜像锁 digest**，不只用 tag：
 
@@ -50,21 +56,17 @@
        pecl install /tmp/imagick.tgz
    ```
 
-一个反向教训：**不要把旧版本包硬拼到新基础镜像上**（旧 `libxml2-dev` 配新基础层的 `libxml2` 会依赖冲突）。要锁就整套锁到同一个时间点基线，保证内部一致。
-
-> 固定版本会让 Dockerfile 变长，这是必要的，不算"东坡肉"——它是题目能不能复现的关键。但不敏感的普通题目别过度固定，`python:3.11-slim` 就行。
+不要把旧版本的包装到新的基础镜像上，例如旧 `libxml2-dev` 配新基础镜像自带的 `libxml2` 会依赖冲突。基础镜像、apt 源和包版本锁到同一个时间点。
 
 ---
 
 ## Python（Flask / gunicorn）
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM python:3.11-slim
 
 WORKDIR /app
 COPY src/ /app/
-# 先装依赖再拷代码本可分层加速，这里题目小，直接一起拷即可。
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY start.sh /start.sh
@@ -79,23 +81,21 @@ CMD ["/start.sh"]
 #!/bin/sh
 set -eu
 cd /app
-# 监听 0.0.0.0，容器外才可达；单 worker 便于题目状态可控。
+# 单 worker：题目状态存在进程内存里，多 worker 之间不共享。
 exec gunicorn -w 1 -b 0.0.0.0:5000 app:app
 ```
 
-小题直接 `exec python app.py` 也可以，只要 app 里监听 `0.0.0.0`。
+小题也可以 `exec python app.py`，app 里要监听 `0.0.0.0`。
 
 ---
 
-## Node（Express / 原生 http）
+## Node
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM node:20-alpine
 
 WORKDIR /app
 COPY src/ /app/
-# 有 lock 用 ci 保证可复现，没有就 install。
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi
 
 COPY start.sh /start.sh
@@ -115,10 +115,9 @@ exec node server.js
 
 ---
 
-## PHP（cli 内置服务器，适合小题）
+## PHP（cli 内置服务器）
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM php:7.4-cli
 
 WORKDIR /var/www/html
@@ -140,14 +139,12 @@ exec php -S 0.0.0.0:5000 -t /var/www/html
 
 ---
 
-## PHP-FPM + nginx（标准 Web 题，多进程）
+## PHP-FPM + nginx
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM php:8.1-fpm-alpine
 
-# 题目核心：disable_functions 禁了常见命令执行函数但漏了 pcntl，
-# 解题链依赖 pcntl_fork+pcntl_exec，所以必须把 pcntl 编译进来。
+# 题目的解法依赖 pcntl_fork + pcntl_exec 绕过 disable_functions，必须编译 pcntl。
 RUN set -eux; \
     apk add --no-cache nginx bash; \
     docker-php-ext-install pcntl
@@ -167,20 +164,19 @@ CMD ["/start.sh"]
 ```bash
 #!/bin/bash
 set -euo pipefail
-# php-fpm 只绑回环，对外由 nginx 转发；先起 fpm 再起 nginx。
+# nginx 通过 127.0.0.1:9000 转发给 php-fpm，先起 fpm 再起 nginx。
 php-fpm --nodaemonize &
-nginx -t                       # 配置自检，坏了立刻暴露
+nginx -t
 exec nginx -g 'daemon off;'
 ```
 
 ---
 
-## Java（Spring Boot 等，jar 包）
+## Java（jar / 多阶段编译）
 
-有现成 jar 直接拷：
+有现成 jar：
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM eclipse-temurin:17-jre
 
 WORKDIR /app
@@ -199,18 +195,17 @@ set -eu
 exec java -jar /app/app.jar
 ```
 
-需要从源码编译用多阶段：`maven` 阶段编译，运行阶段只拿 jar，镜像不带编译工具链。多模块题目可以每个模块一个 build 阶段：
+从源码编译时用多阶段构建，运行镜像里不带 maven：
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /build
 COPY src/pom.xml ./pom.xml
 COPY src/src ./src
 RUN mvn -q -DskipTests package
 
-FROM tomcat:9.0-jdk17-temurin
-COPY --from=build /build/target/app.jar /opt/app/app.jar
+FROM eclipse-temurin:17-jre
+COPY --from=build /build/target/app.jar /app/app.jar
 COPY start.sh /start.sh
 COPY flag /flag
 RUN chmod 555 /start.sh && chmod 444 /flag
@@ -220,44 +215,45 @@ CMD ["/start.sh"]
 
 ---
 
-## 纯静态（nginx 托管）
+## 纯静态
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM nginx:alpine
 COPY src/ /usr/share/nginx/html/
+COPY start.sh /start.sh
 COPY flag /flag
-RUN chmod 444 /flag
+RUN chmod 555 /start.sh && chmod 444 /flag
 EXPOSE 80
-# nginx 官方镜像自带前台入口，静态题可不写 start.sh。
 ```
+
+```bash
+#!/bin/sh
+exec nginx -g 'daemon off;'
+```
+
+平台用 `/start.sh` 覆盖 `CMD`，静态题也要有 start.sh。
 
 ---
 
-## C / Pwn（TCP 服务，socat 转发）
+## Pwn（socat / xinetd）
+
+发给选手的二进制和镜像里运行的必须是同一个文件，否则选手本地算出的偏移在远程不成立。直接 `COPY` 现成二进制，不要在镜像里重新编译。
+
+### socat
 
 ```dockerfile
-# syntax=docker/dockerfile:1
 FROM ubuntu:22.04
 
-# build-essential 包含 gcc + libc-dev 头文件，只装 gcc 会缺 stdio.h 编译报错。
-# socat 负责每个连接 fork 一个题目进程。
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential socat \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends socat \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m ctf
 
-# Pwn 题约定：flag 放在 /home/ctf/flag，以 ctf 用户运行，隔离选手的读写权限。
-RUN useradd -m ctf
-
-COPY src/pwn.c /home/ctf/pwn.c
-# -fno-stack-protector -no-pie：关掉栈保护和地址随机化，让 ret2win 地址固定可预测。
-RUN gcc -o /home/ctf/pwn /home/ctf/pwn.c \
-        -fno-stack-protector -no-pie -z execstack \
-    && chmod 555 /home/ctf/pwn \
-    && rm /home/ctf/pwn.c
-
+COPY src/pwn /home/ctf/pwn
+# Flag 属主 root:ctf、权限 440：题目进程以 ctf 运行，能读不能改。
 COPY flag /home/ctf/flag
-RUN chmod 444 /home/ctf/flag && chown ctf:ctf /home/ctf/flag
+RUN chown root:ctf /home/ctf/pwn /home/ctf/flag \
+    && chmod 550 /home/ctf/pwn \
+    && chmod 440 /home/ctf/flag
 
 COPY start.sh /start.sh
 RUN chmod 555 /start.sh
@@ -268,12 +264,46 @@ CMD ["/start.sh"]
 
 ```bash
 #!/bin/sh
-set -eu
-# 每个连接 fork 一个题目进程，以 ctf 用户运行，互相隔离。
-exec socat TCP-LISTEN:10000,reuseaddr,fork \
-     EXEC:"su ctf -s /bin/sh -c /home/ctf/pwn",pty,stderr
+cd /home/ctf
+# 不加 pty：pty 会把 0x7f、0x03 等字节当成控制字符处理，payload 里的地址会被改掉。
+exec socat TCP-LISTEN:10000,reuseaddr,fork EXEC:/home/ctf/pwn,su=ctf,stderr
 ```
 
-Pwn 题的 `flag.path` 固定是 `/home/ctf/flag`，不是 `/flag`——平台也往这个路径写。有时也见 `/root/flag`（主机安全/应急响应类题），按题目程序真实读取的路径来写。
+程序里要 `setvbuf(stdout, NULL, _IONBF, 0)`，否则没有 pty 时输出会被缓冲，选手看不到提示。源码不在手里时用 `stdbuf -o0 /home/ctf/pwn`。
 
-如果已有编译好的二进制，把 `COPY src/pwn.c` + `RUN gcc` 换成 `COPY src/pwn /home/ctf/pwn` 即可，不需要装 `build-essential`（只装 `socat`）。
+### xinetd
+
+旧题和很多外部题用 xinetd + chroot，迁移时保留原写法即可：
+
+```text
+service ctf
+{
+    disable     = no
+    socket_type = stream
+    protocol    = tcp
+    wait        = no
+    user        = root
+    type        = UNLISTED
+    port        = 10000
+    bind        = 0.0.0.0
+    server      = /usr/sbin/chroot
+    server_args = --userspec=1000:1000 /home/ctf ./pwn
+    per_source  = 10
+    rlimit_cpu  = 20
+}
+```
+
+```bash
+#!/bin/sh
+exec /usr/sbin/xinetd -dontfork
+```
+
+chroot 到 `/home/ctf` 后，程序依赖的 `lib`、`lib64`、`bin/sh` 要提前拷进 `/home/ctf`。`flag.path` 写容器里的真实路径 `/home/ctf/flag`，程序里读的是 chroot 后的 `/flag`。
+
+---
+
+## 国内构建与 CRLF
+
+- 基础镜像拉不下来时加镜像前缀，例如 `docker.m.daocloud.io/library/php:7.4-cli`。手册里写清原始镜像名，方便在别处构建。
+- apt 慢可以换 `mirrors.aliyun.com`，换源只改 `sources.list`，不要顺手升级系统包。
+- Windows 上编辑过的 start.sh 可能是 CRLF，容器里会报 `bad interpreter`。直接把文件转成 LF；`verify.sh` 会检查这一项。
