@@ -1,10 +1,10 @@
 <p align="center">
-  <img src=".github/assets/banner.svg" alt="CloverSec-CTF-Build-Dockerizer" width="860" />
+  <img src=".github/assets/banner.svg" alt="CloverSec CTF Pack" width="860" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/latest"><img src="https://img.shields.io/github/v/release/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill?style=for-the-badge&color=2563eb&label=release" alt="Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill?style=for-the-badge&color=16a34a" alt="License" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Pack/releases/latest"><img src="https://img.shields.io/github/v/release/D1a0y1bb/CloverSec-CTF-Pack?style=for-the-badge&color=2563eb&label=release" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/D1a0y1bb/CloverSec-CTF-Pack?style=for-the-badge&color=16a34a" alt="License" /></a>
   <img src="https://img.shields.io/badge/Claude_Code_%C2%B7_Codex-skill-f59e0b?style=for-the-badge" alt="Claude Code · Codex" />
 </p>
 
@@ -16,6 +16,7 @@
   <a href="#安装">安装</a> ·
   <a href="#使用">使用</a> ·
   <a href="#交付目录">交付目录</a> ·
+  <a href="#手册">手册</a> ·
   <a href="#本地验证">本地验证</a> ·
   <a href="#flag-约定">Flag 约定</a> ·
   <a href="#仓库结构">仓库结构</a>
@@ -23,18 +24,19 @@
 
 ---
 
-四叶草安全创研中心出题用的 Agent Skill。把题目源码、一段题目设计或者一个旧题目录交给 Claude Code / Codex，整理出能直接导入竞赛平台的容器题目录，再在本机 build、起容器、写 Flag、探端口验证一遍。
+四叶草安全创研中心出题用的 Agent Skill。把题目源码、一段题目设计或者一个旧题目录交给 Claude Code / Codex，整理成能交付的题目包：容器题给出可构建的镜像目录并本地验证，附件题给出整理好的选手附件，两类都带手册。
 
-- 源码、`Dockerfile`、`start.sh` 由模型参照 Skill 里的范例编写，带中文注释，讲清漏洞点和不明显的配置。
-- 内置 Python、Node、PHP、PHP-FPM + nginx、Java、静态页面、Pwn（socat / xinetd）的写法范例。
-- `verify.sh` 按平台的方式跑一遍题目：amd64 构建、`/start.sh` 启动、写入测试 Flag、探测端口，可选跑解题脚本确认能拿到 Flag。
+- 交付目录按 `题目类型-题目名称` 命名，类型取 Web、Pwn、Crypto、AI 等 20 种。
+- 源码、`Dockerfile`、`start.sh` 按内置范例编写，带中文注释，讲清漏洞点和不明显的配置。
+- 容器题用 `verify.sh` 按平台的方式跑一遍：amd64 构建、`/start.sh` 启动、写入随机测试 Flag、探测端口，有 `solve/solve.py` 就运行它，必须拿到这个 Flag。
+- 手册写在 `README/`，`solve/`、`附件/`、`镜像/` 都放在和 `src/` 同级的目录。
 - 需要长期存档的题，按参考文档锁定镜像 digest、apt 源和依赖版本，上游更新后照样能 build。
 - 多服务、Bundle、Scenario、RDG/AWD、Linux-QEMU 有单独的参考文档，常规题不加载。
 
 ## 安装
 
 ```bash
-npx skills add D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill -g -a claude-code -a codex
+npx skills add D1a0y1bb/CloverSec-CTF-Pack -g -a claude-code -a codex
 ```
 
 `-g` 装到用户目录 `~/.agents/skills/`，Claude Code 通过软链接读取；去掉 `-g` 装进当前项目。`-a` 指定装给哪些 Agent，可以写多个。
@@ -43,10 +45,10 @@ npx skills add D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill -g -a claude-code -
 
 ## 使用
 
-在对话里点名 Skill，再给材料。Claude Code 用 `/cloversec-ctf-build-dockerizer`，Codex 用 `$cloversec-ctf-build-dockerizer`：
+在对话里点名 Skill，再给材料。Claude Code 用 `/cloversec-ctf-pack`，Codex 用 `$cloversec-ctf-pack`：
 
 ```text
-/cloversec-ctf-build-dockerizer 把 ./ssti-notes 做成平台题目。
+/cloversec-ctf-pack 把 ./ssti-notes 做成平台题目。
 Flask 写的 SSTI，flag 放 /flag，端口 5000。
 ```
 
@@ -54,25 +56,35 @@ Flask 写的 SSTI，flag 放 /flag，端口 5000。
 
 ## 交付目录
 
+容器题：
+
 ```text
-ssti-notes/
+Web-残影/
+├── README/
+│   ├── Web-残影.md       # 手册
+│   └── assets/           # 手册里的截图
 ├── src/
-│   ├── app.py
-│   └── requirements.txt
+│   ├── index.php
+│   └── upload.php
 ├── Dockerfile
-├── start.sh            # 平台入口，前台 exec 真实服务
-├── challenge.yaml      # 端口、Flag 路径等平台字段
-├── flag                # 占位 Flag，平台启动后覆盖
-└── solve/
-    └── solve.py        # 解题脚本，只用于本地验证，不进镜像
+├── start.sh              # 平台入口，前台运行真实服务
+├── challenge.yaml        # 端口、Flag 路径等平台字段
+├── flag                  # 占位 Flag，平台启动后覆盖
+├── solve/
+│   └── solve.py          # 解题脚本，本地验证用，不进镜像
+└── 附件/                 # 选手附件，需要时才有
 ```
 
-Dockerfile 只 COPY 具体路径，不需要 `.dockerignore`。题解、抓包和出题手册另外保存。
+纯附件题没有镜像相关文件，只有 `README/`、`src/`、`附件/`、`solve/`。`镜像/` 在需要导出镜像 tar 时才建。
+
+## 手册
+
+手册是交付的一部分，写在 `README/<题目类型-题目名称>.md`，截图放 `README/assets/`。章节顺序固定：题目名称、题目描述、题目难度、考察信息、旗帜信息、题目情况、部署方式、题目设计、解题步骤。骨架和写法见 [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md)。
 
 ## 本地验证
 
 ```bash
-bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes
+bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes
 ```
 
 脚本按 `linux/amd64` 构建镜像，用 `/start.sh` 起容器，等端口真正开始监听，往 `flag.path` 写一个随机测试 Flag，再探测端口。目录里有 `solve/solve.py` 时自动运行它（从环境变量 `HOST`、`PORT` 读地址），输出里出现这个测试 Flag 才算通过，能发现启动时把 Flag 缓存进变量的问题。其他语言的解题脚本用 `--solve '<命令>'` 指定。跑完删除容器和镜像，加 `--keep` 保留。
@@ -117,7 +129,7 @@ bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-no
 ## 仓库结构
 
 ```text
-src/CloverSec-CTF-Build-Dockerizer/
+src/CloverSec-CTF-Pack/
 ├── SKILL.md              # 入口：交付目录、流程、写法范例、注释要求、Flag 约定
 ├── agents/openai.yaml    # Codex 里显示的名称和默认提示词
 ├── references/

@@ -13,12 +13,15 @@
 #   --timeout N       等待服务开始监听的秒数，默认 60
 #   --keep            结束后保留容器和镜像，便于进去排查
 #
-# 退出码：0 passed / 1 failed / 2 参数错误 / 3 partial
-#   failed   明确违反平台合同或解题拿不到 Flag
-#   partial  能跑，但有检查无法完成（没声明端口、自定义 ENTRYPOINT 等）
+# 退出码：0 passed / 1 failed / 2 参数错误 / 3 partial / 4 environment_failed
+#   每一阶段都单独给结论，最后汇总成一行：
+#     build: passed  startup: passed  port: passed  flag_write: passed  solve: passed
+#   failed              明确违反平台合同，或解题拿不到 Flag
+#   partial             能跑，但有检查无法完成（没声明端口、自定义 ENTRYPOINT 等）
+#   environment_failed  本机环境跑不动（amd64 模拟下被调试的二进制崩溃等），题目本身没错
 set -uo pipefail
 
-usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 PROJECT=""; PORTS=(); FLAGPATH=""; SOLVE=""; PLATFORM="linux/amd64"; KEEP=0
 # Java、php-fpm、MySQL 冷启动常见 10~40 秒，amd64 模拟运行还会更慢，60 秒留出余量。
@@ -45,17 +48,31 @@ command -v curl >/dev/null || { echo "failed: 找不到 curl"; exit 1; }
 PROJECT=$(cd "$PROJECT" 2>/dev/null && pwd) || { echo "failed: 目录不存在"; exit 2; }
 cd "$PROJECT" || exit 2
 
-STATUS=passed; NOTES=(); HINTS=()
+STATUS=passed; NOTES=(); HINTS=(); STAGE=()
 fail()    { STATUS=failed; NOTES+=("$1"); }
 partial() { [ "$STATUS" = passed ] && STATUS=partial; NOTES+=("$1"); }
+envfail() { STATUS=environment_failed; NOTES+=("$1"); }
 hint()    { HINTS+=("$1"); }
+stage() { # 同一阶段重复设置时只保留最后一次结论
+  local i
+  for i in "${!STAGE[@]}"; do
+    [ "${STAGE[$i]%%:*}" = "$1" ] && { STAGE[$i]="$1: $2"; return; }
+  done
+  STAGE+=("$1: $2")
+}
 
 finish() {
   echo
+  [ ${#STAGE[@]} -gt 0 ] && echo "== 阶段: ${STAGE[*]}"
   echo "== 结果: $STATUS"
   for n in "${NOTES[@]+"${NOTES[@]}"}"; do echo "   - $n"; done
   for h in "${HINTS[@]+"${HINTS[@]}"}"; do echo "   提示: $h"; done
-  case "$STATUS" in passed) exit 0;; partial) exit 3;; *) exit 1;; esac
+  case "$STATUS" in
+    passed) exit 0;;
+    partial) exit 3;;
+    environment_failed) exit 4;;
+    *) exit 1;;
+  esac
 }
 
 # ---------- 构建前的静态检查：这些问题会让容器起不来，提前说清楚比翻日志快
@@ -94,9 +111,36 @@ if [ -z "$FLAGPATH" ] && [ -f "$YAML" ]; then
 fi
 [ -n "$FLAGPATH" ] || FLAGPATH=/flag
 
+# HTTP 探测路径：根路径返回 403/404 不代表服务有问题，题目可以用
+# verification.solve_probe.path 指定真实入口。
+PROBE_PATH=/
+if [ -f "$YAML" ]; then
+  CASE_PATH=$(awk '
+    /^[[:space:]]*solve_probe:[[:space:]]*$/ { inb=1; next }
+    inb && /^[[:space:]]*[a-zA-Z_]+:[[:space:]]*$/ { inb=0 }
+    inb && /^[[:space:]]*path:[[:space:]]*[^[:space:]]/ {
+      sub(/^[[:space:]]*path:[[:space:]]*/, ""); sub(/[[:space:]]+#.*/, "")
+      gsub(/["'"'"']/, ""); print; exit
+    }' "$YAML")
+  [ -n "$CASE_PATH" ] && PROBE_PATH="$CASE_PATH"
+fi
+case "$PROBE_PATH" in /*) ;; *) PROBE_PATH="/$PROBE_PATH";; esac
+
 # 镜像名只允许小写字母数字，中文目录名或 "." 直接拿来当 tag 会让 docker build 报错。
 SLUG=$(basename "$PROJECT" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//')
 SUFFIX=$(printf '%s' "$PROJECT" | cksum | cut -d' ' -f1)
+# 本机架构与目标架构不一致时，走的是模拟运行，解题阶段要区分题目失败和环境失败。
+case "$PLATFORM" in
+  *arm64*|*aarch64*) PLATFORM_ARCH=arm64;;
+  *) PLATFORM_ARCH=amd64;;
+esac
+case "$(docker info --format '{{.Architecture}}' 2>/dev/null)" in
+  x86_64|amd64) HOST_ARCH=amd64;;
+  aarch64|arm64) HOST_ARCH=arm64;;
+  *) HOST_ARCH="";;
+esac
+if [ -n "$HOST_ARCH" ] && [ "$PLATFORM_ARCH" != "$HOST_ARCH" ]; then HOST_IS_EMULATED=1; else HOST_IS_EMULATED=0; fi
+
 IMAGE="ctf-verify-${SLUG:-challenge}-${SUFFIX}:test"
 CONTAINER="ctf-verify-$$"
 BUILDLOG=$(mktemp); SOLVELOG=$(mktemp)
@@ -116,9 +160,10 @@ echo "== 构建镜像 ($PLATFORM)"
 T0=$(date +%s)
 if ! docker build --platform "$PLATFORM" -t "$IMAGE" . >"$BUILDLOG" 2>&1; then
   echo "   ---- 构建日志最后 40 行"; tail -40 "$BUILDLOG" | sed 's/^/   | /'
-  fail "docker build 失败"; finish
+  stage build failed; fail "docker build 失败"; finish
 fi
 echo "   完成，用时 $(( $(date +%s) - T0 )) 秒"
+stage build passed
 
 # 官方 php/nginx/node 镜像的 docker-*entrypoint 会把参数原样 exec，不影响 /start.sh；其他 ENTRYPOINT 会吞掉它。
 ENTRY=$(docker image inspect -f '{{json .Config.Entrypoint}}' "$IMAGE" 2>/dev/null)
@@ -129,8 +174,9 @@ echo "== 启动容器"
 RUN_ARGS=(-d --name "$CONTAINER" --platform "$PLATFORM")
 for p in "${PORTS[@]+"${PORTS[@]}"}"; do RUN_ARGS+=(-p "127.0.0.1::$p"); done
 if ! docker run "${RUN_ARGS[@]}" "$IMAGE" /start.sh >/dev/null 2>"$BUILDLOG"; then
-  sed 's/^/   | /' "$BUILDLOG"; fail "容器启动失败"; finish
+  sed 's/^/   | /' "$BUILDLOG"; stage startup failed; fail "容器启动失败"; finish
 fi
+stage startup passed
 
 # 读容器内的 /proc/net/tcp 判断真实监听。Docker Desktop 的端口转发在服务没起来时也会接受连接，
 # 只从宿主机探测会误判成"已连通"。
@@ -166,7 +212,7 @@ else
   sleep 3
 fi
 if ! running; then
-  show_logs; fail "容器已退出，start.sh 需要在前台运行真实服务"; finish
+  show_logs; stage startup failed; fail "容器已退出，start.sh 需要在前台运行真实服务"; finish
 fi
 echo "   容器运行中"
 
@@ -179,24 +225,27 @@ TESTFLAG="flag{verify_$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')}"
 if docker exec -u 0 "$CONTAINER" sh -c 'printf "%s\n" "$1" > "$2"' sh "$TESTFLAG" "$FLAGPATH" 2>/dev/null; then
   BACK=$(docker exec -u 0 "$CONTAINER" cat "$FLAGPATH" 2>/dev/null | tr -d '\r\n')
   MODE=$(docker exec -u 0 "$CONTAINER" stat -c '%a %U:%G' "$FLAGPATH" 2>/dev/null)
-  if [ "$BACK" = "$TESTFLAG" ]; then echo "   回读一致（${MODE}）"; else fail "Flag 写入后回读不一致"; fi
+  if [ "$BACK" = "$TESTFLAG" ]; then echo "   回读一致（${MODE}）"; stage flag_write passed
+  else stage flag_write failed; fail "Flag 写入后回读不一致"; fi
 else
+  stage flag_write failed
   fail "平台无法写入 ${FLAGPATH}（镜像里没有 sh，或目录不存在）"
 fi
 
 # ---------- 端口探测
-FIRST_HOSTPORT=""; SOLVE_ENV=()
+FIRST_HOSTPORT=""; SOLVE_ENV=(); PORTS_OK=1
 for p in "${PORTS[@]+"${PORTS[@]}"}"; do
   HP=$(docker port "$CONTAINER" "$p/tcp" 2>/dev/null | head -1 | sed -E 's/.*:([0-9]+)$/\1/')
   [ -n "$FIRST_HOSTPORT" ] || FIRST_HOSTPORT=$HP
   SOLVE_ENV+=("PORT_$p=$HP")
   echo "== 探测端口 ${p}（本机 127.0.0.1:${HP}）"
   case "$(listen_state "$p")" in
-    loopback) fail "端口 $p 只监听 127.0.0.1，平台映射后访问不到，改成 0.0.0.0"; continue;;
-    none) fail "端口 $p 在 ${START_TIMEOUT} 秒内没有开始监听"; show_logs; continue;;
+    loopback) PORTS_OK=0; fail "端口 $p 只监听 127.0.0.1，平台映射后访问不到，改成 0.0.0.0"; continue;;
+    none) PORTS_OK=0; fail "端口 $p 在 ${START_TIMEOUT} 秒内没有开始监听"; show_logs; continue;;
     unknown) hint "读不到容器内的监听表，端口 $p 只能从宿主机探测，TCP 结果可能不准";;
   esac
-  CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$HP/" 2>/dev/null)
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${HP}${PROBE_PATH}" 2>/dev/null)
+  [ "$PROBE_PATH" = / ] || echo "   探测路径 ${PROBE_PATH}"
   if [ -n "$CODE" ] && [ "$CODE" != 000 ]; then
     echo "   HTTP $CODE"
     [ "$CODE" -ge 500 ] && partial "端口 $p 返回 HTTP ${CODE}，服务可能有报错"
@@ -210,6 +259,7 @@ for p in "${PORTS[@]+"${PORTS[@]}"}"; do
   fi
 done
 [ ${#PORTS[@]} -gt 0 ] || partial "没有声明端口（challenge.yaml 的 expose_ports 或 Dockerfile 的 EXPOSE），跳过端口探测"
+[ "$PORTS_OK" = 1 ] && [ ${#PORTS[@]} -gt 0 ] && stage port passed
 
 # ---------- 解题验证：拿到的是刚写入的测试 Flag，才说明程序按请求读取 Flag、没有缓存
 if [ -n "$SOLVE" ]; then
@@ -228,10 +278,18 @@ if [ -n "$SOLVE" ]; then
     wait "$SPID" 2>/dev/null; SRC=$?
     if grep -qF "$TESTFLAG" "$SOLVELOG"; then
       echo "   拿到测试 Flag"
+      stage solve passed
       [ "$SRC" = 0 ] || hint "解题命令拿到了 Flag 但退出码是 ${SRC}，约定成功时返回 0"
     else
       tail -15 "$SOLVELOG" | sed 's/^/   | /'
-      fail "解题命令的输出里没有测试 Flag ${TESTFLAG}（Flag 被缓存、路径不对，或解题脚本没打通）"
+      # 本机模拟运行 amd64 时，被调试的二进制可能崩在模拟器里，这不是题目本身的问题。
+      if [ "$HOST_IS_EMULATED" = 1 ] && grep -qE 'Segmentation fault|Bus error|Illegal instruction|core dumped|qemu:' "$SOLVELOG"; then
+        stage solve environment_failed
+        envfail "解题命令崩在本机模拟器里，题目本身可能没问题。换原生 amd64 机器重跑，或用 --platform linux/arm64 先确认镜像其余部分"
+      else
+        stage solve failed
+        fail "解题命令的输出里没有测试 Flag ${TESTFLAG}（Flag 被缓存、路径不对，或解题脚本没打通）"
+      fi
     fi
   fi
 fi

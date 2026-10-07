@@ -1,10 +1,10 @@
 <p align="center">
-  <img src=".github/assets/banner.svg" alt="CloverSec-CTF-Build-Dockerizer" width="860" />
+  <img src=".github/assets/banner.svg" alt="CloverSec CTF Pack" width="860" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill/releases/latest"><img src="https://img.shields.io/github/v/release/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill?style=for-the-badge&color=2563eb&label=release" alt="Release" /></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill?style=for-the-badge&color=16a34a" alt="License" /></a>
+  <a href="https://github.com/D1a0y1bb/CloverSec-CTF-Pack/releases/latest"><img src="https://img.shields.io/github/v/release/D1a0y1bb/CloverSec-CTF-Pack?style=for-the-badge&color=2563eb&label=release" alt="Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/D1a0y1bb/CloverSec-CTF-Pack?style=for-the-badge&color=16a34a" alt="License" /></a>
   <img src="https://img.shields.io/badge/Claude_Code_%C2%B7_Codex-skill-f59e0b?style=for-the-badge" alt="Claude Code · Codex" />
 </p>
 
@@ -16,6 +16,7 @@
   <a href="#install">Install</a> ·
   <a href="#usage">Usage</a> ·
   <a href="#output">Output</a> ·
+  <a href="#manual">Manual</a> ·
   <a href="#local-verification">Local verification</a> ·
   <a href="#flag-contract">Flag contract</a> ·
   <a href="#layout">Layout</a>
@@ -23,18 +24,19 @@
 
 ---
 
-An agent skill used by the CloverSec R&D Center to package CTF challenges. Give Claude Code or Codex the challenge source, a design note, or an old challenge directory. It produces a container directory that imports straight into the competition platform, then builds it locally, starts it, writes a flag, and probes the port.
+An agent skill used by the CloverSec R&D Center to package CTF challenges. Give Claude Code or Codex the challenge source, a design note, or an old challenge directory. For container challenges it produces a buildable directory and verifies it locally; for attachment challenges it organises the player-facing files. Both get a manual.
 
-- The model writes the source, `Dockerfile` and `start.sh` from the examples in the skill, with comments that point out the vulnerability and any non-obvious configuration. Comments are in Chinese.
-- Ships examples for Python, Node, PHP, PHP-FPM + nginx, Java, static sites and Pwn (socat / xinetd).
-- `verify.sh` runs the challenge the way the platform does: amd64 build, start with `/start.sh`, write a test flag, probe the ports, and optionally run a solve script that must print the test flag.
+- Directories are named `<type>-<name>`, where type is one of 20 categories such as Web, Pwn, Crypto or AI.
+- The source, `Dockerfile` and `start.sh` are written from the examples in the skill, with comments that point out the vulnerability and any non-obvious configuration. Comments are in Chinese.
+- `verify.sh` runs a container challenge the way the platform does: amd64 build, start with `/start.sh`, write a random test flag, probe the ports, and run `solve/solve.py` when present, which must print that flag.
+- The manual lives in `README/`; `solve/`, `附件/` (attachments) and `镜像/` (image tarball) sit next to `src/`.
 - For challenges that must stay buildable for years, the references show how to pin image digests, apt snapshots and dependency versions.
 - Multi-service, Bundle, Scenario, RDG/AWD and Linux-QEMU challenges have their own reference file. Regular challenges never load it.
 
 ## Install
 
 ```bash
-npx skills add D1a0y1bb/CloverSec-CTF-Build-Dockerizer-skill -g -a claude-code -a codex
+npx skills add D1a0y1bb/CloverSec-CTF-Pack -g -a claude-code -a codex
 ```
 
 `-g` installs into `~/.agents/skills/`, and Claude Code reads it through a symlink. Drop `-g` to install into the current project. Pass `-a` once per agent.
@@ -43,10 +45,10 @@ Verification needs Docker and `curl`. On Apple Silicon the amd64 build runs unde
 
 ## Usage
 
-Name the skill in the chat, then hand over the material. Claude Code uses `/cloversec-ctf-build-dockerizer`, Codex uses `$cloversec-ctf-build-dockerizer`:
+Name the skill in the chat, then hand over the material. Claude Code uses `/cloversec-ctf-pack`, Codex uses `$cloversec-ctf-pack`:
 
 ```text
-/cloversec-ctf-build-dockerizer Turn ./ssti-notes into a platform challenge.
+/cloversec-ctf-pack Turn ./ssti-notes into a platform challenge.
 Flask SSTI, flag at /flag, port 5000.
 ```
 
@@ -54,25 +56,33 @@ The material can be a design note, a bare source tree, or an old challenge with 
 
 ## Output
 
+A container challenge:
+
 ```text
-ssti-notes/
+Web-afterimage/
+├── README/
+│   ├── Web-afterimage.md   # manual
+│   └── assets/             # screenshots used by the manual
 ├── src/
-│   ├── app.py
-│   └── requirements.txt
 ├── Dockerfile
-├── start.sh            # platform entrypoint, execs the real service in the foreground
-├── challenge.yaml      # port, flag path and other platform fields
-├── flag                # placeholder, overwritten by the platform at start
-└── solve/
-    └── solve.py        # solve script, local verification only, never copied into the image
+├── start.sh                # platform entrypoint, runs the real service in the foreground
+├── challenge.yaml          # port, flag path and other platform fields
+├── flag                    # placeholder, overwritten by the platform at start
+├── solve/
+│   └── solve.py            # local verification only, never copied into the image
+└── 附件/                    # player attachments, only when the challenge needs them
 ```
 
-The Dockerfile copies explicit paths, so no `.dockerignore` is needed. Writeups, packet captures and author notes are kept elsewhere.
+An attachment-only challenge has no image files: just `README/`, `src/`, `附件/` and `solve/`. `镜像/` is created only when an image tarball is requested.
+
+## Manual
+
+The manual is part of the deliverable, written to `README/<type>-<name>.md`, with screenshots in `README/assets/`. The section order is fixed: name, description, difficulty, what it tests, flag, challenge details, deployment, design, solution steps. See [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md) for the skeleton.
 
 ## Local verification
 
 ```bash
-bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes
+bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes
 ```
 
 The script builds for `linux/amd64`, starts the container with `/start.sh`, waits until the ports are really listening, writes a random test flag to `flag.path`, then probes the ports. If `solve/solve.py` exists it runs it (target address in `HOST` and `PORT`) and only passes if the output contains that test flag, which catches services that cache the flag at startup. Use `--solve '<command>'` for solvers in other languages. The container and image are removed afterwards; pass `--keep` to leave them.
@@ -117,7 +127,7 @@ Read the flag file on every request. If it is read once at startup and cached (a
 ## Layout
 
 ```text
-src/CloverSec-CTF-Build-Dockerizer/
+src/CloverSec-CTF-Pack/
 ├── SKILL.md              # entry: output layout, workflow, examples, comment rules, flag contract
 ├── agents/openai.yaml    # name and default prompt shown in Codex
 ├── references/
