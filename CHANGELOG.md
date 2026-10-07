@@ -4,6 +4,26 @@
 
 ## Unreleased
 
+## v6.1.2 - 2026-10-07
+
+### 变更
+
+- 修复 `verify.sh` 里嵌套双引号触发 shellcheck SC2140 导致 CI 失败的问题。
+- `verify.sh` 参数解析改用 `if` 分支，避免 `A && B || C` 在赋值成功时仍可能执行 usage。
+- `verify.sh` 修掉一处变量名紧挨全角括号的写法（bash 3.2 下会把中文字节当成变量名的一部分，报 `unbound variable`）。
+- `verify.sh` 新增 RDG 题 `check.sh` 执行位检查：没有 `+x` 时平台按 `./check.sh` 调用会报 `Permission denied`，返回码非 0 恰好被解读成「有漏洞」，配置错误被静默吞掉，现在单独报出来。
+- `verify.sh` 新增 RDG 题解题验证：题目有 `solve/solve.py` 时顺手跑一遍，拿到测试 Flag 记 `solve: passed`，确认漏洞链真的能打通（check 只证明漏洞存在）。
+- 交付目录白名单里的 `last*` 收紧为 `last|lasted`，避免误放行同类前缀的无关目录。
+- `SKILL.md` 新增「写 shell 时的两个坑」：变量名别紧挨全角字符、`check.sh` 要有执行位。
+
+### 验证
+
+- `shellcheck -S warning` 无警告，`bash -n` 通过（此前 CI 挂在 SC2140）。
+- 回归 10 项全过：正常题、中文目录名、`COPY .`、CRLF、缺 shebang、无手册、手册名错、交付目录脏、无 solve.py、重复跑。
+- RDG 三种情况：`check.sh` 可执行且 solve 拿得到 Flag → `passed`；`check.sh` 缺执行位 → `failed`；check 通过但 solve 拿不到 Flag → `passed` 加提示。
+
+
+
 ## v6.1.0 - 2026-10-07
 
 ### 变更

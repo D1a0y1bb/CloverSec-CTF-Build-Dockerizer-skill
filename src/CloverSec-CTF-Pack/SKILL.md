@@ -442,3 +442,17 @@ provenance:
 - 依赖 `changeflag.sh` 的旧平台题目
 
 常规单服务题不读这个文件，也不要把多服务题压成单服务。
+
+## 写 shell 时的两个坑
+
+交付的 shell 脚本（`start.sh`、`changeflag.sh`、`check.sh`）经常要在 macOS 自带的 bash 3.2 上跑，注意这两点：
+
+- **变量名别紧挨全角字符。** `$VAR（` 这种写法在 bash 3.2 下会把中文字节当成变量名的一部分，报 `unbound variable`。中英文混排的提示语里一律写 `${VAR}`：
+
+  ```bash
+  echo "已写入 ${FLAGPATH}"        # 对
+  echo "已写入 $FLAGPATH"          # 后面紧跟全角括号时会出错
+  ```
+
+- **`check.sh` 要有执行位。** 平台按 `./check.sh` 调用，没有 `+x` 会报 `Permission denied`，返回码非 0——在 RDG 里这个返回码恰好会被解读成"漏洞还在"，正好是预期结果，于是这个配置错误被静默吞掉。`Dockerfile` 里 `chmod 555`，或者交付前 `chmod +x`。`verify.sh` 会单独查这一项。
+
