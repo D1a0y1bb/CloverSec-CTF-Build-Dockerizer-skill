@@ -7,15 +7,18 @@
 # 选项：
 #   --port N          要探测的容器端口，可重复；默认读 challenge.yaml 的 expose_ports，再退到 Dockerfile 的 EXPOSE
 #   --flag-path P     平台写入 Flag 的路径；默认读 challenge.yaml 的 flag.path，再退到 /flag
-#   --solve CMD       写入测试 Flag 后执行的解题命令，环境变量 HOST/PORT 指向映射后的地址，输出里必须出现测试 Flag
+#   --solve CMD       写入测试 Flag 后执行的解题命令；不给时题目目录有 solve/solve.py 就运行它
+#                     环境变量 HOST、PORT 指向第一个端口，PORT_<容器端口> 指向各个端口，输出里必须出现测试 Flag
 #   --platform P      构建和运行的平台，默认 linux/amd64（与比赛平台一致）
 #   --timeout N       等待服务开始监听的秒数，默认 60
 #   --keep            结束后保留容器和镜像，便于进去排查
 #
 # 退出码：0 passed / 1 failed / 2 参数错误 / 3 partial
+#   failed   明确违反平台合同或解题拿不到 Flag
+#   partial  能跑，但有检查无法完成（没声明端口、自定义 ENTRYPOINT 等）
 set -uo pipefail
 
-usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
 PROJECT=""; PORTS=(); FLAGPATH=""; SOLVE=""; PLATFORM="linux/amd64"; KEEP=0
 # Java、php-fpm、MySQL 冷启动常见 10~40 秒，amd64 模拟运行还会更慢，60 秒留出余量。
@@ -61,8 +64,13 @@ if [ -f start.sh ]; then
   if grep -q $'\r' start.sh; then
     fail "start.sh 是 CRLF 换行，容器里会报 bad interpreter，转成 LF 后再验证"; finish
   fi
-  head -n1 start.sh | grep -q '^#!' || hint "start.sh 第一行没有 #!，平台直接执行 /start.sh 会失败"
+  head -n1 start.sh | grep -q '^#!' || { fail "start.sh 第一行没有 #!，平台执行 /start.sh 会报 exec format error"; finish; }
 fi
+# 交付目录里有 solve/ 时，COPY . 会把解题脚本打进镜像。
+if [ -d solve ] && grep -qiE '^[[:space:]]*(COPY|ADD)[[:space:]]+(--[^[:space:]]+[[:space:]]+)*\.[[:space:]]' Dockerfile; then
+  fail "Dockerfile 用了 COPY . ，会把 solve/ 打进镜像，改成 COPY 具体路径"; finish
+fi
+[ -n "$SOLVE" ] || { [ -f solve/solve.py ] && SOLVE="python3 solve/solve.py"; }
 
 YAML=challenge.yaml
 if [ ${#PORTS[@]} -eq 0 ] && [ -f "$YAML" ]; then
@@ -114,7 +122,7 @@ echo "   完成，用时 $(( $(date +%s) - T0 )) 秒"
 
 # 官方 php/nginx/node 镜像的 docker-*entrypoint 会把参数原样 exec，不影响 /start.sh；其他 ENTRYPOINT 会吞掉它。
 ENTRY=$(docker image inspect -f '{{json .Config.Entrypoint}}' "$IMAGE" 2>/dev/null)
-case "$ENTRY" in null|\[\]|""|*docker-*entrypoint*) ;; *) hint "镜像设置了 ENTRYPOINT ${ENTRY}，平台传入的 /start.sh 会变成它的参数";; esac
+case "$ENTRY" in null|\[\]|""|*docker-*entrypoint*) ;; *) partial "镜像设置了 ENTRYPOINT ${ENTRY}，平台传入的 /start.sh 会变成它的参数，确认它最后会执行 /start.sh";; esac
 
 # ---------- 启动：和平台一样以 /start.sh 为命令；端口只绑本机，漏洞服务不暴露到局域网
 echo "== 启动容器"
@@ -163,7 +171,7 @@ fi
 echo "   容器运行中"
 
 PID1=$(docker exec "$CONTAINER" sh -c 'tr "\0" " " </proc/1/cmdline' 2>/dev/null)
-case "$PID1" in *start.sh*) hint "PID 1 仍是 start.sh（${PID1}），主服务没有 exec，服务挂掉时容器不会退出";; esac
+case "$PID1" in *start.sh*) hint "PID 1 是 start.sh（${PID1}），确认主服务退出时 start.sh 也会退出，否则平台发现不了题目挂掉";; esac
 
 # ---------- 写入测试 Flag：命令和平台一致，以 root 用 sh 重定向写入
 echo "== 写入测试 Flag 到 $FLAGPATH"
@@ -177,10 +185,11 @@ else
 fi
 
 # ---------- 端口探测
-FIRST_HOSTPORT=""
+FIRST_HOSTPORT=""; SOLVE_ENV=()
 for p in "${PORTS[@]+"${PORTS[@]}"}"; do
   HP=$(docker port "$CONTAINER" "$p/tcp" 2>/dev/null | head -1 | sed -E 's/.*:([0-9]+)$/\1/')
   [ -n "$FIRST_HOSTPORT" ] || FIRST_HOSTPORT=$HP
+  SOLVE_ENV+=("PORT_$p=$HP")
   echo "== 探测端口 ${p}（本机 127.0.0.1:${HP}）"
   case "$(listen_state "$p")" in
     loopback) fail "端口 $p 只监听 127.0.0.1，平台映射后访问不到，改成 0.0.0.0"; continue;;
@@ -204,17 +213,22 @@ done
 
 # ---------- 解题验证：拿到的是刚写入的测试 Flag，才说明程序按请求读取 Flag、没有缓存
 if [ -n "$SOLVE" ]; then
-  echo "== 运行解题命令"
+  echo "== 运行解题命令: $SOLVE"
   if [ -z "$FIRST_HOSTPORT" ]; then
     partial "没有可用端口，跳过解题命令"
+  elif [[ "$SOLVE" == python3* ]] && ! command -v python3 >/dev/null; then
+    partial "本机没有 python3，跳过解题命令"
   else
-    ( cd "$PROJECT" && HOST=127.0.0.1 PORT=$FIRST_HOSTPORT sh -c "$SOLVE" ) >"$SOLVELOG" 2>&1 &
+    # 多服务题常用每秒一次的循环把 /flag 同步进数据库，留 2 秒让它跟上。
+    sleep 2
+    ( cd "$PROJECT" && env HOST=127.0.0.1 PORT="$FIRST_HOSTPORT" "${SOLVE_ENV[@]+"${SOLVE_ENV[@]}"}" sh -c "$SOLVE" ) >"$SOLVELOG" 2>&1 &
     SPID=$!; T0=$(date +%s)
     while kill -0 "$SPID" 2>/dev/null && [ $(( $(date +%s) - T0 )) -lt "$SOLVE_TIMEOUT" ]; do sleep 1; done
     kill "$SPID" 2>/dev/null && hint "解题命令超过 ${SOLVE_TIMEOUT} 秒被终止"
-    wait "$SPID" 2>/dev/null
+    wait "$SPID" 2>/dev/null; SRC=$?
     if grep -qF "$TESTFLAG" "$SOLVELOG"; then
       echo "   拿到测试 Flag"
+      [ "$SRC" = 0 ] || hint "解题命令拿到了 Flag 但退出码是 ${SRC}，约定成功时返回 0"
     else
       tail -15 "$SOLVELOG" | sed 's/^/   | /'
       fail "解题命令的输出里没有测试 Flag ${TESTFLAG}（Flag 被缓存、路径不对，或解题脚本没打通）"
