@@ -2,3 +2,10 @@ interface:
   display_name: "CloverSec CTF Pack"
   short_description: "把 CTF 题目源码整理成能上平台的 Docker 目录并本地验证"
   default_prompt: "用 $cloversec-ctf-pack 把当前题目整理成平台能导入的 Docker 题目目录，并用 verify.sh 验证。"
+
+# 遇到影响交付形状、无法从材料推断的选择时，用 request_user_input 问用户，不要自己拍板。
+# 一次问完同类问题，每题给 2~4 个直白选项并标出推荐项。
+# 必须问的情形、不该问的情形，以及难度等价和交付目录白名单的完整要求见 SKILL.md。
+interaction:
+  request_user_input: true
+  guidance: "题目类型与名称、容器题还是附件题、要不要附件和镜像 tar、是否 RDG、资料是否允许独立补全 —— 这些拿不准就先问，不要一头扎进去做。材料里已经写着的不问。"

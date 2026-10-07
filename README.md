@@ -52,7 +52,7 @@ npx skills add D1a0y1bb/CloverSec-CTF-Pack -g -a claude-code -a codex
 Flask 写的 SSTI，flag 放 /flag，端口 5000。
 ```
 
-材料可以是题目设计、只有源码的目录，或者带旧 Dockerfile 的历史题目。端口、启动命令、运行时版本、Flag 路径这类会卡住构建的信息如果缺了，它会一次问完，不会自己猜。
+材料可以是题目设计、只有源码的目录，或者带旧 Dockerfile 的历史题目。端口、启动命令、运行时版本、Flag 路径这类会卡住构建的信息如果缺了，它会用结构化提问（Codex 的 `request_user_input`、Claude Code 的 AskUserQuestion）一次问完，给出直白选项和推荐项，不会自己猜着往下做。
 
 ## 交付目录
 
@@ -61,7 +61,7 @@ Flask 写的 SSTI，flag 放 /flag，端口 5000。
 ```text
 Web-残影/
 ├── README/
-│   ├── Web-残影.md       # 手册
+│   ├── Web-残影.md       # 手册，文件名同交付目录
 │   └── assets/           # 手册里的截图
 ├── src/
 │   ├── index.php
@@ -77,9 +77,33 @@ Web-残影/
 
 纯附件题没有镜像相关文件，只有 `README/`、`src/`、`附件/`、`solve/`。`镜像/` 在需要导出镜像 tar 时才建。
 
+交付目录是一份白名单：容器题只允许 `src/`、`Dockerfile`、`start.sh`、`challenge.yaml`、`flag`、`README/`、`solve/`，按需加 `附件/`、`镜像/`；RDG 题再加 `check/`、`changeflag.sh`、`ttyd` 这些题目真正运行需要的文件。`verify.sh`、`verify-report.json`、`*.verify.json`、`.DS_Store`、`__pycache__/` 一律不许留下，`verify.sh` 会扫出来。验证报告写到系统临时目录：
+
+```bash
+bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes --report "$(mktemp -d)/verify.json"
+```
+
 ## 手册
 
-手册是交付的一部分，写在 `README/<题目类型-题目名称>.md`，截图放 `README/assets/`。章节顺序固定：题目名称、题目描述、题目难度、考察信息、旗帜信息、题目情况、部署方式、题目设计、解题步骤。骨架和写法见 [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md)。
+手册是交付物里最重要的一份，写在 `README/<题目类型-题目名称>.md`，文件名必须和交付目录同名，截图放 `README/assets/`。章节顺序固定：题目名称、题目描述、题目难度、考察信息、旗帜信息、题目情况、部署方式、题目设计、解题步骤。
+
+四节是重点，写法见 [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md)，那里有逐节范例：
+
+- **1.2 题目描述**写氛围和悬念，可以风趣，但不能泄漏技术栈、漏洞类型、路径和函数名。选手在平台上只看得到这一段。
+- **1.5 旗帜信息**逐项写全：Flag 路径、权限和属主、谁在什么时候读它、平台覆盖命令、程序读的不是 `flag.path` 时的接法。
+- **1.7 部署方式**是硬性清单：目录说明、构建命令、镜像 tar 导入、带 `/start.sh` 的启动命令、访问地址、平台写 Flag 命令、清理命令、改端口后的同步位置。
+- **1.9 解题步骤**给可直接复制的命令和 payload、预期输出、截图位置，详细到别人照着能复现。
+
+不写"常见失败现象"一节。
+
+## RDG 防守题
+
+RDG 的判据不是"能不能拿到 Flag"，而是"漏洞还在不在"，交付物和验证方式都和普通题不同：
+
+- 多一个 `check/` 目录（`check.sh` + `check.py` + `requirements.txt`），平台点"验证"时跑的就是它。调用方式 `./check.sh <IP> <PORT>`，返回 0 表示已修复、非 0 表示漏洞还在，输出里有 `ok: True/False` 或 `RESULT: PASS/FAIL`。
+- 多一个 ttyd 服务，选手通过浏览器进容器改代码。
+- 有些 RDG 题没有 Flag 合同：敏感目标就是题目自己配置里的固定内容，check 直接验证那个目标还能不能被读到。
+- `verify.sh` 自动识别带 `check/` 的题目，跑 RDG 判定：初始环境必须报"有漏洞"才算题目状态正确，报"已修复"直接判 `failed`——那样选手没得打。
 
 ## 本地验证
 
@@ -88,6 +112,8 @@ bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes
 ```
 
 脚本按 `linux/amd64` 构建镜像，用 `/start.sh` 起容器，等端口真正开始监听，往 `flag.path` 写一个随机测试 Flag，再探测端口。目录里有 `solve/solve.py` 时自动运行它（从环境变量 `HOST`、`PORT` 读地址），输出里出现这个测试 Flag 才算通过，能发现启动时把 Flag 缓存进变量的问题。其他语言的解题脚本用 `--solve '<命令>'` 指定。跑完删除容器和镜像，加 `--keep` 保留。
+
+它还会顺手检查三件和运行无关、但最常被漏掉的事：手册文件名和章节是否齐全、`docker run` 命令有没有带 `/start.sh`、交付目录有没有多余文件。
 
 ```text
 == 构建镜像 (linux/amd64)
@@ -105,13 +131,37 @@ bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes
 == 结果: passed
 ```
 
+RDG 题的输出换成 check 判定：
+
+```text
+== 阶段: handbook: passed delivery: passed build: passed startup: passed port: passed flag_write: skipped check_initial: ok: False
+== 结果: passed
+```
+
 | 结果 | 退出码 | 含义 |
 |---|---|---|
 | `passed` | 0 | 全部检查通过 |
-| `partial` | 3 | 能跑，但有检查项没做（比如没声明端口），输出里逐条列出 |
-| `failed` | 1 | 构建失败、容器退出、端口只监听 127.0.0.1、Flag 写不进去或解题拿不到 Flag |
+| `partial` | 3 | 能跑，但有检查项没做（比如没声明端口、手册缺一节、目录有多余文件），输出里逐条列出 |
+| `failed` | 1 | 构建失败、容器退出、端口只监听 127.0.0.1、Flag 写不进去、解题拿不到 Flag、手册文件名不对，或 RDG 初始环境就是修好的 |
 
 端口和 Flag 路径默认从 `challenge.yaml` 读取，也可以用 `--port`、`--flag-path` 指定。完整参数见 `verify.sh --help`。
+
+## 难度等价
+
+迁移旧题时，缺材料、本机跑不动，都不是把题目降级的理由。`challenge.yaml` 里的 `provenance` 记录这道题的来源和恢复状态：
+
+```yaml
+provenance:
+  status: original_adapter        # original_adapter / independent_completion / incomplete / attachment_only
+  original_material: [源码, install.sql]
+  missing: [原数据库快照]
+  preserved: [漏洞类型=前台 SQL 注入, 链路=3 步]
+  simplified: []
+  env_limited: Apple ARM64 模拟下无法执行原始 rt_sigreturn
+  verify: passed
+```
+
+`incomplete` 的题不许写成"已验证通过"；`independent_completion` 必须在手册里写明这是独立补全、不是原题还原；`simplified` 有值时说明这道题已经偏离原题难度，要单独告诉出题人。verify 通过只说明容器生命周期正常，不等于题目难度等价。
 
 ## Flag 约定
 
@@ -130,14 +180,15 @@ bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes
 
 ```text
 src/CloverSec-CTF-Pack/
-├── SKILL.md              # 入口：交付目录、流程、写法范例、注释要求、Flag 约定
-├── agents/openai.yaml    # Codex 里显示的名称和默认提示词
+├── SKILL.md              # 入口：提问规则、交付目录白名单、流程、写法范例、注释要求、RDG、难度等价
+├── agents/openai.yaml    # Codex 里显示的名称、默认提示词和提问约定
 ├── references/
-│   ├── platform.md       # 平台启动方式、环境变量传 Flag、镜像 tar 格式、challenge.yaml 字段
+│   ├── manual.md         # 手册逐节写法和范例
+│   ├── platform.md       # 平台启动方式、环境变量传 Flag、镜像 tar 格式、challenge.yaml 与 provenance
 │   ├── dockerfiles.md    # 各语言 Dockerfile / start.sh 范例、Pwn、镜像版本固定
 │   └── special.md        # 多服务、Bundle、Scenario、RDG/AWD、Linux-QEMU
 └── scripts/
-    └── verify.sh         # 本地构建与运行验证
+    └── verify.sh         # 本地构建与运行验证，含手册、目录白名单和 RDG 判定
 ```
 
 版本记录见 [CHANGELOG.md](CHANGELOG.md)。

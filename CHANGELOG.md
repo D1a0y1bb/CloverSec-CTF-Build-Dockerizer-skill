@@ -4,6 +4,37 @@
 
 ## Unreleased
 
+## v6.1.0 - 2026-10-07
+
+### 变更
+
+- 手册要求大幅加厚，`references/manual.md` 重写：逐节给出必填项和范例，1.2 题目描述、1.5 旗帜信息、1.7 部署方式、1.9 解题步骤四节按交付标准写死。
+- 手册文件名强制为 `README/<题目类型-题目名称>.md`，和交付目录同名，不再允许 `题目手册.md` 这类写法。
+- `verify.sh` 新增手册检查：文件名、章节骨架、`docker run` 是否带 `/start.sh`、有没有"常见失败现象"这一节。
+- 1.7 部署方式改为八项硬性清单，明确要求启动命令必须带 `/start.sh`，并补上镜像 tar 导入、端口调整后的同步位置。
+- 1.9 解题步骤要求给出可直接复制的命令和 payload、预期输出、截图位置。
+- 手册不再写"常见失败现象"一节。
+- 1.2 题目描述要求写得风趣有悬念，禁止泄漏技术栈、漏洞类型、路径和函数名。
+- 新增"遇到拿不准的先问用户"一节：影响交付形状的选择、材料缺关键事实、需要重新设计题目、多个合理方案、任何打算降级处理的地方，都要用 `request_user_input` 或 AskUserQuestion 给出直白选项后再动手。
+- 新增"交付目录白名单"一节：`verify.sh`、`verify-report.json`、`*.verify.json`、`.DS_Store`、`__pycache__/` 等一律不许留在交付目录；`verify.sh` 会扫描并报出来，报告类残留直接判 `failed`。
+- `verify.sh --report` 的路径落在交付目录里时拒绝执行，报告改写到系统临时目录。
+- 新增"难度等价：不许降级兜底"一节：环境跑不动、依赖拉不下来都不是把题目换成简化变体的理由；确实要改必须问用户，并在 `provenance` 里写清简化边界。
+- 新增 `challenge.yaml` 的 `provenance` 字段：`status`（`original_adapter` / `independent_completion` / `incomplete` / `attachment_only`）、`original_material`、`missing`、`preserved`、`simplified`、`env_limited`、`verify`。`incomplete` 不许写成"已验证通过"。
+- 新增 RDG 专用验证模式：`verify.sh` 识别 `check/check.sh` 或 `challenge.yaml` 的 `check.enabled`，跑判题脚本判定初始环境必须"有漏洞"。初始环境报"已修复"直接判 `failed`。新增 `--check`、`--rdg` 参数。
+- 支持没有 Flag 合同的 RDG 题：`flag_write` 记为 `skipped`，判据交给 check 脚本。
+- `references/special.md` 的 RDG 一节扩写：交付形态、check 脚本契约（调用方式、返回码、`ok: True/False` 输出、四类检测点）、有无 Flag 合同两种写法、ttyd 启动模板、手册重点。
+- Dockerfile 中文注释改为硬性要求，`SKILL.md` 给出带注释的完整范例。
+- `references/platform.md` 新增 `provenance` 和 RDG 字段说明。
+- 交付目录树补上 `check/`、`changeflag.sh`、`ttyd` 等 RDG 特有文件。
+- `agents/openai.yaml` 补上 `request_user_input` 的提问约定。
+
+### 验证
+
+- 手册检查：文件名不对、缺章节、有常见失败现象、`docker run` 没带 `/start.sh` 四种情况逐条测过，都能报出来。
+- 交付目录检查：`verify-report.json` 和 `verify.sh` 残留判 `failed`；`--report` 写进交付目录时退出码 2 并给出正确写法。
+- RDG 判定：真实 RDG 题（`RDG-某企业官网信息系统`，DedeCMS + MariaDB + ttyd）跑通，初始环境 check 返回 `RESULT: FAIL` 判为符合预期；初始环境返回 `ok: True` 的反向用例判 `failed`；无 Flag 合同的 RDG 题 `flag_write` 正确记为 `skipped`。
+- 普通题回归：完整合格题 `passed`（退出码 0），中文目录名、`COPY .`、CRLF、缺 shebang、Flag 缓存等原有检查未受影响。
+
 ## v6.0.0 - 2026-10-07
 
 ### 变更

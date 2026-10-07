@@ -107,7 +107,172 @@ AI 题常见的失败不是代码写错，是模型跑不起来。
 
 ## RDG / AWD / AWDP / SecOps
 
-这些是对抗/运维类赛制，通常需要 check 脚本（判题/巡检）。写一个清晰的 check，说明判定逻辑。历史 check 模板见 v3.0.1 的 [`scripts/generate_check_stub.py`](https://github.com/D1a0y1bb/CloverSec-CTF-Pack/blob/v3.0.1/src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py)。
+这些是对抗/运维类赛制，和普通题的根本区别是：**判据不是"选手能不能拿到 Flag"，而是"漏洞还在不在"**。选手要进容器改代码把漏洞修掉，平台跑 check 脚本判断修好没有。
+
+### 交付形态
+
+```text
+RDG-某企业官网信息系统/
+├── README/
+│   └── RDG-某企业官网信息系统.md     # 手册，文件名同交付目录
+├── src/                              # 题目源码
+├── check/                            # 判题脚本，平台调用
+│   ├── check.sh                      # 入口，./check.sh <IP> <PORT>
+│   ├── check.py                      # 检测逻辑
+│   └── requirements.txt
+├── Dockerfile
+├── start.sh                          # 起 ttyd + exec 主服务
+├── changeflag.sh                     # 旧平台用环境变量传 Flag 时用
+├── ttyd                              # ttyd 二进制或配置，按原题保留
+├── php.ini                           # 原题的 PHP 配置，按原题保留
+├── challenge.yaml
+├── flag
+└── solve/                            # 本地验证用，可选
+```
+
+`check/`、`changeflag.sh`、`ttyd`、`php.ini` 这些是 RDG 特有的，必须和原题一起保留，不要为了"目录干净"删掉。
+
+### check 脚本契约
+
+平台按这个方式调用，照这个写：
+
+```bash
+./check.sh <IP> <PORT>
+# 也支持环境变量
+TARGET_IP=127.0.0.1 TARGET_PORT=8080 ./check.sh
+```
+
+- **返回码**：0 表示安全（漏洞已修复），非 0 表示漏洞还在。
+- **输出**：每个检测点一行结果，最后一行是可判定的结论，用 `ok: True` / `ok: False` 或 `RESULT: PASS` / `RESULT: FAIL`。
+- **检测点分四类**：
+  1. 服务可用性：首页、后台登录页、关键接口能正常访问。这关挂了说明选手改崩了服务，直接判不通过。
+  2. 漏洞是否可复现：初始环境必须能打通，加固后必须打不通。
+  3. 通杀脚本检测：AoiAWD、watchbird、`waf.php`、`drop_wiki.php` 这类"一键通杀"文件是否存在。
+  4. 账号可用性：后台 `admin/admin` 还能登录。选手改密码会让 check 失败。
+- **初始环境预期返回"有漏洞"**。这是设计如此，不是 check 写错了。
+- 依赖只写进 `check/requirements.txt`。
+
+```python
+# check.py 的判定结构
+import sys
+
+import requests
+
+
+def check_index_alive(target):
+    """检测点：首页可访问。服务被改崩时后面所有检测都没有意义。"""
+    try:
+        return requests.get(f"http://{target}/", timeout=10).status_code == 200
+    except requests.RequestException:
+        return False
+
+
+def check_sql_injection(target):
+    """检测点：前台 SQL 注入是否还能读出数据库用户。"""
+    r = requests.get(f"http://{target}/search/?keys=1%27", timeout=10)
+    # 还能报出 XPATH 错误，说明注入没被修掉
+    return "XPATH syntax error" not in r.text
+
+
+def check(target):
+    ok = True
+    if not check_index_alive(target):
+        print(f"[-]: {target}, 服务检测失败 - 首页异常")
+        return False
+    print(f"[+]: {target}, 服务检测通过 - 首页正常")
+    if not check_sql_injection(target):
+        print("[-]: 前台 SQL 注入仍可利用，防御未生效")
+        ok = False
+    else:
+        print("[+]: 前台 SQL 注入已被拦截")
+    return ok
+
+
+if __name__ == "__main__":
+    target = sys.argv[1] if len(sys.argv) > 1 else "127.0.0.1"
+    port = sys.argv[2] if len(sys.argv) > 2 else "80"
+    result = check(target if port in ("", "80") else f"{target}:{port}")
+    print(f"ok: {result}")
+    sys.exit(0 if result else 1)
+```
+
+### 两种 RDG 题：有没有 Flag 合同
+
+**有 Flag 合同**：平台写 `/flag`，check 通过"能不能拿到 Flag"判断漏洞修没修。
+
+```python
+def check_flag_leak(target):
+    """漏洞利用成功后能读到 Flag，修好后读不到。"""
+    r = requests.get(f"http://{target}/read?file=flag", timeout=10)
+    return "flag{" not in r.text
+```
+
+**没有 Flag 合同**：敏感目标就是题目自己配置里的固定内容。这道题不需要 `/flag`，`challenge.yaml` 里 `flag:` 块可以省掉。
+
+```python
+def check_vhost_isolation(target):
+    """加固目标是虚拟主机的 Host 隔离，读到固定内容说明没修好。"""
+    r = requests.get(f"http://{target}/flag.html",
+                     headers={"Host": "infernityhost"}, timeout=10)
+    return "银行卡密码" not in r.text
+```
+
+写这类题时在手册 1.5 里明确说明：这道题的 Flag 不是平台写入的动态值，敏感目标是配置里的固定内容。别让运维以为平台写 Flag 没生效。
+
+### start.sh：ttyd + 主服务
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+cd /var/www/html
+
+# 旧平台通过 FLAG 环境变量传值时，先同步到兼容文件。
+if [ -n "${FLAG:-}" ]; then
+  /bin/bash /changeflag.sh "$FLAG"
+fi
+
+# ttyd 让选手从浏览器进容器改代码，端口必须监听 0.0.0.0 平台才映射得出去。
+/ttyd -p 8022 -i 0.0.0.0 -W login &
+
+# 主服务前台运行，容器跟着它退出。
+exec apache2-foreground
+```
+
+没有 ttyd 二进制时用包管理器装，或按原题保留一份。ttyd 端口写进 `challenge.yaml` 的 `expose_ports`，`verify.sh` 会一起探测。
+
+### verify.sh 的 RDG 判定
+
+带 `check/` 的题目自动走 RDG 分支：
+
+```text
+build           passed
+startup         passed
+port            passed   （Web 端口 + ttyd 端口）
+check_initial   ok: False  ← 初始环境有漏洞，符合预期
+flag_write      skipped  （没有 Flag 合同）
+```
+
+跑法不变：
+
+```bash
+bash <本 Skill 目录>/scripts/verify.sh <题目目录>
+```
+
+拿到 `ok: False`（初始环境有漏洞）是**通过**；拿到 `ok: True` 反而说明题目初始状态不对——漏洞初始就修好了，选手没得打——要报出来。
+
+### 手册
+
+RDG 手册的重点和普通题不同，见 [manual.md](manual.md)：
+
+- 1.5 说明 Flag 是动态写入还是固定值设计的一部分。
+- 1.6 列出 ttyd 端口和账号、后台地址和账号、`check/check.sh` 位置。
+- 1.8 逐条列出 check 覆盖的关卡和每关在加固前后的预期结果。
+- 1.9 改成"初始漏洞验证 + 修复方法 + 加固后自检"，贴出 check 在加固前后的输出。
+
+不写"常见失败现象"一节。
+
+历史 check 模板见 v3.0.1 的 [`scripts/generate_check_stub.py`](https://github.com/D1a0y1bb/CloverSec-CTF-Pack/blob/v3.0.1/src/CloverSec-CTF-Build-Dockerizer/scripts/generate_check_stub.py)。
 
 ## Linux kernel / QEMU guest 题
 
