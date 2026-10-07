@@ -4,6 +4,21 @@
 
 ## Unreleased
 
+## v5.1.0 - 2026-10-07
+
+### 变更
+
+- 交付目录新增 `solve/solve.py`，约定从 `HOST`、`PORT`、`PORT_<容器端口>` 读地址，打印 Flag，拿到时返回 0。`verify.sh` 发现它就自动运行，输出里必须出现随机测试 Flag。
+- 交付目录去掉 `.dockerignore`，Dockerfile 只 `COPY` 具体路径。
+- `verify.sh`：start.sh 缺 shebang 改为 failed；有 `solve/` 时 Dockerfile 用 `COPY .` 判为 failed；自定义 `ENTRYPOINT` 改为 partial；解题命令可用 `PORT_<容器端口>` 访问每个端口；写入 Flag 后等 2 秒再解题，给同步循环留时间。
+- `special.md` 新增多服务 start.sh 模板：依赖就绪等待、数据初始化、日志并入 stdout、Flag 同步进数据库、转发 TERM 优雅退出。
+- `dockerfiles.md` 新增从旧镜像或 rootfs 查运行时版本的命令，SKILL.md 要求在 Dockerfile 里锁定并注释来源。
+
+### 验证
+
+- 本地测试题：多端口 + 自动 solve.py、`COPY .` 泄露、缺 shebang、MariaDB + 主服务 + Flag 同步，结果和退出码符合预期；多服务模板 `docker stop` 2 秒内退出。
+- shellcheck `-S warning` 通过。
+
 ## v5.0.1 - 2026-10-06
 
 ### 修复

@@ -62,20 +62,20 @@ ssti-notes/
 ├── Dockerfile
 ├── start.sh            # platform entrypoint, execs the real service in the foreground
 ├── challenge.yaml      # port, flag path and other platform fields
-├── .dockerignore
-└── flag                # placeholder, overwritten by the platform at start
+├── flag                # placeholder, overwritten by the platform at start
+└── solve/
+    └── solve.py        # solve script, local verification only, never copied into the image
 ```
 
-Only runtime files go in. Writeups, exploits, packet captures and author notes are kept elsewhere.
+The Dockerfile copies explicit paths, so no `.dockerignore` is needed. Writeups, packet captures and author notes are kept elsewhere.
 
 ## Local verification
 
 ```bash
-bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes \
-  --solve 'curl -s http://$HOST:$PORT/flag'
+bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes
 ```
 
-The script builds for `linux/amd64`, starts the container with `/start.sh`, waits until the ports are really listening, writes a random test flag to `flag.path`, then probes the ports. With `--solve` it runs the solve command and only passes if the output contains that test flag, which catches services that cache the flag at startup. The container and image are removed afterwards; pass `--keep` to leave them.
+The script builds for `linux/amd64`, starts the container with `/start.sh`, waits until the ports are really listening, writes a random test flag to `flag.path`, then probes the ports. If `solve/solve.py` exists it runs it (target address in `HOST` and `PORT`) and only passes if the output contains that test flag, which catches services that cache the flag at startup. Use `--solve '<command>'` for solvers in other languages. The container and image are removed afterwards; pass `--keep` to leave them.
 
 ```text
 == 构建镜像 (linux/amd64)
@@ -87,7 +87,7 @@ The script builds for `linux/amd64`, starts the container with `/start.sh`, wait
    回读一致（444 root:root）
 == 探测端口 5000（本机 127.0.0.1:61197）
    HTTP 200
-== 运行解题命令
+== 运行解题命令: python3 solve/solve.py
    拿到测试 Flag
 
 == 结果: passed

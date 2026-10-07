@@ -10,17 +10,61 @@
 
 输入带 `docker-compose.yml`，或题目需要 web + db + redis 等多个容器。
 
-- nginx + php-fpm + redis 这类能放进一个容器的，用单容器：start.sh 按依赖顺序在后台启动，等就绪后 `exec` 主服务。
-- 数据库要先初始化、再写 Flag 时，start.sh 里等它就绪再继续，不要用固定的 `sleep`：
+nginx + php-fpm + redis + MySQL 这类能放进一个容器的，用单容器。start.sh 照下面的模板写，五段按题目删减：
 
-  ```bash
-  mysqld_safe &
-  until mysqladmin ping --silent; do sleep 1; done
-  mysql < /docker-entrypoint-initdb.d/init.sql
-  exec apache2-foreground
-  ```
+```bash
+#!/bin/bash
+set -euo pipefail
 
-- 必须多容器时保留 `docker-compose.yml`，每个服务一个 Dockerfile，手册写清 Flag 写进哪个服务的哪个路径。verify.sh 只验证单容器，compose 题用 `docker compose up` 手动验证。
+# 后台服务的日志直接写到容器 stdout，docker logs 能看到全部进程的输出。
+log() { echo "[start] $*"; }
+
+# 1. 依赖服务：后台启动，日志带前缀并入 stdout。
+log "starting mariadb"
+mysqld_safe --user=mysql 2>&1 | sed -u 's/^/[mysql] /' &
+
+# 2. 等依赖就绪：探测真实可用状态，超时直接失败，平台会看到容器退出。
+for i in $(seq 1 60); do
+    mysqladmin ping --silent 2>/dev/null && break
+    [ "$i" = 60 ] && { log "mariadb not ready after 60s"; exit 1; }
+    sleep 1
+done
+
+# 3. 初始化数据：脚本可重复执行，容器重启不会报错。
+mysql < /app/init.sql
+
+# 4. 主服务：后台启动以便下面同步 Flag；收到 TERM/INT 时转发给它，平台停止容器不用等超时。
+log "starting app"
+python3 /app/app.py &
+MAIN_PID=$!
+trap 'kill -TERM "$MAIN_PID" 2>/dev/null; mysqladmin shutdown 2>/dev/null' TERM INT
+
+# 5. 平台在容器启动后才写 /flag，数据库里的 Flag 要跟着更新。
+#    题目不需要同步时删掉这段，改成 exec 主服务。
+sync_flag() {
+    local value
+    value=$(sed "s/\\\\/\\\\\\\\/g; s/'/''/g" /flag)
+    mysql ctf -e "UPDATE flag SET value='${value}' WHERE id=1;"
+    log "flag synced"
+}
+sync_flag
+last=$(cksum < /flag)
+while kill -0 "$MAIN_PID" 2>/dev/null; do
+    now=$(cksum < /flag)
+    [ "$now" != "$last" ] && { sync_flag; last=$now; }
+    sleep 1
+done
+
+# 主服务退出时容器跟着退出，平台能发现题目挂了。
+wait "$MAIN_PID"
+```
+
+- 第 5 段只在 Flag 存在数据库或配置文件里时需要；Flag 直接从 `/flag` 读的题删掉第 5 段，最后一行改成 `exec` 主服务。
+- 后台服务不要把日志重定向到 `/tmp/*.log`，排查时 `docker logs` 看不到。
+- 主服务是 `catalina.sh run`、`apache2-foreground` 这类前台命令时，第 4 段把它放后台即可。
+- 排查时用 `verify.sh <题目目录> --keep` 保留容器，再 `docker logs -f <容器>` 看所有进程的输出。
+
+必须多容器时保留 `docker-compose.yml`，每个服务一个 Dockerfile，手册写清 Flag 写进哪个服务的哪个路径。verify.sh 只验证单容器，compose 题用 `docker compose up` 手动验证。
 
 ## Bundle / BaseUnit（组合环境）
 

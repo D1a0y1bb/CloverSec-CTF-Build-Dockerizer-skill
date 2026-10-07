@@ -62,20 +62,20 @@ ssti-notes/
 ├── Dockerfile
 ├── start.sh            # 平台入口，前台 exec 真实服务
 ├── challenge.yaml      # 端口、Flag 路径等平台字段
-├── .dockerignore
-└── flag                # 占位 Flag，平台启动后覆盖
+├── flag                # 占位 Flag，平台启动后覆盖
+└── solve/
+    └── solve.py        # 解题脚本，只用于本地验证，不进镜像
 ```
 
-目录里只放运行需要的文件，题解、exp、抓包和出题手册另外保存。
+Dockerfile 只 COPY 具体路径，不需要 `.dockerignore`。题解、抓包和出题手册另外保存。
 
 ## 本地验证
 
 ```bash
-bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes \
-  --solve 'curl -s http://$HOST:$PORT/flag'
+bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-notes
 ```
 
-脚本按 `linux/amd64` 构建镜像，用 `/start.sh` 起容器，等端口真正开始监听，往 `flag.path` 写一个随机测试 Flag，再探测端口。给了 `--solve` 时会运行解题命令，输出里出现这个测试 Flag 才算通过，能发现启动时把 Flag 缓存进变量的问题。跑完删除容器和镜像，加 `--keep` 保留。
+脚本按 `linux/amd64` 构建镜像，用 `/start.sh` 起容器，等端口真正开始监听，往 `flag.path` 写一个随机测试 Flag，再探测端口。目录里有 `solve/solve.py` 时自动运行它（从环境变量 `HOST`、`PORT` 读地址），输出里出现这个测试 Flag 才算通过，能发现启动时把 Flag 缓存进变量的问题。其他语言的解题脚本用 `--solve '<命令>'` 指定。跑完删除容器和镜像，加 `--keep` 保留。
 
 ```text
 == 构建镜像 (linux/amd64)
@@ -87,7 +87,7 @@ bash ~/.agents/skills/cloversec-ctf-build-dockerizer/scripts/verify.sh ./ssti-no
    回读一致（444 root:root）
 == 探测端口 5000（本机 127.0.0.1:61197）
    HTTP 200
-== 运行解题命令
+== 运行解题命令: python3 solve/solve.py
    拿到测试 Flag
 
 == 结果: passed

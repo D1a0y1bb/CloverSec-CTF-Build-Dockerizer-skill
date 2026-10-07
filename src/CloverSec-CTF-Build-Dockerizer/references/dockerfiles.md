@@ -56,6 +56,23 @@
        pecl install /tmp/imagick.tgz
    ```
 
+从旧镜像或 rootfs 恢复题目时，先查出原来的版本再锁定：
+
+```bash
+docker run --rm --entrypoint sh <旧镜像> -c '
+  uname -m; cat /etc/os-release | head -2
+  php -v; php -r "echo phpversion(\"imagick\"), PHP_EOL;"; convert -version | head -1
+  redis-server --version; java -version 2>&1 | head -1; catalina.sh version 2>/dev/null | grep "Server number"
+  dpkg -l 2>/dev/null | grep -E "imagemagick|libmagick|redis|mysql|mariadb" '
+```
+
+只有 rootfs 时，看 `etc/os-release`、`var/lib/dpkg/status`、`usr/local/lib/php/extensions/` 和 `/opt` 下的目录名。查到的版本在 Dockerfile 里锁定，旁边注释写来源：
+
+```dockerfile
+# 版本取自原题镜像：漏洞依赖 imagick 3.7.0 + Redis 6.0.8
+RUN pecl install imagick-3.7.0
+```
+
 不要把旧版本的包装到新的基础镜像上，例如旧 `libxml2-dev` 配新基础镜像自带的 `libxml2` 会依赖冲突。基础镜像、apt 源和包版本锁到同一个时间点。
 
 ---
