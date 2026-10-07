@@ -1,4 +1,0 @@
-interface:
-  display_name: "CloverSec CTF Build Dockerizer"
-  short_description: "把 CTF 题目源码整理成能上平台的 Docker 目录并本地验证"
-  default_prompt: "用 $cloversec-ctf-build-dockerizer 把当前题目整理成平台能导入的 Docker 题目目录，并用 verify.sh 验证。"

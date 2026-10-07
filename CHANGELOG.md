@@ -4,6 +4,26 @@
 
 ## Unreleased
 
+## v6.0.0 - 2026-10-07
+
+### 变更
+
+- 改名 CloverSec CTF Pack，Skill 名 `cloversec-ctf-pack`，源码目录 `src/CloverSec-CTF-Pack/`。
+- 交付目录按 `题目类型-题目名称` 命名，题目类型取 Web、Pwn、Crypto、AI 等 20 种；材料不全时先问清类型、名称、容器题还是附件题、要不要附件和镜像 tar。
+- 新增 `README/` 手册：`README/<题目类型-题目名称>.md` 加 `assets/`，章节顺序固定，格式见 `references/manual.md`。
+- 新增纯附件题支持：不生成 Dockerfile、start.sh、challenge.yaml、flag，只要有出题源码就整理成 `src/`，选手文件放同级的 `附件/`。
+- 新增 `附件/` 和 `镜像/` 两个可选目录，默认都不生成，需要时再建。
+- `verify.sh` 每个阶段单独给结论，最后汇总一行，例如 `build: passed  startup: passed  port: passed  flag_write: passed  solve: passed`。
+- `verify.sh` 新增 `environment_failed`（退出码 4）：本机用模拟运行 amd64、解题进程崩在模拟器里时，与题目自身失败区分开。
+- `verify.sh` 支持 `verification.solve_probe.path` 指定 HTTP 探测路径，根路径返回 403/404 不再影响判断。
+- SKILL.md 新增出题授权说明，遇到安全策略提示时说明上下文即可，不改写题目描述规避提示。
+- 镜像构建要求合层、清缓存，tar 体积尽量小。
+
+### 验证
+
+- 本地测试题覆盖：多端口 + 自动 solve.py、readiness 路径、阶段回执、多服务 MariaDB + Flag 同步、缺 shebang、`COPY .` 泄露，结果和退出码符合预期。
+- shellcheck `-S warning` 通过。
+
 ## v5.1.0 - 2026-10-07
 
 ### 变更
