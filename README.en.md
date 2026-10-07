@@ -24,11 +24,14 @@
 
 ---
 
-An agent skill used by the CloverSec R&D Center to package CTF challenges. Give Claude Code or Codex the challenge source, a design note, or an old challenge directory. For container challenges it produces a buildable directory and verifies it locally; for attachment challenges it organises the player-facing files. Both get a manual.
+An agent skill for CTF challenge delivery by CloverSec @CloverSecLabs
+
+Give Claude Code or Codex the challenge source, a design note, or an old challenge directory. For container challenges it produces a buildable directory and verifies it locally; for attachment challenges it organises the player-facing files; for RDG defence challenges it produces a hardened environment with its check script. All three get a manual.
 
 - Directories are named `<type>-<name>`, where type is one of 20 categories such as Web, Pwn, Crypto or AI.
 - The source, `Dockerfile` and `start.sh` are written from the examples in the skill, with comments that point out the vulnerability and any non-obvious configuration. Comments are in Chinese.
 - `verify.sh` runs a container challenge the way the platform does: amd64 build, start with `/start.sh`, write a random test flag, probe the ports, and run `solve/solve.py` when present, which must print that flag.
+- It also checks the manual's filename and sections, whether the `docker run` line carries `/start.sh`, and whether the output directory holds stray files.
 - The manual lives in `README/`; `solve/`, `附件/` (attachments) and `镜像/` (image tarball) sit next to `src/`.
 - For challenges that must stay buildable for years, the references show how to pin image digests, apt snapshots and dependency versions.
 - Multi-service, Bundle, Scenario, RDG/AWD and Linux-QEMU challenges have their own reference file. Regular challenges never load it.
