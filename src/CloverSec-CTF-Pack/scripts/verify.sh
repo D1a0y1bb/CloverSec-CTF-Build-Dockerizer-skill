@@ -48,7 +48,14 @@ while [ $# -gt 0 ]; do
     --report) REPORT="${2:?--report 需要参数}"; shift 2;;
     -h|--help) usage;;
     -*) echo "未知参数: $1"; usage;;
-    *) [ -z "$PROJECT" ] && PROJECT="$1" || { echo "多余参数: $1"; usage; }; shift;;
+    # 第一个非选项参数是题目目录，多出来的直接报错，避免悄悄忽略拼错的路径。
+    *)
+      if [ -z "$PROJECT" ]; then
+        PROJECT="$1"
+      else
+        echo "多余参数: $1"; usage
+      fi
+      shift;;
   esac
 done
 [ -n "$PROJECT" ] || usage
@@ -75,7 +82,7 @@ hint()    { HINTS+=("$1"); }
 stage() { # 同一阶段重复设置时只保留最后一次结论
   local i
   for i in "${!STAGE[@]}"; do
-    [ "${STAGE[$i]%%:*}" = "$1" ] && { STAGE[$i]="$1: $2"; return; }
+    [ "${STAGE[$i]%%:*}" = "$1" ] && { STAGE[i]="$1: $2"; return; }
   done
   STAGE+=("$1: $2")
 }
@@ -125,7 +132,7 @@ whitelisted() {
   case "$1" in
     src|Dockerfile|start.sh|challenge.yaml|flag|README|solve|附件|镜像) return 0;;
     check|changeflag.sh|ttyd|ttyd.conf|php.ini|docker-entrypoint.sh|xinetd.conf|ctf.xinetd) return 0;;
-    last*) return 0;;   # 出题人自己的原始交付材料，保留
+    last|lasted) return 0;;   # 出题人保留原始交付材料的目录，按惯例叫 last/lasted
     *) return 1;;
   esac
 }
@@ -236,8 +243,7 @@ if [ ! -f Dockerfile ]; then
     # 附件题也要用解题脚本确认题目真的能解，否则只证明目录结构像附件题。
     if [ -f "${PROJECT}/solve/solve.py" ]; then
       echo "== 运行解题脚本"
-      ( cd "$PROJECT" && python3 solve/solve.py ) >"$SOLVELOG" 2>&1
-      if [ $? -ne 0 ]; then
+      if ! ( cd "$PROJECT" && python3 solve/solve.py ) >"$SOLVELOG" 2>&1; then
         tail -15 "$SOLVELOG" | sed 's/^/   | /'
         stage solve failed; fail "solve/solve.py 返回非 0"
       elif grep -qE '[A-Za-z0-9_]+\{[^}]{4,}\}' "$SOLVELOG"; then
@@ -466,6 +472,14 @@ done
 # 判据不是 Flag，而是"漏洞还在不在"，和普通题是两套逻辑。
 if [ "$RDG" = 1 ]; then
   echo "== 运行 RDG 判题脚本: $CHECK"
+  # check.sh 没有执行位时，平台按 ./check.sh 调用会报 Permission denied，返回码非 0 会被当成
+  # "有漏洞"——正好是 RDG 的预期结果，于是这个配置错误会被静默吞掉。先单独查出来。
+  CHECKS_FOR_EXEC=$(printf '%s' "$CHECK" | sed 's/^\.\///')
+  if [ -f "$CHECKS_FOR_EXEC" ] && [ ! -x "$CHECKS_FOR_EXEC" ]; then
+    stage check_initial failed
+    fail "check.sh 没有执行权限（${CHECKS_FOR_EXEC}）。平台按 ./check.sh 调用会报 Permission denied，加上执行位：chmod +x ${CHECKS_FOR_EXEC}"
+    finish
+  fi
   if [ -z "$FIRST_HOSTPORT" ]; then
     stage check_initial skipped
     partial "没有可用端口，跳过 RDG 判题"
@@ -480,7 +494,28 @@ if [ "$RDG" = 1 ]; then
       fail "RDG 判题脚本在初始环境就报已修复（返回 0）。选手没得打，先确认题目初始状态和 check 判定是不是反了"
     else
       stage check_initial "ok: False"
-      echo "   初始环境判定为"有漏洞"，符合 RDG 预期"
+      echo "   初始环境判定为「有漏洞」，符合 RDG 预期"
+    fi
+  fi
+
+  # 有解题脚本时顺手跑一遍：check 只证明"漏洞还在"，solve.py 才证明"这条链真的打得通"。
+  # 拿到刚写入的测试 Flag 才算通过；没解出只记提示，不当失败——RDG 的正式判据是 check。
+  if [ -n "$SOLVE" ] && [ -n "$FIRST_HOSTPORT" ]; then
+    echo "== 运行 RDG 解题脚本: $SOLVE"
+    sleep 2
+    ( cd "$PROJECT" && env HOST=127.0.0.1 PORT="$FIRST_HOSTPORT" "${SOLVE_ENV[@]+"${SOLVE_ENV[@]}"}" \
+        sh -c "$SOLVE" ) >"$SOLVELOG" 2>&1 &
+    SPID=$!; T0=$(date +%s)
+    while kill -0 "$SPID" 2>/dev/null && [ $(( $(date +%s) - T0 )) -lt "$SOLVE_TIMEOUT" ]; do sleep 1; done
+    kill "$SPID" 2>/dev/null
+    wait "$SPID" 2>/dev/null
+    if grep -qF "$TESTFLAG" "$SOLVELOG"; then
+      echo "   漏洞链打通，拿到测试 Flag"
+      stage solve passed
+    else
+      tail -10 "$SOLVELOG" | sed 's/^/   | /'
+      stage solve "no flag"
+      hint "RDG 解题脚本没有拿到测试 Flag，确认漏洞链是通的（check 只说明漏洞存在）"
     fi
   fi
   finish
