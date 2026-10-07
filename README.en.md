@@ -52,7 +52,7 @@ Name the skill in the chat, then hand over the material. Claude Code uses `/clov
 Flask SSTI, flag at /flag, port 5000.
 ```
 
-The material can be a design note, a bare source tree, or an old challenge with its own Dockerfile. If something that blocks the build is missing (port, start command, runtime version, flag path), it asks for all of it in one go instead of guessing.
+The material can be a design note, a bare source tree, or an old challenge with its own Dockerfile. If something that blocks the build is missing (port, start command, runtime version, flag path), it asks for all of it in one go using structured input (Codex's `request_user_input`, Claude Code's AskUserQuestion), with plain options and a recommended one, instead of guessing its way forward.
 
 ## Output
 
@@ -61,7 +61,7 @@ A container challenge:
 ```text
 Web-afterimage/
 ├── README/
-│   ├── Web-afterimage.md   # manual
+│   ├── Web-afterimage.md   # manual, named after the challenge directory
 │   └── assets/             # screenshots used by the manual
 ├── src/
 ├── Dockerfile
@@ -75,9 +75,33 @@ Web-afterimage/
 
 An attachment-only challenge has no image files: just `README/`, `src/`, `附件/` and `solve/`. `镜像/` is created only when an image tarball is requested.
 
+The output directory is a whitelist. A container challenge may contain only `src/`, `Dockerfile`, `start.sh`, `challenge.yaml`, `flag`, `README/`, `solve/`, plus `附件/` and `镜像/` when needed; an RDG challenge may also carry `check/`, `changeflag.sh`, `ttyd` and whatever else it actually runs with. `verify.sh`, `verify-report.json`, `*.verify.json`, `.DS_Store` and `__pycache__/` never belong there and the script reports them. Write reports to a temp directory instead:
+
+```bash
+bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes --report "$(mktemp -d)/verify.json"
+```
+
 ## Manual
 
-The manual is part of the deliverable, written to `README/<type>-<name>.md`, with screenshots in `README/assets/`. The section order is fixed: name, description, difficulty, what it tests, flag, challenge details, deployment, design, solution steps. See [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md) for the skeleton.
+The manual is the most important file in the deliverable, written to `README/<type>-<name>.md` and named exactly like the challenge directory, with screenshots in `README/assets/`. The section order is fixed: name, description, difficulty, what it tests, flag, challenge details, deployment, design, solution steps.
+
+Four sections carry the weight, with per-section examples in [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md):
+
+- **1.2 Description** sets the scene and the hook. It can be playful, but must not leak the stack, the bug class, paths or function names. This is the only text players see on the platform.
+- **1.5 Flag** lists every item: file path, permissions and owner, who reads it and when, the exact command the platform runs to overwrite it, and how the two are wired together when the program does not read `flag.path` directly.
+- **1.7 Deployment** is a fixed checklist: directory roles, build command, image tar import, the start command **with `/start.sh`**, access URLs, the flag-write command, cleanup, and what to change when ports move.
+- **1.9 Solution steps** gives copy-pasteable commands and payloads, expected output, and screenshot locations — detailed enough for someone else to reproduce.
+
+There is no "common failure modes" section.
+
+## RDG challenges
+
+For RDG the criterion is not "can the flag be read" but "is the vulnerability still there", and both the deliverable and the verification differ:
+
+- An extra `check/` directory (`check.sh`, `check.py`, `requirements.txt`) that the platform runs when a player hits "verify". Invoked as `./check.sh <IP> <PORT>`; exit 0 means fixed, non-zero means still vulnerable, and the output carries `ok: True/False` or `RESULT: PASS/FAIL`.
+- An extra ttyd service so players can edit code inside the container from a browser.
+- Some RDG challenges have no flag contract at all: the sensitive target is a fixed value in the challenge's own configuration, and check verifies whether that target is still readable.
+- `verify.sh` detects a `check/` directory and applies RDG judgement: the initial environment must report "still vulnerable" to count as correct. Reporting "already fixed" is a hard `failed` — players would have nothing to do.
 
 ## Local verification
 
@@ -86,6 +110,8 @@ bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes
 ```
 
 The script builds for `linux/amd64`, starts the container with `/start.sh`, waits until the ports are really listening, writes a random test flag to `flag.path`, then probes the ports. If `solve/solve.py` exists it runs it (target address in `HOST` and `PORT`) and only passes if the output contains that test flag, which catches services that cache the flag at startup. Use `--solve '<command>'` for solvers in other languages. The container and image are removed afterwards; pass `--keep` to leave them.
+
+It also checks three things that have nothing to do with the runtime but are the most commonly missed: whether the manual has the right filename and sections, whether the `docker run` line carries `/start.sh`, and whether the output directory holds stray files.
 
 ```text
 == 构建镜像 (linux/amd64)
@@ -103,13 +129,37 @@ The script builds for `linux/amd64`, starts the container with `/start.sh`, wait
 == 结果: passed
 ```
 
+For RDG challenges the last stage becomes a check verdict:
+
+```text
+== 阶段: handbook: passed delivery: passed build: passed startup: passed port: passed flag_write: skipped check_initial: ok: False
+== 结果: passed
+```
+
 | Result | Exit code | Meaning |
 |---|---|---|
 | `passed` | 0 | Every check passed |
-| `partial` | 3 | It runs, but some checks were skipped (e.g. no port declared); each one is listed |
-| `failed` | 1 | Build failed, container exited, port bound to 127.0.0.1 only, flag not writable, or the solve script did not get the flag |
+| `partial` | 3 | It runs, but some checks were skipped (no port declared, a missing manual section, stray files); each one is listed |
+| `failed` | 1 | Build failed, container exited, port bound to 127.0.0.1 only, flag not writable, the solve script did not get the flag, the manual has the wrong filename, or an RDG challenge is already fixed from the start |
 
 Port and flag path come from `challenge.yaml` by default. Override them with `--port` and `--flag-path`. See `verify.sh --help` for all options.
+
+## Difficulty equivalence
+
+When migrating an old challenge, missing material or a host that cannot run it is never a reason to downgrade the challenge. The `provenance` block in `challenge.yaml` records where the challenge came from and how much of it survived:
+
+```yaml
+provenance:
+  status: original_adapter        # original_adapter / independent_completion / incomplete / attachment_only
+  original_material: [源码, install.sql]
+  missing: [original database snapshot]
+  preserved: [bug=front-end SQL injection, chain=3 steps]
+  simplified: []
+  env_limited: raw rt_sigreturn cannot run under Apple ARM64 emulation
+  verify: passed
+```
+
+An `incomplete` challenge is never written up as "verified". An `independent_completion` must say so in the manual — it is a rebuild, not a restoration. A non-empty `simplified` means the challenge has drifted from its original difficulty and the challenge author needs to hear about it separately. A passing verify only proves the container lifetime is sound, not that the difficulty matches.
 
 ## Flag contract
 
@@ -128,14 +178,15 @@ Read the flag file on every request. If it is read once at startup and cached (a
 
 ```text
 src/CloverSec-CTF-Pack/
-├── SKILL.md              # entry: output layout, workflow, examples, comment rules, flag contract
-├── agents/openai.yaml    # name and default prompt shown in Codex
+├── SKILL.md              # entry: question rules, output whitelist, workflow, examples, comment rules, RDG, difficulty equivalence
+├── agents/openai.yaml    # name, default prompt and question guidance for Codex
 ├── references/
-│   ├── platform.md       # how the platform starts challenges, env-var flags, image tar formats, challenge.yaml
+│   ├── manual.md         # per-section manual guidance and examples
+│   ├── platform.md       # how the platform starts challenges, env-var flags, image tar formats, challenge.yaml and provenance
 │   ├── dockerfiles.md    # Dockerfile / start.sh per language, Pwn, version pinning
 │   └── special.md        # multi-service, Bundle, Scenario, RDG/AWD, Linux-QEMU
 └── scripts/
-    └── verify.sh         # local build and run check
+    └── verify.sh         # local build and run check, plus manual, whitelist and RDG judgements
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for release history.

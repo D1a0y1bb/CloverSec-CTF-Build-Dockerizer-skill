@@ -9,22 +9,27 @@
 #   --flag-path P     平台写入 Flag 的路径；默认读 challenge.yaml 的 flag.path，再退到 /flag
 #   --solve CMD       写入测试 Flag 后执行的解题命令；不给时题目目录有 solve/solve.py 就运行它
 #                     环境变量 HOST、PORT 指向第一个端口，PORT_<容器端口> 指向各个端口，输出里必须出现测试 Flag
+#   --check CMD       指定 RDG 判题命令；默认题目目录有 check/check.sh 就自动走 RDG 判定
+#   --rdg             题目目录不在交付目录形态时，强制按 RDG 判定
 #   --platform P      构建和运行的平台，默认 linux/amd64（与比赛平台一致）
 #   --timeout N       等待服务开始监听的秒数，默认 60
 #   --keep            结束后保留容器和镜像，便于进去排查
-#   --report PATH     把构建日志、端口结果和阶段结论写成 JSON 报告
+#   --report PATH     把构建日志、端口结果和阶段结论写成 JSON 报告。默认写到系统临时目录，
+#                     路径只要落在交付目录里就拒绝执行，报告不属于交付物。
 #
 # 退出码：0 passed / 1 failed / 2 参数错误 / 3 partial / 4 environment_failed
 #   每一阶段都单独给结论，最后汇总成一行：
-#     build: passed  startup: passed  port: passed  flag_write: passed  solve: passed
-#   failed              明确违反平台合同，或解题拿不到 Flag
-#   partial             能跑，但有检查无法完成（没声明端口、自定义 ENTRYPOINT 等）
+#     普通题  build: passed  startup: passed  port: passed  flag_write: passed  solve: passed
+#     RDG 题  build: passed  startup: passed  port: passed  flag_write: skipped  check_initial: ok: False
+#   failed              明确违反平台合同，或解题拿不到 Flag，或 RDG 初始环境就是修好的
+#   partial             能跑，但有检查无法完成（没声明端口、自定义 ENTRYPOINT 等），或交付目录有多余文件
 #   environment_failed  本机环境跑不动（amd64 模拟下被调试的二进制崩溃等），题目本身没错
 set -uo pipefail
 
-usage() { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+usage() { sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
-PROJECT=""; PORTS=(); FLAGPATH=""; SOLVE=""; PLATFORM="linux/amd64"; KEEP=0; REPORT=""
+PROJECT=""; PORTS=(); FLAGPATH=""; SOLVE=""; CHECK=""; FORCE_RDG=0
+PLATFORM="linux/amd64"; KEEP=0; REPORT=""
 # Java、php-fpm、MySQL 冷启动常见 10~40 秒，amd64 模拟运行还会更慢，60 秒留出余量。
 START_TIMEOUT=60
 # 解题脚本一般几秒结束；竞态类题目要多跑几轮，给到 120 秒。
@@ -35,6 +40,8 @@ while [ $# -gt 0 ]; do
     --port) PORTS+=("${2:?--port 需要参数}"); shift 2;;
     --flag-path) FLAGPATH="${2:?--flag-path 需要参数}"; shift 2;;
     --solve) SOLVE="${2:?--solve 需要参数}"; shift 2;;
+    --check) CHECK="${2:?--check 需要参数}"; shift 2;;
+    --rdg) FORCE_RDG=1; shift;;
     --platform) PLATFORM="${2:?--platform 需要参数}"; shift 2;;
     --timeout) START_TIMEOUT="${2:?--timeout 需要参数}"; shift 2;;
     --keep) KEEP=1; shift;;
@@ -49,6 +56,16 @@ command -v docker >/dev/null || { echo "failed: 找不到 docker"; exit 1; }
 command -v curl >/dev/null || { echo "failed: 找不到 curl"; exit 1; }
 PROJECT=$(cd "$PROJECT" 2>/dev/null && pwd) || { echo "failed: 目录不存在"; exit 2; }
 cd "$PROJECT" || exit 2
+
+# 报告是给跑验证的人看的，不是交付物。路径落在交付目录里直接拒绝，避免又把它交出去。
+if [ -n "$REPORT" ]; then
+  case "$(cd "$(dirname "$REPORT")" 2>/dev/null && pwd || echo "")" in
+    "$PROJECT"|"$PROJECT"/*)
+      echo "failed: --report 的路径在交付目录里（${REPORT}）。报告不属于交付物，写到系统临时目录，例如："
+      echo "  --report \"\$(mktemp -d)/verify.json\""
+      exit 2;;
+  esac
+fi
 
 STATUS=passed; NOTES=(); HINTS=(); STAGE=()
 fail()    { STATUS=failed; NOTES+=("$1"); }
@@ -99,15 +116,114 @@ finish() {
   esac
 }
 
-BUILDLOG=$(mktemp); SOLVELOG=$(mktemp)
+BUILDLOG=$(mktemp); SOLVELOG=$(mktemp); CHECKLOG=$(mktemp)
 trap cleanup EXIT
+
+# ---------- 交付目录白名单：用户拿到的是这个目录，多余文件就是垃圾
+# 允许的顶层条目。RDG 题额外允许 check/、ttyd、changeflag.sh、php.ini 等题目真正运行需要的文件。
+whitelisted() {
+  case "$1" in
+    src|Dockerfile|start.sh|challenge.yaml|flag|README|solve|附件|镜像) return 0;;
+    check|changeflag.sh|ttyd|ttyd.conf|php.ini|docker-entrypoint.sh|xinetd.conf|ctf.xinetd) return 0;;
+    last*) return 0;;   # 出题人自己的原始交付材料，保留
+    *) return 1;;
+  esac
+}
+
+# 手册是交付物里最重要的一份，文件名必须是 README/<题目类型-题目名称>.md。
+assert_handbook() {
+  local expected base found=()
+  base=$(basename "$PROJECT")
+  shopt -s nullglob
+  found=("${PROJECT}/README"/*.md)
+  if [ ${#found[@]} -eq 0 ]; then
+    stage handbook failed
+    fail "README/ 下没有手册。手册是交付的一部分，文件名写成 README/${base}.md"
+    return
+  fi
+  expected="${PROJECT}/README/${base}.md"
+  if [ ! -f "$expected" ]; then
+    stage handbook failed
+    fail "手册文件名不对。必须是 README/${base}.md，现在是：$(printf '%s ' "${found[@]##*/}")"
+    return
+  fi
+  # 章节骨架和必须写全的几节
+  local missing=()
+  for sec in '1.1' '1.2' '1.3' '1.4' '1.5' '1.6' '1.8' '1.9'; do
+    grep -qE "^#+[[:space:]]*${sec}[[:space:]]" "$expected" || missing+=("$sec")
+  done
+  # 有 Dockerfile 的容器题必须有部署方式这一节，命令里要带 /start.sh
+  if [ -f Dockerfile ] && ! grep -qE '^#+[[:space:]]*1\.7[[:space:]]' "$expected"; then
+    missing+=("1.7")
+  fi
+  if [ ${#missing[@]} -gt 0 ]; then
+    stage handbook failed
+    fail "手册缺章节：${missing[*]}。骨架见 references/manual.md"
+    return
+  fi
+  if grep -qE '常见失败现象|常见问题排查' "$expected"; then
+    stage handbook partial
+    partial "手册里有常见失败现象这一节，这一节不写进交付手册"
+    return
+  fi
+  # 部署命令里没带 /start.sh 是最常见的漏写，平台就是按这个启动的
+  if [ -f Dockerfile ] && ! grep -qE 'docker run[^`]*start\.sh' "$expected"; then
+    stage handbook partial
+    partial "手册 1.7 的 docker run 命令没带 /start.sh，平台按 /start.sh 启动容器，手册要和平台一致"
+    return
+  fi
+  echo "   手册 $(basename "$expected") 章节齐全"
+  stage handbook passed
+}
+
+echo "== 检查手册"
+assert_handbook
+
+echo "== 检查交付目录"
+shopt -s nullglob dotglob
+EXTRA=()
+for entry in "$PROJECT"/*; do
+  name=$(basename "$entry")
+  whitelisted "$name" || EXTRA+=("$name")
+done
+if [ ${#EXTRA[@]} -gt 0 ]; then
+  echo "   多余文件："
+  for e in "${EXTRA[@]}"; do echo "   - $e"; done
+  # 报告和验证脚本副本是习惯性残留，直接判 failed；其余堆在 partial 里提醒。
+  HARD_EXTRA=()
+  for e in "${EXTRA[@]}"; do
+    case "$e" in
+      verify.sh|*verify.json|verify-report.json|*.pyc|__pycache__|.venv) HARD_EXTRA+=("$e");;
+    esac
+  done
+  if [ ${#HARD_EXTRA[@]} -gt 0 ]; then
+    stage delivery failed
+    fail "交付目录里有不该出现的文件：${HARD_EXTRA[*]}。交付目录只留 Skill 白名单里的内容，报告写到系统临时目录"
+  else
+    stage delivery partial
+    partial "交付目录有多余文件：${EXTRA[*]}。确认它们是不是交付物，不是就删掉"
+  fi
+else
+  echo "   干净"
+  stage delivery passed
+fi
+
+# RDG 题：有 check/check.sh 或 challenge.yaml 里 check.enabled，走 check 判定而不是 Flag 判定。
+RDG=0
+[ "$FORCE_RDG" = 1 ] && RDG=1
+if [ -z "$CHECK" ] && [ -f "${PROJECT}/check/check.sh" ]; then CHECK="./check/check.sh"; fi
+if [ -n "$CHECK" ]; then RDG=1; fi
+if [ "$RDG" = 0 ] && [ -f challenge.yaml ] \
+   && grep -qE '^[[:space:]]*check:[[:space:]]*$' challenge.yaml \
+   && grep -qE 'enabled:[[:space:]]*true' challenge.yaml; then
+  [ -f "${PROJECT}/check/check.sh" ] && CHECK="./check/check.sh" && RDG=1
+fi
 
 # ---------- 构建前的静态检查：这些问题会让容器起不来，提前说清楚比翻日志快
 if [ ! -f Dockerfile ]; then
   # 附件题：没有容器，只检查交付结构和解题脚本。
   if [ -f "${PROJECT}/solve/solve.py" ] || [ -d "${PROJECT}/附件" ]; then
     echo "== 附件题（没有 Dockerfile，跳过容器验证）"
-    shopt -s nullglob dotglob
     ATT=("${PROJECT}/附件"/*)
     if [ ${#ATT[@]} -eq 0 ]; then
       partial "附件/ 是空的，确认选手该拿到哪些文件"
@@ -116,7 +232,7 @@ if [ ! -f Dockerfile ]; then
       for a in "${ATT[@]}"; do echo "   - $(basename "$a")"; done
       stage attachments passed
     fi
-    ls "${PROJECT}/README"/*.md >/dev/null 2>&1 || hint "README/ 下没有手册，手册是交付的一部分"
+    assert_handbook
     # 附件题也要用解题脚本确认题目真的能解，否则只证明目录结构像附件题。
     if [ -f "${PROJECT}/solve/solve.py" ]; then
       echo "== 运行解题脚本"
@@ -293,22 +409,28 @@ if [ ! -f flag ] && ! grep -qiE '^[[:space:]]*(COPY|ADD)[^\n]*flag([[:space:]]|$
   NO_FLAG_CONTRACT=1
 fi
 
-echo "== 写入测试 Flag 到 ${FLAGPATH}"
 TESTFLAG="flag{verify_$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')}"
-if docker exec -u 0 "$CONTAINER" sh -c 'printf "%s\n" "$1" > "$2"' sh "$TESTFLAG" "$FLAGPATH" 2>/dev/null; then
-  BACK=$(docker exec -u 0 "$CONTAINER" cat "$FLAGPATH" 2>/dev/null | tr -d '\r\n')
-  MODE=$(docker exec -u 0 "$CONTAINER" stat -c '%a %U:%G' "$FLAGPATH" 2>/dev/null)
-  if [ "$BACK" != "$TESTFLAG" ]; then
-    stage flag_write failed; fail "Flag 写入后回读不一致"
-  elif [ "$NO_FLAG_CONTRACT" = 1 ]; then
-    stage flag_write partial
-    partial "题目没有 Flag 合同：challenge.yaml 没有 flag.path，镜像里也没有占位 Flag 文件。平台能写进 ${FLAGPATH}，但程序未必读它，先补上读取逻辑"
-  else
-    echo "   回读一致（${MODE}）"; stage flag_write passed
-  fi
+if [ "$RDG" = 1 ] && [ "$NO_FLAG_CONTRACT" = 1 ]; then
+  # 有些 RDG 题的判据是题目自己配置里的固定目标，本来就没有 Flag 合同，不算缺项。
+  echo "== 跳过 Flag 写入（RDG 题没有 Flag 合同，判据由 check 脚本给出）"
+  stage flag_write skipped
 else
-  stage flag_write failed
-  fail "平台无法写入 ${FLAGPATH}（镜像里没有 sh，或目录不存在）"
+  echo "== 写入测试 Flag 到 ${FLAGPATH}"
+  if docker exec -u 0 "$CONTAINER" sh -c 'printf "%s\n" "$1" > "$2"' sh "$TESTFLAG" "$FLAGPATH" 2>/dev/null; then
+    BACK=$(docker exec -u 0 "$CONTAINER" cat "$FLAGPATH" 2>/dev/null | tr -d '\r\n')
+    MODE=$(docker exec -u 0 "$CONTAINER" stat -c '%a %U:%G' "$FLAGPATH" 2>/dev/null)
+    if [ "$BACK" != "$TESTFLAG" ]; then
+      stage flag_write failed; fail "Flag 写入后回读不一致"
+    elif [ "$NO_FLAG_CONTRACT" = 1 ]; then
+      stage flag_write partial
+      partial "题目没有 Flag 合同：challenge.yaml 没有 flag.path，镜像里也没有占位 Flag 文件。平台能写进 ${FLAGPATH}，但程序未必读它，先补上读取逻辑"
+    else
+      echo "   回读一致（${MODE}）"; stage flag_write passed
+    fi
+  else
+    stage flag_write failed
+    fail "平台无法写入 ${FLAGPATH}（镜像里没有 sh，或目录不存在）"
+  fi
 fi
 
 # ---------- 端口探测
@@ -339,6 +461,30 @@ for p in "${PORTS[@]+"${PORTS[@]}"}"; do
 done
 [ ${#PORTS[@]} -gt 0 ] || partial "没有声明端口（challenge.yaml 的 expose_ports 或 Dockerfile 的 EXPOSE），跳过端口探测"
 [ "$PORTS_OK" = 1 ] && [ ${#PORTS[@]} -gt 0 ] && stage port passed
+
+# ---------- RDG 判定：跑一遍判题脚本，初始环境必须"有漏洞"才算题目状态正确
+# 判据不是 Flag，而是"漏洞还在不在"，和普通题是两套逻辑。
+if [ "$RDG" = 1 ]; then
+  echo "== 运行 RDG 判题脚本: $CHECK"
+  if [ -z "$FIRST_HOSTPORT" ]; then
+    stage check_initial skipped
+    partial "没有可用端口，跳过 RDG 判题"
+  else
+    ( cd "$PROJECT" && env TARGET_IP=127.0.0.1 TARGET_PORT="$FIRST_HOSTPORT" \
+        "${SOLVE_ENV[@]+"${SOLVE_ENV[@]}"}" sh -c "$CHECK 127.0.0.1 $FIRST_HOSTPORT" ) >"$CHECKLOG" 2>&1
+    CHECK_SRC=$?
+    tail -40 "$CHECKLOG" | sed 's/^/   | /'
+    # 初始环境预期是"有漏洞"，也就是脚本返回非 0。返回 0 说明漏洞本来就不存在。
+    if [ "$CHECK_SRC" = 0 ]; then
+      stage check_initial "ok: True"
+      fail "RDG 判题脚本在初始环境就报已修复（返回 0）。选手没得打，先确认题目初始状态和 check 判定是不是反了"
+    else
+      stage check_initial "ok: False"
+      echo "   初始环境判定为"有漏洞"，符合 RDG 预期"
+    fi
+  fi
+  finish
+fi
 
 # ---------- 解题验证：拿到的是刚写入的测试 Flag，才说明程序按请求读取 Flag、没有缓存
 if [ -z "$SOLVE" ]; then

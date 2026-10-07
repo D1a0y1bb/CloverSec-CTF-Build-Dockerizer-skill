@@ -100,6 +100,7 @@ Java 的 `static { flag = readFile(); }` 同理。`verify.sh --solve` 用随机�
 ```yaml
 challenge:
   name: afterimage              # 题目标识，kebab-case
+  category: Web                 # 20 个题目类型之一
   stack: php                    # php / node / python / java / static / pwn
   base_image: php:8.1-fpm-alpine
   workdir: /var/www/html        # 容器内工作目录
@@ -116,6 +117,15 @@ challenge:
   flag:
     path: /flag                 # 程序实际读取的路径
     permission: "444"
+    legacy_env: FLAG            # 旧平台用环境变量传值时写上变量名
+provenance:
+  status: original_adapter
+  original_material: [源码, install.sql]
+  missing: []
+  preserved: [漏洞类型=文件上传 TOCTOU, 链路=3 步]
+  simplified: []
+  env_limited: ""
+  verify: passed
 ```
 
 不知道的字段不写，填错比不填更麻烦。verify.sh 读取 `expose_ports` 和 `flag.path`，两种写法都支持：
@@ -125,3 +135,50 @@ expose_ports: ["80", "22"]
 expose_ports:
   - "80"
 ```
+
+## provenance：题目来源与恢复状态
+
+`provenance` 是必填字段，用来把"容器能跑"和"题目是原题还是重建的"分开。只看 `passed` 会把"能跑"误读成"题目完成"。
+
+| 字段 | 说明 |
+|---|---|
+| `status` | `original_adapter`（原题材料完整，只补平台合同）/ `independent_completion`（材料缺失后独立重建）/ `incomplete`（材料缺失且没等价恢复）/ `attachment_only`（纯附件题） |
+| `original_material` | 手里有的原始材料，列文件名 |
+| `missing` | 缺的材料，列清楚 |
+| `preserved` | 保留下来的原题特征：漏洞类型、链路步数、要绕过的防护 |
+| `simplified` | 相对原题简化了什么。有值必须写清为什么无法等价恢复。没有就写 `[]` |
+| `env_limited` | 本机环境限制，例如 `Apple ARM64 模拟下无法执行原始 rt_sigreturn`。这是环境问题，不是改题的理由 |
+| `verify` | 验证结论：`passed` / `environment_failed` / `incomplete` |
+
+规则：
+
+- `status: incomplete` 的题**不许**在手册或交付说明里写成"已验证通过"。
+- `independent_completion` 必须在手册 1.8 里写明这是独立补全，不是原题还原。
+- `simplified` 有值时，这道题已经偏离原题难度，要在交付说明里单独告诉用户。
+
+## RDG 相关字段
+
+```yaml
+challenge:
+  category: RDG
+  profile: rdg
+  expose_ports: ["80", "8022"]
+  flag:
+    path: /flag
+    permission: "444"
+    legacy_env: FLAG          # 旧平台通过环境变量传 Flag 时写
+  check:
+    enabled: true
+    path: check/check.sh
+  verification:
+    solve_probe:
+      type: http
+      path: /            # 服务可用性探测路径，根路径 403/404 时指定真实入口
+      expect_status: 200
+      expect_text: "版权所有 ©2015-2024"
+```
+
+- `check.enabled: true` 时 `verify.sh` 走 RDG 判定：先跑一遍 check 确认初始环境报"有漏洞"，再验证容器生命周期。
+- **不需要动态 Flag 的 RDG 题**：敏感目标是自己配置里的固定内容时，`flag:` 块可以省掉，或在 `notes` 里注明 Flag 不是判据。check 直接验证那个固定目标还能不能被读到。
+- ttyd 端口写进 `expose_ports`，`verify.sh` 会和 Web 端口一起探测。
+- `notes` 写清 check 覆盖哪些关卡、初始环境的预期结果。
