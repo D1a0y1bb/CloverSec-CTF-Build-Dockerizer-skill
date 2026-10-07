@@ -8,20 +8,26 @@
 
 ### 变更
 
-- 改名 CloverSec CTF Pack，Skill 名 `cloversec-ctf-pack`，源码目录 `src/CloverSec-CTF-Pack/`。
-- 交付目录按 `题目类型-题目名称` 命名，题目类型取 Web、Pwn、Crypto、AI 等 20 种；材料不全时先问清类型、名称、容器题还是附件题、要不要附件和镜像 tar。
+- 改名 CloverSec CTF Pack，Skill 名 `cloversec-ctf-pack`，源码目录 `src/CloverSec-CTF-Pack/`，仓库改为 `D1a0y1bb/CloverSec-CTF-Pack`。
+- 交付目录按 `题目类型-题目名称` 命名，类型取 Web、Pwn、Crypto、AI 等 20 种；材料不全时先问清类型、名称、容器题还是附件题、要不要附件和镜像 tar。
 - 新增 `README/` 手册：`README/<题目类型-题目名称>.md` 加 `assets/`，章节顺序固定，格式见 `references/manual.md`。
-- 新增纯附件题支持：不生成 Dockerfile、start.sh、challenge.yaml、flag，只要有出题源码就整理成 `src/`，选手文件放同级的 `附件/`。
-- 新增 `附件/` 和 `镜像/` 两个可选目录，默认都不生成，需要时再建。
-- `verify.sh` 每个阶段单独给结论，最后汇总一行，例如 `build: passed  startup: passed  port: passed  flag_write: passed  solve: passed`。
-- `verify.sh` 新增 `environment_failed`（退出码 4）：本机用模拟运行 amd64、解题进程崩在模拟器里时，与题目自身失败区分开。
-- `verify.sh` 支持 `verification.solve_probe.path` 指定 HTTP 探测路径，根路径返回 403/404 不再影响判断。
-- SKILL.md 新增出题授权说明，遇到安全策略提示时说明上下文即可，不改写题目描述规避提示。
-- 镜像构建要求合层、清缓存，tar 体积尽量小。
+- 新增纯附件题支持：不生成 Dockerfile、start.sh、challenge.yaml、flag，有出题源码就整理成 `src/`，选手文件放同级的 `附件/`；`verify.sh` 会跑 `solve/solve.py` 并要求输出里出现 Flag。
+- 新增 `附件/` 和 `镜像/` 两个可选目录，默认都不生成。
+- `verify.sh` 每个阶段单独给结论并汇总成一行，例如 `build: passed  startup: passed  port: passed  flag_write: passed  solve: passed`。
+- `verify.sh` 新增 `environment_failed`（退出码 4），把本机模拟运行导致的解题崩溃和题目自身失败分开。
+- `verify.sh` 新增 `solve: missing`，没有解题脚本时明确说明只验证了容器能跑。
+- `verify.sh` 支持 `verification.solve_probe.path` 指定 HTTP 探测路径。
+- `verify.sh` 拦下所有 `COPY .`：它会把 `solve/`、`README/`、`附件/` 打进镜像并改变目录结构。
+- `verify.sh` 新增 `--report PATH` 输出 JSON 报告，`--keep` 时打印清理命令。
+- 没有 Flag 合同（`challenge.yaml` 缺 `flag:`，镜像里没有占位 Flag）时 `flag_write` 记为 `partial`，不当成适配失败。
+- `references/dockerfiles.md` 新增：旧版本运行时的归档 apt 源、migrate 时不要误删题解依赖、Pwn 免 PTY 的 Python 标准库转发、chroot 最小依赖清单、交付前文件 SHA256 校验。
+- `references/special.md` 新增：CMS 老框架缺数据库快照、AI 题本地模型与离线权重、设计不完整的题（恢复与补全区分）。
+- SKILL.md 新增出题授权说明、Pwn 偏移不要写死、Flag 同步循环、镜像体积要求。
 
 ### 验证
 
-- 本地测试题覆盖：多端口 + 自动 solve.py、readiness 路径、阶段回执、多服务 MariaDB + Flag 同步、缺 shebang、`COPY .` 泄露，结果和退出码符合预期。
+- 19 个测试题全量回归通过：容器题正常流程、中文目录名、无 solve.py、Pwn xinetd/socat、Flag 缓存、只监听回环、CRLF、启动即退出、`COPY .` 泄露（两种）、缺 shebang、自定义 ENTRYPOINT、模拟器环境失败、缺 Flag 合同、附件题三种、空附件、路径不存在。
+- 退出码与阶段结论逐一核对：passed 0、failed 1、参数错误 2、partial 3、environment_failed 4。
 - shellcheck `-S warning` 通过。
 
 ## v5.1.0 - 2026-10-07

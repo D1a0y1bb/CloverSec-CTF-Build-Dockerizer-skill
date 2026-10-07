@@ -288,6 +288,46 @@ exec socat TCP-LISTEN:10000,reuseaddr,fork EXEC:/home/ctf/pwn,su=ctf,stderr
 
 程序里要 `setvbuf(stdout, NULL, _IONBF, 0)`，否则没有 pty 时输出会被缓冲，选手看不到提示。源码不在手里时用 `stdbuf -o0 /home/ctf/pwn`。
 
+### 不用 socat：Python 标准库转发
+
+镜像里不方便装 socat（极简镜像、静态编译）时，用几十行的 Python 转发脚本，每来一个连接 fork 一个题目进程，以 ctf 用户运行：
+
+```python
+#!/usr/bin/env python3
+import os, socket
+
+PORT = 10000
+
+
+def serve(conn):
+    pid = os.fork()
+    if pid == 0:
+        for fd in (0, 1, 2):
+            os.dup2(conn.fileno(), fd)
+        if conn.fileno() > 2:
+            conn.close()
+        # 先 setgid 再 setuid，顺序反了会留下 root 的 gid。
+        os.setgid(1000)
+        os.setuid(1000)
+        os.chdir("/home/ctf")
+        os.execv("/home/ctf/pwn", ["/home/ctf/pwn"])
+    conn.close()
+    os.waitpid(pid, 0)
+
+
+srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+srv.bind(("0.0.0.0", PORT))
+srv.listen(64)
+while True:
+    conn, _ = srv.accept()
+    serve(conn)
+```
+
+- 不接 pty，理由和 socat 一样：pty 会改写 payload 里的控制字符。
+- 题目程序要自己 `setvbuf(stdout, NULL, _IONBF, 0)`，否则输出被缓冲，选手看不到提示。
+- 脚本放进 `src/`，Dockerfile 里 `COPY` 进去，start.sh 用 `exec python3 /home/ctf/forward.py`。
+
 ### xinetd
 
 旧题和很多外部题用 xinetd + chroot，迁移时保留原写法即可：
@@ -315,9 +355,62 @@ service ctf
 exec /usr/sbin/xinetd -dontfork
 ```
 
-chroot 到 `/home/ctf` 后，程序依赖的 `lib`、`lib64`、`bin/sh` 要提前拷进 `/home/ctf`。`flag.path` 写容器里的真实路径 `/home/ctf/flag`，程序里读的是 chroot 后的 `/flag`。
+chroot 的目录要自带程序运行需要的一切，缺一个文件题就起不来。最小清单：
+
+```text
+/home/ctf/
+├── pwn                                   # 选手二进制
+├── flag                                  # root:ctf 440，程序读的是 chroot 后的 /flag
+├── lib/x86_64-linux-gnu/libc.so.6        # 程序依赖的动态库，用 ldd 查
+├── lib64/ld-linux-x86-64.so.2            # 动态 loader，路径要和 ELF 里的 interpreter 一致
+└── bin/sh, bin/cat                       # 漏洞链里要用的工具，静态编译或用 ldd 补齐依赖
+```
+
+```bash
+# 用 ldd 查出程序真正需要的库，逐个拷进 chroot。
+ldd /home/ctf/pwn
+```
+
+- Pwn 题**不要**在 chroot 里放 `/proc`、`/sys`；确实需要设备节点时只补题目用到的那个。
+- chroot 后程序看到的 `flag.path` 是 `/flag`，但 `challenge.yaml` 里要写容器里的真实路径 `/home/ctf/flag`，平台按这个路径写入。
+- 迁移旧题时先 `docker run -it <镜像> sh` 进去跑一遍二进制，缺什么文件会直接报出来。
 
 ---
+
+## 旧版本运行时（镜像和源已经归档）
+
+PHP 5.6、PHP 7.1、PHP 7.2、Node 11 这类镜像还在 Docker Hub，但自带的 apt 源已经失效，构建时会 404：
+
+```dockerfile
+# 旧镜像自带的源已归档，换成 archive.debian.org 并关掉有效期检查。
+RUN sed -i -e 's|deb.debian.org|archive.debian.org|g' \
+           -e 's|security.debian.org|archive.debian.org|g' \
+           -e '/-updates/d' /etc/apt/sources.list \
+    && echo 'Acquire::Check-Valid-Until false;' > /etc/apt/apt.conf.d/99archive
+```
+
+- 卡在 `apt-get update` 404：先确认基础镜像的发行版代号，再挑对应归档周期。
+- 归档源很慢，首次构建可能十几分钟，本地调试可以先 `docker pull` 好基础镜像。
+- 长期交付的题按“镜像版本固定”锁 digest 和 snapshot 源，别依赖浮动的归档地址。
+
+## 语言依赖：不要把题解需要的包删掉
+
+`composer install --no-dev`、`npm ci --omit=dev`、maven 排除 test scope，都可能删掉原题解法依赖的包。典型情况是题目链用到 `Faker`、`PHPUnit`、`monolog` 这类“开发依赖”里的 gadget，删掉后容器能起来，但题目解不出来了。
+
+- 先看原题解题脚本用到哪些依赖，再决定要不要 `--no-dev`。
+- 项目不大的话直接全装，省去排查。
+- 装完必须跑一次 `solve/solve.py`，依赖被删会直接反映成解题失败。
+
+## 交付前校验文件一致性
+
+Pwn 题的二进制、libc、loader，发出去的和容器里跑的必须是同一份，否则偏移对不上。交付前对一遍：
+
+```bash
+sha256sum 附件/pwn 附件/libc.so.6
+docker run --rm --entrypoint sha256sum <镜像> /home/ctf/pwn /home/ctf/libc.so.6
+```
+
+两边不一致说明 Dockerfile 重新编译过，或者 COPY 的是另一份文件。
 
 ## 国内构建与 CRLF
 
