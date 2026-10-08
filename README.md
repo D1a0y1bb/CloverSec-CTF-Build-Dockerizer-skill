@@ -55,7 +55,7 @@ npx skills add D1a0y1bb/CloverSec-CTF-Pack -g -a claude-code -a codex
 Flask 写的 SSTI，flag 放 /flag，端口 5000。
 ```
 
-材料可以是题目设计、只有源码的目录，或者带旧 Dockerfile 的历史题目。端口、启动命令、运行时版本、Flag 路径这类会卡住构建的信息如果缺了，它会用结构化提问（Codex 的 `request_user_input`、Claude Code 的 AskUserQuestion）一次问完，给出直白选项和推荐项，不会自己猜着往下做。
+材料可以是题目设计、只有源码的目录，或者带旧 Dockerfile 的历史题目。它先把材料读透，把题目类型、交付形态、要不要附件和镜像 tar 这些能从目录和源码里看出来的自己定下来，只把真正推不出来的拿来问——而且问之前先说明查到了什么，再用结构化提问（Codex 的 `request_user_input`、Claude Code 的 AskUserQuestion）给出直白选项和推荐项。缺端口、启动命令、Flag 路径这类会卡住构建的信息时不会自己猜着往下做。
 
 ## 交付目录
 
