@@ -86,16 +86,29 @@ bash ~/.agents/skills/cloversec-ctf-pack/scripts/verify.sh ./ssti-notes --report
 
 ## Manual
 
-The manual is the most important file in the deliverable, written to `README/<type>-<name>.md` and named exactly like the challenge directory, with screenshots in `README/assets/`. The section order is fixed: name, description, difficulty, what it tests, flag, challenge details, deployment, design, solution steps.
+The manual is written to `README/<type>-<name>.md`, named exactly like the challenge directory, with screenshots in `README/assets/`. The section order is fixed: name, description, difficulty, what it tests, flag, challenge details, deployment, design, solution steps.
 
-Four sections carry the weight, with per-section examples in [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md):
+**The skill only writes what it can verify.** The nine sections split in two:
 
-- **1.2 Description** sets the scene and the hook. It can be playful, but must not leak the stack, the bug class, paths or function names. This is the only text players see on the platform.
-- **1.5 Flag** lists every item: file path, permissions and owner, who reads it and when, the exact command the platform runs to overwrite it, and how the two are wired together when the program does not read `flag.path` directly.
-- **1.7 Deployment** is a fixed checklist: directory roles, build command, image tar import, the start command **with `/start.sh`**, access URLs, the flag-write command, cleanup, and what to change when ports move.
-- **1.9 Solution steps** gives copy-pasteable commands and payloads, expected output, and screenshot locations — detailed enough for someone else to reproduce.
+| Section | Written by | Contents |
+|---|---|---|
+| 1.1 Name | Skill | matches the directory and `challenge.yaml` |
+| 1.3 Difficulty | Skill | usually stated in the material |
+| 1.5 Flag | Skill | path, permissions, when it is read, the platform overwrite command |
+| 1.6 Challenge details | Skill | ports, accounts, admin path, check script location |
+| 1.7 Deployment | Skill | build, start **with `/start.sh`**, flag write, cleanup |
+| 1.2 Description | Human | needs the author's voice and intent |
+| 1.4 What it tests | Human | needs real understanding of the challenge |
+| 1.8 Design | Human | needs the design rationale |
+| 1.9 Solution steps | Human | needs the chain actually walked through |
 
-There is no "common failure modes" section.
+Judgement sections are left as `<!-- TODO(人工填写) -->` and **must not be invented**. A sentence like "tests web request analysis and server-side input handling" reads like content but says nothing, and it hides the gap. When the source material already contains a manual (competition archive, author's delivery bundle), carry those sections over rather than leaving TODOs — carrying text across is not the same as making it up.
+
+Each section carries an HTML comment saying what to write and giving an example. The comments do not render, so the next person can read them in the source. Delete every comment block before delivery and confirm `grep -c 'TODO(人工填写)'` returns `0`.
+
+`verify.sh` checks the filename, the section skeleton, the fact fields and the start command. It deliberately **does not** check the content of the judgement sections — it cannot tell real content from filler, and pretending otherwise is how "sections present" gets mistaken for "manual finished". Leftover TODOs are reported honestly, naming which sections are still open.
+
+Full per-section guidance and examples: [references/manual.md](src/CloverSec-CTF-Pack/references/manual.md). There is no "common failure modes" section.
 
 ## RDG challenges
 
