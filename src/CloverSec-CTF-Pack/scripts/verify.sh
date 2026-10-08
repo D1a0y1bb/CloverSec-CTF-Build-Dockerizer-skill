@@ -137,9 +137,11 @@ whitelisted() {
   esac
 }
 
-# 手册是交付物里最重要的一份，文件名必须是 README/<题目类型-题目名称>.md。
+# 手册检查：文件名、章节骨架、事实字段、启动命令，以及 TODO 残留。
+# 判断部分（1.2/1.4/1.8/1.9）本来就要留空给人工写，不检查内容——这个脚本查不出内容真假，
+# 假装能查只会让人把"章节齐全"当成"手册写完"。
 assert_handbook() {
-  local expected base found=()
+  local expected base found=() todo
   base=$(basename "$PROJECT")
   shopt -s nullglob
   found=("${PROJECT}/README"/*.md)
@@ -154,12 +156,12 @@ assert_handbook() {
     fail "手册文件名不对。必须是 README/${base}.md，现在是：$(printf '%s ' "${found[@]##*/}")"
     return
   fi
-  # 章节骨架和必须写全的几节
+
+  # 章节骨架
   local missing=()
   for sec in '1.1' '1.2' '1.3' '1.4' '1.5' '1.6' '1.8' '1.9'; do
     grep -qE "^#+[[:space:]]*${sec}[[:space:]]" "$expected" || missing+=("$sec")
   done
-  # 有 Dockerfile 的容器题必须有部署方式这一节，命令里要带 /start.sh
   if [ -f Dockerfile ] && ! grep -qE '^#+[[:space:]]*1\.7[[:space:]]' "$expected"; then
     missing+=("1.7")
   fi
@@ -168,6 +170,19 @@ assert_handbook() {
     fail "手册缺章节：${missing[*]}。骨架见 references/manual.md"
     return
   fi
+
+  # 事实字段：这几项 Skill 有能力查证，缺了就是没写全
+  local fact_missing=()
+  grep -qE '^#+[[:space:]]*1\.5' "$expected" && ! grep -qE '平台覆盖|flag ?文件位置|Flag ?文件' "$expected" \
+    && fact_missing+=("1.5 旗帜信息（平台覆盖方式 / flag 文件位置）")
+  grep -qE '^#+[[:space:]]*1\.6' "$expected" && ! grep -qE '端口|账号|地址' "$expected" \
+    && fact_missing+=("1.6 题目情况（端口 / 账号 / 地址）")
+  if [ ${#fact_missing[@]} -gt 0 ]; then
+    stage handbook partial
+    partial "手册事实字段不全：${fact_missing[*]}。这几项能从源码和配置读出来，不该缺"
+    return
+  fi
+
   if grep -qE '常见失败现象|常见问题排查' "$expected"; then
     stage handbook partial
     partial "手册里有常见失败现象这一节，这一节不写进交付手册"
@@ -179,12 +194,44 @@ assert_handbook() {
     partial "手册 1.7 的 docker run 命令没带 /start.sh，平台按 /start.sh 启动容器，手册要和平台一致"
     return
   fi
-  echo "   手册 $(basename "$expected") 章节齐全"
+
+  # TODO 残留：判断部分本来就该留空给人工写，所以不算失败，如实报出来让人知道还缺什么。
+  todo=$(grep -c 'TODO(人工填写)' "$expected" 2>/dev/null || echo 0)
+  [ -z "$todo" ] && todo=0
+  if [ "$todo" -gt 0 ]; then
+    stage handbook "todo: $todo"
+    echo "   手册结构齐全，判断部分有 ${todo} 处待人工填写"
+    hint "手册 $todo 处 TODO(人工填写) 还没填：1.2 题目描述、1.4 考察信息、1.8 题目设计、1.9 解题步骤属于判断部分，由人工填写。这不是验证失败，交付前如实告知用户哪几节还空着。"
+    return
+  fi
+  echo "   手册 $(basename "$expected") 结构齐全，无待填项"
   stage handbook passed
 }
 
+# provenance 是必填的，写成 pending 或者 verify 空着等于把"没证据"伪装成"待整理"。
+# 老题没有这个字段时不报——那是历史包袱，不是这次没做；有新题忘了写才值得说。
+assert_provenance() {
+  [ -f challenge.yaml ] || return 0
+  if grep -qE '^provenance:' challenge.yaml; then
+    if grep -qE '^[[:space:]]+status:[[:space:]]*pending[[:space:]]*$' challenge.yaml; then
+      stage provenance loaded
+      fail "provenance.status 是 pending。它只能取 original_adapter / independent_completion / incomplete / attachment_only，没定下来就先别交付"
+      return
+    fi
+    if grep -qE '^[[:space:]]+verify:[[:space:]]*(""|'"''"'|[[:space:]]*)$' challenge.yaml; then
+      stage provenance loaded
+      fail "provenance.verify 是空的。填 passed / environment_failed / incomplete，空着等于没给结论"
+      return
+    fi
+    stage provenance passed
+  fi
+}
+
+
 echo "== 检查手册"
 assert_handbook
+echo "== 检查 provenance"
+assert_provenance
 
 echo "== 检查交付目录"
 shopt -s nullglob dotglob
@@ -240,6 +287,7 @@ if [ ! -f Dockerfile ]; then
       stage attachments passed
     fi
     assert_handbook
+    assert_provenance
     # 附件题也要用解题脚本确认题目真的能解，否则只证明目录结构像附件题。
     if [ -f "${PROJECT}/solve/solve.py" ]; then
       echo "== 运行解题脚本"
