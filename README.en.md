@@ -55,7 +55,7 @@ Name the skill in the chat, then hand over the material. Claude Code uses `/clov
 Flask SSTI, flag at /flag, port 5000.
 ```
 
-The material can be a design note, a bare source tree, or an old challenge with its own Dockerfile. If something that blocks the build is missing (port, start command, runtime version, flag path), it asks for all of it in one go using structured input (Codex's `request_user_input`, Claude Code's AskUserQuestion), with plain options and a recommended one, instead of guessing its way forward.
+The material can be a design note, a bare source tree, or an old challenge with its own Dockerfile. It reads the material first and settles what the directory and source already show — challenge type, delivery shape, whether attachments or an image tarball are needed. Only what genuinely cannot be inferred gets asked, and the question starts by stating what it found, using structured input (Codex's `request_user_input`, Claude Code's AskUserQuestion) with plain options and a recommended one. When a port, start command or flag path is missing and blocks the build, it does not guess its way forward.
 
 ## Output
 
